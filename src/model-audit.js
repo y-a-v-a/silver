@@ -31,7 +31,7 @@ export async function auditModels(config, roleList, lookup) {
   ];
   for (const role of roleList) {
     // A role file matters here only when it sets its own model or needs vision.
-    const configured = role.group === 'superstar' ? config.models.roles.superstar : config.models.roles[role.id];
+    const configured = role.group === 'superstar' ? config.models.roles.superstar : config.models.roles[role.modelRole ?? role.id];
     const model = role.model ?? configured ?? (role.id === 'studio-assistant' ? config.models.studio[0] : undefined);
     if (!model) continue;
     if (role.model || role.vision) uses.push({ use: `file ${role.file}`, model, needsVision: role.vision });

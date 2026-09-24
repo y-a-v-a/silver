@@ -89,6 +89,7 @@ export const COMMANDS = [
     phase: 2,
     options: [
       ['--why <note>', 'your reason: why it is a ready-made'],
+      ['--no-annotate', 'skip the Scout\'s notes (why, image, sensitive flag)'],
       ['--now', 'run a mini-shift for this subject immediately (needs phase 3; queues for now)'],
       ['--list', 'list commissions still waiting for a series'],
       ['--json', 'print the posted event as JSON'],

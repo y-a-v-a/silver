@@ -12,6 +12,7 @@ import { EVENT_TYPES } from './events.js';
  * @property {'role'|'superstar'} group
  * @property {string} actor        id on the floor: "warhol", "superstar.brigid"
  * @property {string} [model]      overrides the config default
+ * @property {string} [modelRole]  use the config model of this role instead of its own id
  * @property {number} temperature
  * @property {number} maxTokens
  * @property {'json'|'text'} output
@@ -25,7 +26,7 @@ import { EVENT_TYPES } from './events.js';
  */
 
 const REQUIRED = ['id', 'name', 'temperature', 'output', 'reads', 'emits'];
-const OPTIONAL = ['model', 'max_tokens', 'vision', 'reasoning'];
+const OPTIONAL = ['model', 'model_role', 'max_tokens', 'vision', 'reasoning'];
 export const REASONING = Object.freeze(['off', 'low', 'medium', 'high']);
 const SLUG = /^~?[a-z0-9][\w.-]*\/[\w.:-]+$/i;
 const PLACEHOLDER = /\{\{\s*([a-z_][a-z0-9_]*)\s*\}\}/gi;
@@ -100,6 +101,8 @@ export function parseRole(text, { file, group }) {
     else for (const t of fm[key]) if (!EVENT_TYPES.includes(t)) err(`${key} has unknown event type "${t}"`);
   }
   if (fm.model !== undefined && !SLUG.test(fm.model)) err(`model "${fm.model}" is not an OpenRouter slug`);
+  if (fm.model_role !== undefined && !(typeof fm.model_role === 'string' && /^[a-z0-9-]+$/.test(fm.model_role))) err('model_role must be a role id like "scout"');
+  if (fm.model !== undefined && fm.model_role !== undefined) err('set either model or model_role, not both');
   if (fm.max_tokens !== undefined && !(Number.isInteger(fm.max_tokens) && fm.max_tokens > 0)) err('max_tokens must be a positive integer');
   if (fm.vision !== undefined && typeof fm.vision !== 'boolean') err('vision must be true or false');
   if (fm.reasoning !== undefined && !REASONING.includes(fm.reasoning)) err(`reasoning must be one of ${REASONING.join(', ')}`);
@@ -116,6 +119,7 @@ export function parseRole(text, { file, group }) {
       group,
       actor: group === 'superstar' ? `superstar.${fm.id}` : fm.id,
       model: fm.model,
+      modelRole: fm.model_role,
       temperature: fm.temperature,
       maxTokens: fm.max_tokens ?? 2000,
       output: fm.output,
@@ -170,8 +174,9 @@ export async function loadRoles({ dir, models }) {
     if (role.model) return role.model;
     if (role.group === 'superstar') return models.roles.superstar;
     if (role.id === 'studio-assistant') return models.studio[0];
-    const model = models.roles[role.id];
-    if (!model) throw new RoleError([`${role.file}: no model in frontmatter and no models.roles["${role.id}"] in config`]);
+    const key = role.modelRole ?? role.id;
+    const model = models.roles[key];
+    if (!model) throw new RoleError([`${role.file}: no model in frontmatter and no models.roles["${key}"] in config`]);
     return model;
   }
 

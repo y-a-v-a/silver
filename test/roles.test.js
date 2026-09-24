@@ -96,6 +96,14 @@ test('loadRoles aggregates errors across files and catches duplicate ids', async
   });
 });
 
+test('model_role borrows another role\'s config model; model and model_role are exclusive', async () => {
+  const roles = await loadRoles({ dir: await rolesDir({ 'scout-annotate.md': roleFile(valid('scout-annotate', { model_role: 'scout' })) }), models: MODELS });
+  assert.equal(roles.modelFor(roles.get('scout-annotate')), 'x/scout');
+  const { errors } = parseRole(roleFile(valid('x', { model: 'a/b', model_role: 'scout' })), { file: 'x.md', group: 'role' });
+  assert.ok(errors.some((e) => /either model or model_role/.test(e)));
+  assert.ok(parseRole(roleFile(valid('x', { model_role: 'Not ok' })), { file: 'x.md', group: 'role' }).errors.some((e) => /model_role must be/.test(e)));
+});
+
 test('get throws for unknown roles; modelFor throws when no model can be resolved', async () => {
   const roles = await loadRoles({ dir: await rolesDir({ 'printer.md': roleFile(valid('printer')) }), models: MODELS });
   assert.throws(() => roles.get('andy'), /no role "andy" \(known: printer\)/);

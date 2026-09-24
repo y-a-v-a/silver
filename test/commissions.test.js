@@ -8,8 +8,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createFloor } from '../src/floor.js';
-import { postCommission, pendingCommissions, isUrl, CommissionError, MAX_COMMISSION_CHARS } from '../src/agents/commissions.js';
-import { routeFetch } from './helpers.js';
+import { postCommission, pendingCommissions, isUrl, CommissionError, MAX_COMMISSION_CHARS, annotateCommission } from '../src/agents/commissions.js';
+import { readFile } from 'node:fs/promises';
+import { routeFetch, tmpFactory, completion } from './helpers.js';
 
 const exec = promisify(execFile);
 const CLI = fileURLToPath(new URL('../src/cli.js', import.meta.url));
@@ -104,7 +105,8 @@ after(() => new Promise((r) => server.close(r)));
 
 async function silver(root, args) {
   try {
-    const r = await exec(process.execPath, [CLI, ...args], { env: { ...process.env, SILVER_ROOT: root } });
+    // No API key: annotation fails fast and offline. Never inherit the real key in tests.
+    const r = await exec(process.execPath, [CLI, ...args], { env: { ...process.env, SILVER_ROOT: root, OPENROUTER_API_KEY: '' } });
     return { code: 0, ...r };
   } catch (err) {
     return { code: err.code, stdout: err.stdout, stderr: err.stderr };
@@ -117,6 +119,7 @@ test('silver commission posts text and URLs, lists pending ones, and explains --
   assert.equal(r.code, 0, r.stderr);
   assert.match(r.stdout, /^commissioned: Twelve identical parking tickets\n {2}subject [0-9A-Z]{26}/);
   assert.match(r.stderr, /queued: it gets a series in the next shift/);
+  assert.match(r.stderr, /could not annotate it \(LlmError: OPENROUTER_API_KEY is not set/);
 
   r = await silver(root, ['commission', pageUrl, '--now']);
   assert.equal(r.code, 0, r.stderr);
@@ -129,7 +132,73 @@ test('silver commission posts text and URLs, lists pending ones, and explains --
   r = await silver(root, ['commission', '--list']);
   assert.equal(r.stdout.trim().split('\n').length, 3);
 
+  r = await silver(root, ['commission', 'A pallet of identical mops', '--no-annotate']);
+  assert.equal(r.code, 0, r.stderr);
+  assert.doesNotMatch(r.stderr, /could not annotate/);
+
   r = await silver(root, ['commission']);
   assert.equal(r.code, 1);
   assert.match(r.stderr, /^silver: give the commission as text or a URL/);
+});
+
+// ---------- the Scout's annotation ----------
+
+const ANNOTATE_ROLE = await readFile(new URL('../roles/scout-annotate.md', import.meta.url), 'utf8');
+
+test('the Scout annotates a commission without touching the human why', async () => {
+  const reply = JSON.stringify({ why: 'A soap pad box everyone has seen.', image: 'A stack of cartons, printed flat.', sensitive: { flag: false } });
+  const f = await tmpFactory({ roles: { 'scout-annotate.md': ANNOTATE_ROLE }, replies: [completion(reply)] });
+  const fetch = routeFetch({ 'https://example.com/brillo': htmlRoute });
+  const { event, annotation } = await postCommission({ floor: f.floor, fetch, llm: f.llm }, 'https://example.com/brillo', { why: 'Mine.' });
+
+  assert.equal(annotation.ok, true);
+  const p = event.payload;
+  assert.equal(p.why, 'Mine.');
+  assert.equal(p.scoutWhy, 'A soap pad box everyone has seen.');
+  assert.equal(p.image, 'A stack of cartons, printed flat.');
+  assert.deepEqual(p.sensitive, { flag: false, reason: null });
+  assert.equal(p.annotation.callId, annotation.callId);
+
+  const req = f.fetch.requests[0].body;
+  assert.equal(req.model, 'test/text'); // model_role: scout
+  const system = req.messages[0].content;
+  assert.match(system, /Title: Brillo Box, 1964/);
+  assert.match(system, /The human's own note: Mine\./);
+  assert.match(system, /A soap pad carton\.\n\nStacks of them\./);
+  assert.doesNotMatch(system, /\{\{/);
+});
+
+test('a text commission gives the Scout its text; a sensitive flag is kept', async () => {
+  const reply = JSON.stringify({ why: 'x', image: 'y', sensitive: { flag: true, reason: 'a death' } });
+  const f = await tmpFactory({ roles: { 'scout-annotate.md': ANNOTATE_ROLE }, replies: [completion(reply)] });
+  const { event } = await postCommission({ floor: f.floor, llm: f.llm }, 'The funeral of a famous singer, on every channel');
+  assert.deepEqual(event.payload.sensitive, { flag: true, reason: 'a death' });
+  assert.equal(event.payload.why, null);
+  const system = f.fetch.requests[0].body.messages[0].content;
+  assert.match(system, /URL: \(none: a text commission\)/);
+  assert.match(system, /What the page or text says:\nThe funeral of a famous singer, on every channel/);
+});
+
+test('a failed annotation never blocks the commission', async () => {
+  const f = await tmpFactory({ roles: { 'scout-annotate.md': ANNOTATE_ROLE }, replies: [completion('not json'), completion('still not')] });
+  const { event, annotation } = await postCommission({ floor: f.floor, llm: f.llm }, 'Twelve identical parking tickets');
+  assert.equal(annotation.ok, false);
+  assert.match(annotation.error, /LlmOutputError/);
+  assert.equal(event.payload.scoutWhy, null);
+  assert.match(event.payload.annotation.error, /LlmOutputError/);
+  assert.equal((await f.floor.read({ type: 'llm.failed' })).length, 1);
+  assert.equal((await f.floor.read({ type: 'subject.posted' })).length, 1);
+});
+
+test('annotate: false, or no llm, means no Scout call', async () => {
+  const f = await tmpFactory({ roles: { 'scout-annotate.md': ANNOTATE_ROLE }, replies: [] });
+  const { annotation } = await postCommission({ floor: f.floor, llm: f.llm }, 'Twelve identical parking tickets', { annotate: false });
+  assert.equal(annotation, null);
+  assert.equal((await postCommission({ floor: f.floor }, 'Another plain commission')).annotation, null);
+  assert.equal(f.fetch.requests.length, 0);
+});
+
+test('annotateCommission reports errors instead of throwing', async () => {
+  const res = await annotateCommission({ call: async () => { throw new Error('boom'); } }, { title: 't', url: null, why: null, snapshot: { snippet: 's', page: null } });
+  assert.deepEqual(res, { ok: false, error: 'Error: boom' });
 });
