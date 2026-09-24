@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { tmpFactory, completion, routeFetch } from './helpers.js';
-import { runScouts, validatePicks, formatCandidates, normalizeSensitive } from '../src/agents/scouts.js';
+import { runScouts, validatePicks, formatCandidates, normalizeSensitive, withinWindow } from '../src/agents/scouts.js';
 import { extractPage, snapshotPage } from '../src/lib/snapshot.js';
 import { trendsUrl } from '../src/sources/google-trends.js';
 
@@ -90,7 +90,7 @@ async function scoutSetup(replies) {
   const config = {
     ...f.config,
     shift: { subjectsPerShift: 2 },
-    sources: { rss: ['https://www.example.com/rss'], trending: { googleTrendsGeo: 'US', hackernews: false, reddit: true }, itemsPerSource: 20 },
+    sources: { rss: ['https://www.example.com/rss'], trending: { googleTrendsGeo: 'US', hackernews: false, reddit: true }, itemsPerSource: 20, repeatAfterDays: 7 },
   };
   const fetch = routeFetch({
     [trendsUrl('US')]: await fixture('trends.xml'),
@@ -185,4 +185,23 @@ test('normalizeSensitive: explicit false is clean, anything else ambiguous is fl
   assert.deepEqual(normalizeSensitive({ flag: true, reason: ' war ' }), { flag: true, reason: 'war' });
   assert.deepEqual(normalizeSensitive({ reason: 'grief' }), { flag: true, reason: 'grief' });
   assert.deepEqual(normalizeSensitive('violence'), { flag: true, reason: 'violence' });
+});
+
+test('withinWindow keeps only events from the last N days', () => {
+  const now = new Date('2026-09-24T12:00:00Z');
+  const ev = (ts) => ({ ts });
+  const kept = withinWindow([ev('2026-09-17T11:59:59Z'), ev('2026-09-17T12:00:00Z'), ev('2026-09-24T08:00:00Z')], 7, now);
+  assert.deepEqual(kept.map((e) => e.ts), ['2026-09-17T12:00:00Z', '2026-09-24T08:00:00Z']);
+});
+
+test('runScouts: a subject may return once it is older than repeatAfterDays', async () => {
+  const f = await scoutSetup([completion(JSON.stringify({ picks: [{ n: 1, why: 'again' }] }))]);
+  // campbell soup's news link, posted 8 days ago: outside the 7-day window.
+  const old = { type: 'subject.posted', actor: 'scout', payload: { origin: 'scouted', title: 'campbell soup', url: 'https://news.example.com/soup-can' } };
+  await f.floor.append(old);
+  const later = new Date(Date.now() + 8 * 24 * 60 * 60 * 1000);
+  const result = await runScouts({ config: f.config, floor: f.floor, llm: f.llm, fetch: f.sourcesFetch }, { snapshot: false, now: later });
+  assert.equal(result.duplicates, 0);
+  assert.equal(result.shown, 6);
+  assert.match(f.fetch.requests[0].body.messages[0].content, /\(none yet\)/);
 });

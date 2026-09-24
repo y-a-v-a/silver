@@ -141,6 +141,8 @@ test('shift, sources, review, deploy and path errors', () => {
   rejects((c) => c.sources.rss.push('ftp://example.com/feed'), /sources\.rss\[\d+\] is not an http/);
   rejects((c) => (c.sources.trending.googleTrendsGeo = 'usa'), /two-letter/);
   rejects((c) => (c.sources.trending.reddit = 'yes'), /trending\.reddit must be a boolean/);
+  rejects((c) => (c.sources.repeatAfterDays = 0), /repeatAfterDays/);
+  rejects((c) => delete c.sources.repeatAfterDays, /repeatAfterDays/);
   rejects((c) => (c.review.port = 70000), /review\.port/);
   rejects((c) => (c.deploy.provider = 'netlify'), /deploy\.provider/);
   rejects((c) => (c.paths.floor = '/var/floor'), /paths\.floor must be relative/);

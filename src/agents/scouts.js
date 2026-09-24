@@ -10,6 +10,13 @@ import { shiftOf } from '../floor.js';
 export const MAX_CANDIDATES = 160;
 /** How many recent subject titles the Scout is reminded of. */
 export const RECENT_SUBJECTS = 40;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Subjects posted within the last `days` days of `now`: the Scout's memory for repeats. */
+export function withinWindow(events, days, now = new Date()) {
+  const since = now.getTime() - days * DAY_MS;
+  return events.filter((e) => Date.parse(e.ts) >= since);
+}
 
 /** The numbered candidate list shown to the Scout (1-based). */
 export function formatCandidates(candidates) {
@@ -85,10 +92,12 @@ export function validatePicks(json, candidateCount, count) {
  * @param {number} [opts.count]                  subjects to post (default shift.subjectsPerShift)
  * @param {string[]} [opts.only]                 run only these sources
  * @param {boolean} [opts.snapshot]              fetch page snapshots (default true)
+ * @param {Date} [opts.now]                      for the repeat window (default: now)
  */
-export async function runScouts({ config, floor, llm, fetch = globalThis.fetch }, { count = config.shift.subjectsPerShift, only, snapshot = true } = {}) {
+export async function runScouts({ config, floor, llm, fetch = globalThis.fetch }, { count = config.shift.subjectsPerShift, only, snapshot = true, now = new Date() } = {}) {
   const { candidates, report } = await gatherCandidates(config, { fetch, only });
-  const history = await floor.read({ shift: 'all', type: 'subject.posted' });
+  // Only subjects inside the repeat window count: older ones may come back.
+  const history = withinWindow(await floor.read({ shift: 'all', type: 'subject.posted' }), config.sources.repeatAfterDays, now);
   const { fresh, duplicates } = dedupe(candidates, subjectKeys(history));
   const shown = fresh.slice(0, MAX_CANDIDATES);
   const result = { report, candidates: candidates.length, duplicates: duplicates.length, shown: shown.length, posted: [], problems: [], note: null, callId: null };

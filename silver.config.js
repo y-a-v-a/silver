@@ -77,6 +77,9 @@ export default {
       reddit: true,
     },
     itemsPerSource: 20,
+    // A scouted subject may come back after this many days (decision 2026-09-24).
+    // Commissions may always repeat.
+    repeatAfterDays: 7,
   },
 
   review: {

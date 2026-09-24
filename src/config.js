@@ -9,7 +9,7 @@ import { pathToFileURL, fileURLToPath } from 'node:url';
  * @property {{variants: number, modelsPerSeries: number, temperatures: number[], techniquesPerSeries: number, concurrency: number}} series
  * @property {Record<string, string>} techniques
  * @property {{at: string, subjectsPerShift: number, seriesPerShift: number, maxArchiveSubjectsPerShift: number}} shift
- * @property {{rss: string[], trending: {googleTrendsGeo: string, hackernews: boolean, reddit: boolean}, itemsPerSource: number}} sources
+ * @property {{rss: string[], trending: {googleTrendsGeo: string, hackernews: boolean, reddit: boolean}, itemsPerSource: number, repeatAfterDays: number}} sources
  * @property {{port: number, tasteEntriesInPrompt: number}} review
  * @property {{provider: 'vercel'}} deploy
  * @property {{roles: string, floor: string, archive: string, canon: string, site: string, taste: string}} paths
@@ -118,6 +118,7 @@ export function validateConfig(c) {
     for (const k of ['hackernews', 'reddit']) if (typeof sources.trending[k] !== 'boolean') err(`sources.trending.${k} must be a boolean`);
   }
   if (!isInt(sources.itemsPerSource, 1, 500)) err('sources.itemsPerSource must be an integer between 1 and 500');
+  if (!isInt(sources.repeatAfterDays, 1, 3650)) err('sources.repeatAfterDays must be an integer between 1 and 3650');
 
   // review
   if (!isInt(review.port, 1, 65535)) err('review.port must be a valid TCP port');
