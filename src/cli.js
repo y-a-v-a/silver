@@ -18,6 +18,7 @@ const EXPECTED_ERRORS = new Set([
   'CommissionError',
   'SeriesError',
   'ExtractError',
+  'ReleaseError',
 ]);
 
 const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));

@@ -254,6 +254,7 @@ Also added along the way:
 ## Phase 3: Technician tools and Studio assistants
 
 - [x] Write `roles/technician.md` (done in Phase 1). It is used in v1 only for its voice: when a template changes, the human runs `silver release <tool>` and the Technician writes the release note as a `tool.released` event.
+- [x] `silver release <tool>` (`agents/technician.js`): tools are `p5-template`, `renderer` and `contact-sheet`. The version is the file's content hash, and releasing the same version twice needs `--force`. Changes come from `--changes` or the file's git log.
 - [x] `tools/p5-template.html` (in `src/tools/`, built by `src/tools/template.js`): a single file that loads p5 from a pinned CDN version (**p5 1.11.13**, see the open points) with an injected `// SKETCH` block
   - [x] Seeds from `?seed=` (`randomSeed` + `noiseSeed`), so screenshots are reproducible while a normal load still drifts. `Math.random` is seeded too (mulberry32).
   - [x] Fixed canvas size (e.g. 1080×1080), with a `window.__silverReady` flag set after N frames (30), or right after `setup()` for sketches without `draw()`. `?freeze=1` stops the loop at that frame.

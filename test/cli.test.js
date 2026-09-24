@@ -52,9 +52,9 @@ test('silver --version prints the package version', async () => {
 });
 
 test('an unbuilt command names its phase and exits with the not-implemented code', async () => {
-  const { code, stderr } = await silver('release', 'p5-template');
+  const { code, stderr } = await silver('review');
   assert.equal(code, NOT_IMPLEMENTED_EXIT);
-  assert.match(stderr, /not built yet \(ACTIONS\.md phase 3\)/);
+  assert.match(stderr, /not built yet \(ACTIONS\.md phase 4\)/);
 });
 
 test('an unknown command fails with help', async () => {

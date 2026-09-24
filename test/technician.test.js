@@ -1,0 +1,56 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile, mkdir, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { releaseTool, gitChanges, toolVersion, TOOLS, ReleaseError } from '../src/agents/technician.js';
+import { tmpFactory, completion } from './helpers.js';
+
+const TECH_ROLE = await readFile(new URL('../roles/technician.md', import.meta.url), 'utf8');
+
+async function setup(replies) {
+  const f = await tmpFactory({ roles: { 'technician.md': TECH_ROLE }, replies });
+  await mkdir(join(f.root, 'src/tools'), { recursive: true });
+  await writeFile(join(f.root, TOOLS['p5-template']), '<html>v1</html>');
+  return f;
+}
+
+test('toolVersion is a short content hash', async () => {
+  const f = await setup([]);
+  const v = await toolVersion(join(f.root, TOOLS['p5-template']));
+  assert.match(v, /^[0-9a-f]{10}$/);
+});
+
+test('gitChanges returns commit subjects, or empty when git fails', async () => {
+  const run = async (cmd, args) => ({ stdout: `abc1234 Seed Math.random too\n${args.join(' ')}\n` });
+  assert.match(await gitChanges('/x', 'src/tools/p5-template.html', { run }), /^abc1234 Seed Math\.random too\nlog -5 --format=%h %s -- src\/tools\/p5-template\.html$/);
+  assert.equal(await gitChanges('/x', 'f', { run: async () => { throw new Error('not a repo'); } }), '');
+});
+
+test('releaseTool posts the Technician note as tool.released, and refuses a repeat', async () => {
+  const f = await setup([completion('Template now seeds Math.random. Use random() anyway.'), completion('Second note.')]);
+  const run = async () => ({ stdout: 'abc1234 Seed Math.random too\n' });
+  const deps = { config: f.config, floor: f.floor, llm: f.llm, run };
+
+  const first = await releaseTool(deps, 'p5-template');
+  assert.equal(first.type, 'tool.released');
+  assert.equal(first.actor, 'technician');
+  assert.equal(first.payload.previous, null);
+  assert.equal(first.payload.note, 'Template now seeds Math.random. Use random() anyway.');
+  assert.equal(first.payload.changes, 'abc1234 Seed Math.random too');
+  const system = f.fetch.requests[0].body.messages[0].content;
+  assert.match(system, /Tool: p5-template \(src\/tools\/p5-template\.html\), version [0-9a-f]{10}, first release/);
+  assert.match(system, /What changed:\nabc1234 Seed Math\.random too/);
+
+  await assert.rejects(releaseTool(deps, 'p5-template'), (e) => e instanceof ReleaseError && /already released/.test(e.message));
+
+  await writeFile(join(f.root, TOOLS['p5-template']), '<html>v2</html>');
+  const second = await releaseTool(deps, 'p5-template', { changes: 'Bigger canvas.' });
+  assert.equal(second.payload.previous, first.payload.version);
+  assert.equal(second.ref, first.id);
+  assert.equal(second.payload.changes, 'Bigger canvas.');
+});
+
+test('releaseTool rejects unknown tools', async () => {
+  const f = await setup([]);
+  await assert.rejects(releaseTool({ config: f.config, floor: f.floor, llm: f.llm }, 'hammer'), /unknown tool "hammer"/);
+});

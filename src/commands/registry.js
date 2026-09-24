@@ -122,7 +122,18 @@ export const COMMANDS = [
     ],
     load: () => import('./series.js'),
   },
-  { name: 'release', args: '<tool>', description: 'announce a changed Technician tool on the floor', phase: 3 },
+  {
+    name: 'release',
+    args: '[tool]',
+    description: 'the Technician announces a changed tool on the floor (p5-template, renderer, contact-sheet)',
+    phase: 3,
+    options: [
+      ['--changes <text>', 'what changed (default: the file\'s recent git log)'],
+      ['--force', 'announce even if this version was already released'],
+      ['--list', 'list the tools'],
+    ],
+    load: () => import('./release.js'),
+  },
   { name: 'review', description: 'open the contact sheet to approve or veto Warhol\'s picks', phase: 4 },
   { name: 'publish', description: 'rebuild the gallery site and redeploy it to Vercel', phase: 5 },
   {
