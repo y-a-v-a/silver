@@ -263,10 +263,12 @@ Also added along the way:
   - [x] Takes a screenshot at seed 1 (and optionally seeds 2 and 3, for a small grid)
   - [x] Blank-canvas check: near-uniform pixels count as a failure (the dominant colour covers ≥ 99.5% of a 96×96 sample)
   - [x] Emits `variant.failed` on error or blank output, otherwise returns the PNG path. The renderer returns `{ok, reason, shots, errors, blocked}`, and the assistants agent emits the event.
-- [ ] Write `roles/studio-assistant.md` (Malanga/Smith): turn a subject into a p5 sketch in a given **technique**; serial repetition, silkscreen logic (flat colour fields, registration offset, grids of repeats, photo-to-halftone); output only the sketch body.
+- [x] Write `roles/studio-assistant.md` (Malanga/Smith): turn a subject into a p5 sketch in a given **technique**; serial repetition, silkscreen logic (flat colour fields, registration offset, grids of repeats, photo-to-halftone); output only the sketch body. No external assets (the renderer blocks the network, and published works shouldn't depend on outside links), `random()`/`noise()` for all variation, complete by frame 30, real people shown through type, silhouettes or objects.
 - [x] A technique menu in config, e.g. `grid-repeat`, `misregistered-silkscreen`, `halftone`, `camouflage`, `death-and-disaster-tint`, `screen-test-portrait`. Each is one line of guidance injected into the prompt. (Done in Phase 0: the top-level `techniques` map in `silver.config.js`.)
-- [ ] `agents/assistants.js`: for each subject selected in this shift → `series.started` → run the 12-cell matrix (models × temperatures × techniques) in parallel, with a concurrency limit → write to `archive/variants/<series>/<variant>.html` → render → `variant.produced` / `variant.failed` → `series.completed` with a generated contact sheet
-- [ ] **Keep the drift:** assistants do not get to see each other's variants within a series. Each one gets the subject plus the recent floor chatter only.
+- [x] `agents/assistants.js`: for each subject selected in this shift → `series.started` → run the 12-cell matrix (models × temperatures × techniques) in parallel, with a concurrency limit → write to `archive/variants/<series>/<variant>.html` → render → `variant.produced` / `variant.failed` → `series.completed` with a generated contact sheet. Failures are recorded with a stage (`llm`, `extract`, `error`, `blank`, `no-canvas`, `timeout`, `budget`); an unparseable reply is kept as `<variant>.reply.txt`. A spent budget stops new work, and the unstarted cells are recorded. The matrix and extraction live in `agents/studio.js`, and the static contact sheet in `tools/contact-sheet.js`.
+- [x] **Keep the drift:** assistants do not get to see each other's variants within a series. Each one gets the subject plus the recent floor chatter only.
+
+- [x] `silver series <subject>` (id, unique id suffix, or `latest`; `--dry-run`, `--variants`, `--no-render`, `--open`) and `silver subjects` (short ids, commission/sensitive markers, series count)
 
 **Done when:** `silver series <subject-id>` produces a folder of 12 sketches with screenshots, and broken ones are recorded rather than dropped.
 
