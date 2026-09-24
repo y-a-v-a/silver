@@ -72,6 +72,7 @@ export function backoffMs(attempt, retryAfter, { baseMs = 1000, maxMs = 60_000, 
 /** OpenRouter's `reasoning` request field for a role's reasoning setting. */
 export function reasoningParam(level) {
   if (level === undefined) return undefined;
+  if (typeof level === 'number') return { max_tokens: level };
   return level === 'off' ? { enabled: false } : { effort: level };
 }
 
@@ -135,7 +136,7 @@ export function createLlm({
   fetch = globalThis.fetch,
   sleep = (ms) => delay(ms),
   maxRetries = 3,
-  timeoutMs = 180_000,
+  timeoutMs = 300_000,
   dryRun = false,
   now = () => new Date(),
 }) {
@@ -162,11 +163,22 @@ export function createLlm({
           body: JSON.stringify(body),
           signal: AbortSignal.timeout(timeoutMs),
         });
-        data = await res.json().catch(() => null);
-        // OpenRouter may return 200 with an error body when the upstream provider fails.
-        const status = data?.error ? Number(data.error.code) || res.status : res.status;
-        if (res.ok && !data?.error && data) return { data, attempts: [...attempts, { status, ms: Date.now() - started }] };
-        failure = { status, message: data?.error?.message ?? `HTTP ${res.status}`, retryable: RETRYABLE.has(status) };
+        let bodyError = null;
+        data = await res.json().catch((err) => {
+          // Headers arrived but the body didn't: a slow generation hitting the timeout, or a cut connection.
+          bodyError = err;
+          return null;
+        });
+        if (bodyError) {
+          const secs = Math.round((Date.now() - started) / 1000);
+          const why = bodyError.name === 'TimeoutError' || bodyError.name === 'AbortError' ? `timed out after ${secs}s` : `${bodyError.name}: ${bodyError.message}`;
+          failure = { status: res.status, message: `response body unreadable (${why})`, retryable: true };
+        } else {
+          // OpenRouter may return 200 with an error body when the upstream provider fails.
+          const status = data?.error ? Number(data.error.code) || res.status : res.status;
+          if (res.ok && !data?.error && data) return { data, attempts: [...attempts, { status, ms: Date.now() - started }] };
+          failure = { status, message: data?.error?.message ?? `HTTP ${res.status}`, retryable: RETRYABLE.has(status) };
+        }
       } catch (err) {
         failure = { status: null, message: `${err.name}: ${err.message}`, retryable: true };
       }

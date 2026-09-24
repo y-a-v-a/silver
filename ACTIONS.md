@@ -132,7 +132,7 @@ emits: [shortlist.proposed]
 max_tokens: 2000
 output: json                        # json | text
 vision: true                        # optional: the role sends images
-reasoning: low                      # optional: off | low | medium | high
+reasoning: low                      # optional: off | low | medium | high, or a number = hard thinking-token budget
 ---
 
 You are Andy Warhol at the Factory. You did not make these; your assistants did.
@@ -145,7 +145,7 @@ Return JSON: { "picks": [{ "variant_id": "...", "note": "..." }], "rejects_note"
 Rules:
 - `roles.js` validates the frontmatter and fails loudly if a field is missing or unknown.
 - `model_role: <role>` (optional) makes a role use another role's config model, e.g. `roles/scout-annotate.md` runs on the Scout's model. It is exclusive with `model`.
-- Reasoning tokens count against `max_tokens`. A reasoning model can spend all of them thinking and return an empty reply, so set `reasoning` (use `off` for chatter) and leave enough headroom.
+- Reasoning tokens count against `max_tokens`. A reasoning model can spend all of them thinking and return an empty reply, so set `reasoning` (use `off` for chatter) and leave enough headroom. Effort levels are only advisory for some models (DeepSeek spent a full 8,000-token budget thinking at `low` on the studio brief), so use a number where it matters: `reasoning: 2000` caps thinking at 2,000 tokens.
 - The prompt body may use `{{placeholders}}` (e.g. `{{taste}}`, `{{subject}}`, `{{floor_excerpt}}`), which are filled at call time.
 - Superstars share one frontmatter shape and differ only in voice. A new persona means adding a new file, with no code change.
 - Principle 6 (blurry roles): each role prompt says it *may* step outside its role, and the orchestrator accepts off-role events such as a superstar posting a `subject.posted`.

@@ -46,6 +46,7 @@ export function fakeFetch(queue = []) {
     let next = queue.shift();
     if (typeof next === 'function') next = await next(body);
     if (next instanceof Error) throw next;
+    if (next instanceof Response) return next;
     if (next && 'status' in next && 'body' in next) {
       return Response.json(next.body, { status: next.status, headers: next.headers ?? {} });
     }

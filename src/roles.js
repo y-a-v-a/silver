@@ -17,7 +17,7 @@ import { EVENT_TYPES } from './events.js';
  * @property {number} maxTokens
  * @property {'json'|'text'} output
  * @property {boolean} vision      sends images; model must accept them
- * @property {'off'|'low'|'medium'|'high'} [reasoning]  thinking effort; omitted = provider default
+ * @property {'off'|'low'|'medium'|'high'|number} [reasoning]  thinking effort, or a hard thinking-token budget; omitted = provider default
  * @property {string[]} reads
  * @property {string[]} emits
  * @property {string} body         system prompt template
@@ -105,7 +105,13 @@ export function parseRole(text, { file, group }) {
   if (fm.model !== undefined && fm.model_role !== undefined) err('set either model or model_role, not both');
   if (fm.max_tokens !== undefined && !(Number.isInteger(fm.max_tokens) && fm.max_tokens > 0)) err('max_tokens must be a positive integer');
   if (fm.vision !== undefined && typeof fm.vision !== 'boolean') err('vision must be true or false');
-  if (fm.reasoning !== undefined && !REASONING.includes(fm.reasoning)) err(`reasoning must be one of ${REASONING.join(', ')}`);
+  if (fm.reasoning !== undefined) {
+    // A number is a hard budget of thinking tokens; effort levels are only advisory for some models.
+    if (typeof fm.reasoning === 'number') {
+      if (!Number.isInteger(fm.reasoning) || fm.reasoning < 1) err('reasoning as a number must be a positive integer (thinking-token budget)');
+      else if (fm.reasoning >= (fm.max_tokens ?? 2000)) err(`reasoning budget (${fm.reasoning}) must be below max_tokens (${fm.max_tokens ?? 2000})`);
+    } else if (!REASONING.includes(fm.reasoning)) err(`reasoning must be one of ${REASONING.join(', ')}, or a token budget`);
+  }
 
   const body = parsed.content.trim();
   if (!body) err('the body (system prompt) is empty');

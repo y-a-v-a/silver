@@ -47,6 +47,10 @@ test('parseRole maps frontmatter to a role with defaults', () => {
   assert.equal(role.vision, false);
   assert.equal(role.reasoning, undefined);
   assert.equal(parseRole(roleFile(valid('scout', { reasoning: 'off' })), { file: 'scout.md', group: 'role' }).role.reasoning, 'off');
+  assert.equal(parseRole(roleFile(valid('scout', { reasoning: 1500 })), { file: 'scout.md', group: 'role' }).role.reasoning, 1500);
+  const over = parseRole(roleFile(valid('scout', { reasoning: 3000, max_tokens: 2000 })), { file: 'scout.md', group: 'role' });
+  assert.ok(over.errors.some((e) => /must be below max_tokens/.test(e)));
+  assert.ok(parseRole(roleFile(valid('scout', { reasoning: 1.5 })), { file: 'scout.md', group: 'role' }).errors.some((e) => /positive integer/.test(e)));
   assert.deepEqual(role.placeholders, ['who']);
 });
 

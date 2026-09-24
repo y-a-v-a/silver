@@ -33,6 +33,7 @@ test('reasoningParam maps role settings to the OpenRouter field', () => {
   assert.equal(reasoningParam(undefined), undefined);
   assert.deepEqual(reasoningParam('off'), { enabled: false });
   assert.deepEqual(reasoningParam('high'), { effort: 'high' });
+  assert.deepEqual(reasoningParam(2000), { max_tokens: 2000 });
 });
 
 test('redactImages replaces base64 payloads with a fingerprint and source', () => {
@@ -223,4 +224,16 @@ test('input errors: no key, no user message, missing vars (strict) vs lenient', 
   await assert.rejects(f.llm.call('technician', { prompt: 'p' }), TemplateError);
   await f.llm.call('technician', { prompt: 'p', strict: false });
   assert.equal(f.fetch.requests[0].body.messages[0].content, 'You are [who].');
+});
+
+test('a body that cannot be read (slow generation, cut connection) is reported as such and retried', async () => {
+  const hang = () => new Response(new ReadableStream({ start(c) { c.error(new DOMException('The operation timed out.', 'TimeoutError')); } }), { status: 200 });
+  const f = await tmpFactory({ roles: TECH, replies: [hang, completion('ok')] });
+  const res = await f.llm.call('technician', { vars: { who: 'x' }, prompt: 'p' });
+  assert.equal(res.content, 'ok');
+  const transcript = JSON.parse(await readFile(join(f.root, res.transcript), 'utf8'));
+  assert.match(transcript.attempts[0].error, /response body unreadable \(timed out after \d+s\)/);
+
+  const g = await tmpFactory({ roles: TECH, replies: [hang, hang], llm: { maxRetries: 1 } });
+  await assert.rejects(g.llm.call('technician', { vars: { who: 'x' }, prompt: 'p' }), /response body unreadable \(timed out/);
 });
