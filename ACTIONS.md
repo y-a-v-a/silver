@@ -149,21 +149,29 @@ Event types, extending the draft list in ARCHITECTURE.md:
 
 ---
 
-## Phase 0: scaffold
+## Phase 0: scaffold ✅
 
-- [ ] `npm init`, set `"type": "module"`, add a `bin` entry for `silver` → `src/cli.js`
-- [ ] Install the dependencies listed above, plus `npx playwright install chromium`
-- [ ] `.env.example`, `.gitignore` (ignore `.env`, `site/.vercel`, `node_modules`)
-- [ ] `git init`. The floor, archive, and canon **are committed** (the record is the work).
-- [ ] `silver.config.js` with:
-  - [ ] `models`: a pool of 3–4 OpenRouter slugs across providers, plus a cheap one for chatter
-  - [ ] `budget.dailyUsd: 5`
-  - [ ] `series.variants: 12`, `series.temperatures: [0.7, 1.1]`, `series.techniques: [...]`
-  - [ ] `shift.seriesPerShift: 2`, `shift.subjectsPerShift: 6`
-  - [ ] `sources.rss: [...]`, `sources.trending: { googleTrendsGeo, hackernews: true, reddit: true }`
-- [ ] In ARCHITECTURE.md, mark the four open decisions as resolved and link to this file
+- [x] `npm init`, set `"type": "module"`, add a `bin` entry for `silver` → `src/cli.js`
+- [x] Install the dependencies listed above, plus `npx playwright install chromium` (wrapped in `npm run setup`)
+- [x] `.env.example`, `.gitignore` (ignore `.env`, `site/`, `node_modules`)
+- [x] `git init`. The floor, archive, and canon **are committed** (the record is the work). `test/layout.test.js` fails if they ever become gitignored.
+- [x] `silver.config.js` with:
+  - [x] `models`: a studio pool of 4 OpenRouter slugs across providers, a default model per role, and a cheap model for chatter and dry runs
+  - [x] `budget.dailyUsd: 5`
+  - [x] `series.variants: 12`, `series.temperatures: [0.7, 1.1]`, plus `modelsPerSeries: 3` and `techniquesPerSeries: 2`. The technique menu is a top-level `techniques` map.
+  - [x] `shift.seriesPerShift: 2`, `shift.subjectsPerShift: 6`
+  - [x] `sources.rss: [...]`, `sources.trending: { googleTrendsGeo, hackernews: true, reddit: true }`
+- [x] In ARCHITECTURE.md, mark the four open decisions as resolved and link to this file
 
-**Done when:** `silver --help` prints the command list.
+Also added along the way:
+
+- `src/config.js` validates the whole config in one pass (`silver config --check`)
+- A command registry in `src/commands/registry.js`. Every planned command is listed with its phase, and unbuilt commands exit 2.
+- `src/lib/jsonl.js`, append-only JSONL helpers that the floor will reuse in Phase 1
+- `process-log.jsonl` + `bin/log-progress.js` to track the build
+- README, a `node:test` suite, and GitHub Actions CI
+
+**Done when:** `silver --help` prints the command list. ✅
 
 ## Phase 1: the floor, the LLM client, roles, budget
 
