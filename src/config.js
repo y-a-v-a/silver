@@ -19,7 +19,7 @@ export const ROOT = resolve(fileURLToPath(import.meta.url), '../..');
 export const DEFAULT_CONFIG_PATH = resolve(ROOT, 'silver.config.js');
 
 /** Roles that need a default model. Superstars share one entry. */
-export const ROLES = Object.freeze(['scout', 'superstar', 'warhol', 'printer', 'hughes', 'archivist', 'technician']);
+export const ROLES = Object.freeze(['scout', 'superstar', 'warhol', 'printer', 'fred-hughes', 'archivist', 'technician']);
 
 const TOP_LEVEL = ['models', 'budget', 'series', 'techniques', 'shift', 'sources', 'review', 'deploy', 'paths'];
 const PATH_KEYS = ['roles', 'floor', 'archive', 'canon', 'site', 'taste'];

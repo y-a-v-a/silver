@@ -19,7 +19,7 @@ export default {
       superstar: 'qwen/qwen3.8-flash', // cheap: chatter is noise by design
       warhol: 'anthropic/claude-opus-5.5', // must accept images
       printer: 'google/gemini-3.8-flash', // must accept images
-      hughes: 'anthropic/claude-sonnet-5',
+      'fred-hughes': 'anthropic/claude-sonnet-5',
       archivist: 'anthropic/claude-sonnet-5',
       technician: 'anthropic/claude-sonnet-5',
     },
