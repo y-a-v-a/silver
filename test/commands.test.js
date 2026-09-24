@@ -1,39 +1,28 @@
 // End to end: the real CLI against a mock OpenRouter server, in a temporary SILVER_ROOT.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { createServer } from 'node:http';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { mkdtemp, mkdir, writeFile, readFile, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { roleFile, completion } from './helpers.js';
+import { roleFile, completion, mockOpenRouter } from './helpers.js';
 
 const exec = promisify(execFile);
 const CLI = fileURLToPath(new URL('../src/cli.js', import.meta.url));
 
-let server;
+let mock;
 let baseUrl;
-const requests = [];
-let nextReply = () => completion('Wires, lights, projector. That is me.', { cost: 0.00042, model: 'anthropic/claude-sonnet-5' });
+let requests;
+const defaultReply = () => completion('Wires, lights, projector. That is me.', { cost: 0.00042, model: 'anthropic/claude-sonnet-5' });
 
 before(async () => {
-  server = createServer(async (req, res) => {
-    let raw = '';
-    for await (const chunk of req) raw += chunk;
-    res.setHeader('content-type', 'application/json');
-    if (req.url.endsWith('/models')) return res.end(JSON.stringify({ data: [] }));
-    requests.push({ url: req.url, auth: req.headers.authorization, body: JSON.parse(raw) });
-    const reply = nextReply();
-    res.statusCode = reply.status ?? 200;
-    res.end(JSON.stringify(reply.body ?? reply));
-  });
-  await new Promise((r) => server.listen(0, '127.0.0.1', r));
-  baseUrl = `http://127.0.0.1:${server.address().port}/api/v1`;
+  mock = await mockOpenRouter({ reply: defaultReply });
+  ({ baseUrl, requests } = mock);
 });
 
-after(() => server.close());
+after(() => mock.close());
 
 async function tmpRoot() {
   const root = await mkdtemp(join(tmpdir(), 'silver-cli-'));
@@ -97,9 +86,9 @@ test('ping failures are one-line errors, not stack traces', async () => {
   assert.match(r.stderr, /OPENROUTER_API_KEY is not set/);
   assert.doesNotMatch(r.stderr, /at .*\.js:\d+/);
 
-  nextReply = () => ({ status: 400, body: { error: { code: 400, message: 'model not found' } } });
+  mock.state.reply = () => ({ status: 400, body: { error: { code: 400, message: 'model not found' } } });
   r = await silver(root, ['ping', 'technician']);
-  nextReply = () => completion('ok', { cost: 0.00042, model: 'anthropic/claude-sonnet-5' });
+  mock.state.reply = defaultReply;
   assert.equal(r.code, 1);
   assert.match(r.stderr, /model not found/);
   const floor = await silver(root, ['floor', '--type', 'llm.failed']);

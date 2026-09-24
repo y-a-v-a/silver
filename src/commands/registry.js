@@ -61,6 +61,13 @@ export const COMMANDS = [
     ],
     load: () => import('./cost.js'),
   },
+  {
+    name: 'models',
+    description: 'check configured models against OpenRouter: existence, price, image support',
+    phase: 1,
+    options: [['--json', 'print the audit as JSON']],
+    load: () => import('./models.js'),
+  },
   { name: 'scout', description: 'run the scouts on their own and post subject cards', phase: 2 },
   {
     name: 'commission',

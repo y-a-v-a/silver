@@ -92,3 +92,31 @@ export async function tmpFactory({ roles: roleFiles = {}, dailyUsd = 5, replies 
   });
   return { root, config, fetch, floor, roles, budget, pricing, llm, sleeps };
 }
+
+/**
+ * A local mock of OpenRouter's HTTP API for end-to-end CLI tests.
+ * `models` is served at /models; `reply()` answers each chat completion and may
+ * return {status, body} for errors.
+ */
+export async function mockOpenRouter({ models = [], reply = () => completion('ok') } = {}) {
+  const { createServer } = await import('node:http');
+  const requests = [];
+  const state = { models, reply };
+  const server = createServer(async (req, res) => {
+    let raw = '';
+    for await (const chunk of req) raw += chunk;
+    res.setHeader('content-type', 'application/json');
+    if (req.url.endsWith('/models')) return res.end(JSON.stringify({ data: state.models }));
+    requests.push({ url: req.url, auth: req.headers.authorization, body: JSON.parse(raw) });
+    const r = state.reply();
+    res.statusCode = r.status ?? 200;
+    res.end(JSON.stringify(r.body ?? r));
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  return {
+    baseUrl: `http://127.0.0.1:${server.address().port}/api/v1`,
+    requests,
+    state,
+    close: () => new Promise((r) => server.close(r)),
+  };
+}
