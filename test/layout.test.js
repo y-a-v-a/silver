@@ -1,4 +1,6 @@
-// Guards the "record everything" decision: the record directories exist and are never gitignored.
+// Guards the "data stays out of git" decision (2026-09-24): runtime data (floor, archive,
+// canon, taste.md) is kept on disk but never committed, and neither are secrets or the
+// generated site. Code, roles and config stay tracked.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
@@ -9,14 +11,6 @@ import { loadConfig, ROOT } from '../src/config.js';
 
 const exec = promisify(execFile);
 const cfg = await loadConfig({ env: {} });
-
-const RECORD_DIRS = [
-  cfg.paths.floor,
-  join(cfg.paths.archive, 'transcripts'),
-  join(cfg.paths.archive, 'variants'),
-  join(cfg.paths.archive, 'diary'),
-  join(cfg.paths.canon, 'works'),
-];
 
 /** true if git would ignore the path (exit 0 from check-ignore means ignored). */
 async function ignored(path) {
@@ -29,23 +23,32 @@ async function ignored(path) {
   }
 }
 
-test('record directories and roles/superstars exist', () => {
-  for (const dir of [...RECORD_DIRS, cfg.paths.roles, join(cfg.paths.roles, 'superstars')]) {
-    assert.ok(existsSync(dir), `${dir} is missing`);
-  }
+test('runtime data is gitignored: floor, archive, canon and taste.md', async () => {
+  const data = [
+    join(cfg.paths.floor, '2026-01-01.jsonl'),
+    join(cfg.paths.archive, 'transcripts', 'x.json'),
+    join(cfg.paths.archive, 'variants', 's', 'v.html'),
+    join(cfg.paths.archive, 'diary', '2026-01-01.md'),
+    join(cfg.paths.canon, 'canon.json'),
+    cfg.paths.taste,
+  ];
+  for (const path of data) assert.equal(await ignored(path), true, `${path} should be ignored`);
 });
 
-test('floor, archive and canon contents are tracked, never gitignored', async () => {
-  for (const dir of RECORD_DIRS) {
-    assert.equal(await ignored(join(dir, 'example.jsonl')), false, `${dir} is gitignored`);
-  }
-  assert.equal(await ignored(cfg.paths.taste), false, 'taste.md is gitignored');
+test('no runtime data is tracked by git', async () => {
+  const { stdout } = await exec('git', ['ls-files', '--', 'floor', 'archive', 'canon', 'taste.md'], { cwd: ROOT });
+  assert.equal(stdout.trim(), '', `tracked data files:\n${stdout}`);
 });
 
 test('secrets and generated output are gitignored', async () => {
-  const paths = ['.env', '.env.local', 'node_modules/x'].map((p) => join(ROOT, p));
-  for (const path of [...paths, join(cfg.paths.site, 'index.html')]) {
+  for (const path of [...['.env', '.env.local', 'node_modules/x'].map((p) => join(ROOT, p)), join(cfg.paths.site, 'index.html')]) {
     assert.equal(await ignored(path), true, `${path} should be ignored`);
   }
-  assert.equal(await ignored(join(ROOT, '.env.example')), false, '.env.example must be tracked');
+});
+
+test('code, roles, config and docs stay tracked', async () => {
+  for (const path of ['.env.example', 'silver.config.js', 'roles/scout.md', 'src/cli.js', 'ACTIONS.md', 'process-log.jsonl']) {
+    assert.equal(await ignored(join(ROOT, path)), false, `${path} must not be ignored`);
+  }
+  assert.ok(existsSync(join(cfg.paths.roles, 'superstars')), 'roles/superstars/ exists');
 });

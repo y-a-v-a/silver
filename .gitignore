@@ -21,5 +21,9 @@ playwright-report/
 .DS_Store
 *.log
 
-# NOTE: floor/, archive/ and canon/ are committed on purpose.
-# The record is part of the work (ARCHITECTURE.md, principle 3).
+# Runtime data stays local, out of git (owner's decision, 2026-09-24).
+# The record is still kept on disk and never deleted (ARCHITECTURE.md, principle 3).
+floor/
+archive/
+canon/
+taste.md

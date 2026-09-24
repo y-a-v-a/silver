@@ -20,6 +20,7 @@ The build plan for the Silver Factory in Node.js, derived from [ARCHITECTURE.md]
 | Fred Hughes | **Numbered editions + RSS/Atom feed**, plus a title and wall text for each work |
 | Warhol's taste | **Learns from vetoes** through an append-only `taste.md` |
 | Archivist | **Deterministic code** that records everything, plus an **end-of-shift LLM diary** (Pat Hackett style) |
+| Data in git | **Kept out** (decided 2026-09-24). `floor/`, `archive/`, `canon/` and `taste.md` stay on local disk, gitignored. The repo holds code, roles, config and docs. |
 
 ## Stack
 
@@ -158,7 +159,7 @@ Event types, extending the draft list in ARCHITECTURE.md:
 - [x] `npm init`, set `"type": "module"`, add a `bin` entry for `silver` → `src/cli.js`
 - [x] Install the dependencies listed above, plus `npx playwright install chromium` (wrapped in `npm run setup`)
 - [x] `.env.example`, `.gitignore` (ignore `.env`, `site/`, `node_modules`)
-- [x] `git init`. The floor, archive, and canon **are committed** (the record is the work). `test/layout.test.js` fails if they ever become gitignored.
+- [x] `git init`. ~~The floor, archive, and canon **are committed** (the record is the work).~~ **Reversed on 2026-09-24:** runtime data stays out of git. `test/layout.test.js` now fails if any of it is tracked.
 - [x] `silver.config.js` with:
   - [x] `models`: a studio pool of 4 OpenRouter slugs across providers, a default model per role, and a cheap model for chatter and dry runs
   - [x] `budget.dailyUsd: 5`
@@ -282,7 +283,7 @@ Also added along the way:
 
 ## Phase 7: Archivist
 
-- [ ] `agents/archivist.js` (code): after each shift, checks that every event has its transcript or artifact, writes a shift manifest, and commits `floor/ archive/ canon/` to git with a message summarising the shift
+- [ ] `agents/archivist.js` (code): after each shift, checks that every event has its transcript or artifact, writes a shift manifest and a summary of the shift. It does **not** commit to git, since data stays out of the repo (see the backup decision below).
 - [ ] Write `roles/archivist.md` (Billy Name / Pat Hackett): writes a diary entry from the day's floor (who said what, what got made, what died) → `archive/diary/YYYY-MM-DD.md` → `diary.written`
 - [ ] **Feedback loop** (principle 3): Scouts treat the diary and the reject pile as an extra source, with `origin: archive`, and at most one archive subject per shift
 
@@ -319,10 +320,9 @@ These came up while building. Each lists what the code does **today**, so nothin
    - *Options:* (a) keep it open, since the veto is the gate; (b) let the Scout pick disasters but exclude suicide, children and named private victims; (c) mark sensitive subjects so they show a warning on the contact sheet.
    - *Recommendation:* (b) + (c). The Scout rule is one paragraph in `roles/scout.md`, and the flag is one field on the card.
 
-2. **Copyrighted text in a public repo.** Snapshots store up to 2,000 characters of article text from BBC, NYT, the Guardian and others, and `floor/` is committed to a **public** GitHub repo.
-   - *Today:* full snapshots are committed.
-   - *Options:* (a) keep as is; (b) commit only title, description, image URL and a short excerpt (~300 characters, quotation-sized), and keep full text in a gitignored `archive/snapshots/`; (c) make the repo private.
-   - *Recommendation:* (b).
+2. **Copyrighted text in a public repo.** ~~Snapshots are committed to a public repo.~~ **Mostly resolved on 2026-09-24:** data stays out of git, so new snapshots never reach GitHub. Two things remain:
+   - **History.** Commits `20a76a8` and `b8187bd` put the first live floor and three transcripts, including up to 2,000 characters of BBC and Guardian article text, into the public history of `main`. They are removed from the current tree but still reachable in history. *Options:* (a) leave it, since it's small; (b) rewrite history (`git filter-repo --path floor --path archive --invert-paths`) and force-push `main`. That is destructive: it changes every commit hash from `0840085` onward. *Recommendation:* (b), soon, while nobody else has cloned the repo. **Needs your explicit go-ahead.**
+   - **Publishing.** The gallery (Phase 5) is public too. Wall text should quote at most a headline, never article text.
 
 3. **Real people's likenesses.** Subjects include public figures (McConnell, Trump, Xi), and the works will depict them. Warhol did exactly this, but the published gallery will be public.
    - *Options:* (a) allow public figures, never private individuals; (b) no identifiable real faces, only objects and scenes; (c) decide case by case at the veto.
@@ -353,3 +353,6 @@ These came up while building. Each lists what the code does **today**, so nothin
 
 10. **Licence.** Still `UNLICENSED` since Phase 0, although the repo is public. This matters more once works are published: the code and the artworks may want different licences (for example MIT for code and CC BY-NC for works).
 
+11. **Backup of the local record.** Now that the floor, archive and canon are out of git, they exist only on this Mac. Losing the disk means losing the record and the canon.
+   - *Options:* (a) nothing, and rely on Time Machine; (b) a second, **private** git repo just for data (for example `silver-record`), pushed by the Archivist at the end of each shift; (c) a sync folder (iCloud or Dropbox) or an rsync to another machine; (d) a tarball per shift in `archive/backups/`, copied wherever you like.
+   - *Recommendation:* (b). It keeps the append-only history and diffs, and costs one private repo. Until you decide, the Archivist (Phase 7) writes the manifest but backs nothing up.

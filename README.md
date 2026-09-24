@@ -11,7 +11,7 @@ Each day the Factory runs a **shift**:
 5. **You** approve or veto the shortlist on a local contact sheet. Nothing enters the canon without you.
 6. The **Printer** signs and deploys the approved works to a static gallery on Vercel, and **Fred Hughes** numbers the editions and publishes the feed.
 
-Everything is recorded, including drafts, chatter and rejects. The record is committed to this repository and feeds back in as raw material.
+Everything is recorded, including drafts, chatter and rejects, and the record feeds back in as raw material. The record lives on local disk and is **not committed to git**: this repository holds code, roles and config only.
 
 - **[ARCHITECTURE.md](ARCHITECTURE.md)**: the roles, the floor, a work's lifecycle, and the design principles.
 - **[ACTIONS.md](ACTIONS.md)**: the resolved decisions and the phased build plan.
@@ -117,9 +117,9 @@ src/agents/        scouts, commissions (more roles in later phases)
 src/lib/           shared helpers (append-only JSONL, process log, .env, formatting, dedupe, page snapshots)
 bin/               project scripts (setup, process log)
 roles/             role system prompts (markdown)
-floor/             the event log, one JSONL file per shift (append-only, committed)
-archive/           transcripts, every variant including rejects, the Archivist's diary (committed)
-canon/             signed works (committed)
+floor/             the event log, one JSONL file per shift (append-only, local only)
+archive/           transcripts, every variant including rejects, the Archivist's diary (local only)
+canon/             signed works (local only; published through the site)
 site/              the generated gallery (gitignored, rebuilt on publish)
 test/              node:test suites
 ```
