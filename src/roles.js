@@ -16,6 +16,7 @@ import { EVENT_TYPES } from './events.js';
  * @property {number} maxTokens
  * @property {'json'|'text'} output
  * @property {boolean} vision      sends images; model must accept them
+ * @property {'off'|'low'|'medium'|'high'} [reasoning]  thinking effort; omitted = provider default
  * @property {string[]} reads
  * @property {string[]} emits
  * @property {string} body         system prompt template
@@ -24,7 +25,8 @@ import { EVENT_TYPES } from './events.js';
  */
 
 const REQUIRED = ['id', 'name', 'temperature', 'output', 'reads', 'emits'];
-const OPTIONAL = ['model', 'max_tokens', 'vision'];
+const OPTIONAL = ['model', 'max_tokens', 'vision', 'reasoning'];
+export const REASONING = Object.freeze(['off', 'low', 'medium', 'high']);
 const SLUG = /^~?[a-z0-9][\w.-]*\/[\w.:-]+$/i;
 const PLACEHOLDER = /\{\{\s*([a-z_][a-z0-9_]*)\s*\}\}/gi;
 
@@ -100,6 +102,7 @@ export function parseRole(text, { file, group }) {
   if (fm.model !== undefined && !SLUG.test(fm.model)) err(`model "${fm.model}" is not an OpenRouter slug`);
   if (fm.max_tokens !== undefined && !(Number.isInteger(fm.max_tokens) && fm.max_tokens > 0)) err('max_tokens must be a positive integer');
   if (fm.vision !== undefined && typeof fm.vision !== 'boolean') err('vision must be true or false');
+  if (fm.reasoning !== undefined && !REASONING.includes(fm.reasoning)) err(`reasoning must be one of ${REASONING.join(', ')}`);
 
   const body = parsed.content.trim();
   if (!body) err('the body (system prompt) is empty');
@@ -117,6 +120,7 @@ export function parseRole(text, { file, group }) {
       maxTokens: fm.max_tokens ?? 2000,
       output: fm.output,
       vision: fm.vision ?? false,
+      reasoning: fm.reasoning,
       reads: fm.reads,
       emits: fm.emits,
       body,

@@ -45,14 +45,16 @@ test('parseRole maps frontmatter to a role with defaults', () => {
   assert.equal(role.actor, 'scout');
   assert.equal(role.maxTokens, 2000);
   assert.equal(role.vision, false);
+  assert.equal(role.reasoning, undefined);
+  assert.equal(parseRole(roleFile(valid('scout', { reasoning: 'off' })), { file: 'scout.md', group: 'role' }).role.reasoning, 'off');
   assert.deepEqual(role.placeholders, ['who']);
 });
 
 test('parseRole reports every problem in the file', () => {
-  const fm = { id: 'wrong', name: '', temperature: 3, output: 'xml', reads: ['nope.event'], emits: 'x', colour: 'silver', model: 'bad slug', max_tokens: 0, vision: 'yes' };
+  const fm = { id: 'wrong', name: '', temperature: 3, output: 'xml', reads: ['nope.event'], emits: 'x', colour: 'silver', model: 'bad slug', max_tokens: 0, vision: 'yes', reasoning: 'max' };
   const { role, errors } = parseRole(roleFile(fm, ''), { file: 'scout.md', group: 'role' });
   assert.equal(role, undefined);
-  for (const pattern of [/id "wrong" must match/, /name/, /temperature/, /output/, /unknown event type "nope\.event"/, /emits must be a list/, /unknown field "colour"/, /model/, /max_tokens/, /vision/, /body/]) {
+  for (const pattern of [/id "wrong" must match/, /name/, /temperature/, /output/, /unknown event type "nope\.event"/, /emits must be a list/, /unknown field "colour"/, /model/, /max_tokens/, /vision/, /reasoning must be one of/, /body/]) {
     assert.ok(errors.some((e) => pattern.test(e)), `no error for ${pattern}:\n${errors.join('\n')}`);
   }
 });
