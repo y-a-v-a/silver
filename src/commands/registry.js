@@ -1,0 +1,71 @@
+// Every `silver` command, including those not built yet. `phase` refers to ACTIONS.md.
+// A command with `load` is implemented: the module's default export is
+// `async (args, opts, ctx) => void`, where `args` are the positional arguments in order.
+// Commands without `load` print which phase delivers them and exit with code 2.
+
+/**
+ * @typedef {object} CommandSpec
+ * @property {string} name
+ * @property {string} [args]            commander argument syntax, e.g. '<text>'
+ * @property {string} description
+ * @property {number} phase
+ * @property {[string, string, (string|boolean)?][]} [options]  [flags, description, default]
+ * @property {() => Promise<{default: Function}>} [load]
+ */
+
+/** @type {CommandSpec[]} */
+export const COMMANDS = [
+  {
+    name: 'config',
+    description: 'print the resolved configuration, or validate it with --check',
+    phase: 0,
+    options: [
+      ['--check', 'only validate; print "ok" or the errors'],
+      ['--json', 'print as JSON'],
+    ],
+    load: () => import('./config.js'),
+  },
+  {
+    name: 'ping',
+    args: '<role>',
+    description: 'make one LLM call as <role> to test keys, models and the floor',
+    phase: 1,
+  },
+  {
+    name: 'floor',
+    description: 'pretty-print the floor (event log)',
+    phase: 1,
+    options: [
+      ['--shift <date>', 'shift date (YYYY-MM-DD), default today'],
+      ['--type <type>', 'only events of this type'],
+    ],
+  },
+  {
+    name: 'cost',
+    description: 'spend per role and model',
+    phase: 1,
+    options: [['--shift <date>', 'shift date (YYYY-MM-DD), default today']],
+  },
+  { name: 'scout', description: 'run the scouts on their own and post subject cards', phase: 2 },
+  {
+    name: 'commission',
+    args: '<text-or-url>',
+    description: 'post your own subject; it always gets a series in the next shift',
+    phase: 2,
+    options: [['--now', 'run a mini-shift for this subject immediately']],
+  },
+  { name: 'series', args: '<subject-id>', description: 'produce one series of variants for a subject', phase: 3 },
+  { name: 'release', args: '<tool>', description: 'announce a changed Technician tool on the floor', phase: 3 },
+  { name: 'review', description: 'open the contact sheet to approve or veto Warhol\'s picks', phase: 4 },
+  { name: 'publish', description: 'rebuild the gallery site and redeploy it to Vercel', phase: 5 },
+  {
+    name: 'shift',
+    description: 'run (or resume) today\'s shift',
+    phase: 8,
+    options: [['--dry-run', 'cheapest model, 2 variants per series']],
+  },
+  { name: 'install-schedule', description: 'install the daily launchd job', phase: 8 },
+  { name: 'uninstall-schedule', description: 'remove the daily launchd job', phase: 8 },
+];
+
+export const NOT_IMPLEMENTED_EXIT = 2;
