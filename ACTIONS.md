@@ -251,7 +251,7 @@ Also added along the way:
 - [x] **Scout annotates commissions:** after `postCommission`, one Scout call (a small prompt section in `roles/scout.md`, or a separate `roles/scout-annotate.md`) adds `scoutWhy` and `image`. The human's `why` is never overwritten. A failed call leaves the commission as it is and is recorded as `llm.failed`. `--no-annotate` skips it.
 - [x] **Licence:** add `LICENSE` (MIT, code) and `LICENSE-ARTWORKS.md` (CC BY 4.0, works), set `"license": "MIT"` in `package.json`, and add a README section.
 
-## Phase 3: Technician tools and Studio assistants
+## Phase 3: Technician tools and Studio assistants ✅
 
 - [x] Write `roles/technician.md` (done in Phase 1). It is used in v1 only for its voice: when a template changes, the human runs `silver release <tool>` and the Technician writes the release note as a `tool.released` event.
 - [x] `silver release <tool>` (`agents/technician.js`): tools are `p5-template`, `renderer` and `contact-sheet`. The version is the file's content hash, and releasing the same version twice needs `--force`. Changes come from `--changes` or the file's git log.
@@ -271,7 +271,21 @@ Also added along the way:
 
 - [x] `silver series <subject>` (id, unique id suffix, or `latest`; `--dry-run`, `--variants`, `--no-render`, `--open`) and `silver subjects` (short ids, commission/sensitive markers, series count)
 
-**Done when:** `silver series <subject-id>` produces a folder of 12 sketches with screenshots, and broken ones are recorded rather than dropped.
+**Done when:** `silver series <subject-id>` produces a folder of 12 sketches with screenshots, and broken ones are recorded rather than dropped. ✅ There were three live series on 2026-09-24:
+
+| Series | Subject | Produced | Cost | Notes |
+|---|---|---|---|---|
+| `01M3AFN63F28M769GJ5MSTFC1P` | dunkin free coffee code | 7/12 | $0.05 | DeepSeek timed out (misreported as "HTTP 200") and returned empty at 8k tokens; led to the timeout and body-error fixes |
+| `01M3AG01ZPYAXJ8ECDMSYHKTYA` | 78$ sushi arrived like this | 9/12 | $0.27 | DeepSeek again returned empty at 8k; led to `max_tokens: 16000` |
+| `01M3AGEEMAFBXZ7K9P0YYN2PSY` | NGV employee stole $8m for phones | 9/12 | $0.11 | Every cell replied; failures were 2 DeepSeek truncations and 1 runtime error |
+
+Per model across all three: Gemini 3.8 Flash 8/8 ($0.010/call), GPT-6 Luna Pro 11/12 ($0.004/call), Claude Sonnet 5 4/4 ($0.056/call), DeepSeek v4.1 Flash 2/12 ($0.009/call). See the open points below.
+
+Also added in Phase 3:
+
+- `silver commission --now` produces the series immediately (chatter and shortlist to follow in Phases 6 and 4)
+- `reasoning` in role frontmatter may be a number: a thinking-token budget (advisory in practice, see the open points)
+- The Technician's release notes use the tool's own header and a facts-only rule (the first live notes invented features)
 
 ## Phase 4: Warhol and the contact sheet (veto)
 
@@ -370,3 +384,32 @@ The open decisions from Phases 0–2 were answered on 2026-09-24. They are summa
 11. **Backup of the local record:** *Chosen:* a private data repo pushed by the Archivist. *Considered:* Time Machine only, a sync folder or rsync, tarballs.
 
 New open questions go here as they come up.
+
+## Open points from the 2026-09-24 night shift (Phases 2b and 3)
+
+1. **DeepSeek in the studio pool.** Across three live series, DeepSeek v4.1 Flash produced **2 of 12** variants. The others: Gemini 8/8, GPT-6 Luna Pro 11/12, Sonnet 4/4. It thinks for 8k–15k tokens on the studio brief. Its upstream providers (Alibaba, AtlasCloud, Relace, NextBit) ignore both `reasoning.effort` and `reasoning.max_tokens`, even with `provider.require_parameters`. So it times out, returns empty, or gets cut off mid-code.
+   - *Today:* it stays in `models.studio`. Its failures are recorded, and the other models carry the series.
+   - *Options:* (a) keep it, since failures are material and it's cheap; (b) replace it with another provider's model, chosen with `silver models`; (c) pin a better-behaved upstream provider through OpenRouter's `provider.order` (NextBit stopped at ~11k tokens); (d) drop to a 3-model pool.
+   - *Recommendation:* (b). A 1-in-6 success rate wastes a quarter of every series.
+
+2. **Sonnet's cost share.** Claude Sonnet 5 costs about $0.056 per variant, 6–13× the others, and ignores the thinking budget (up to ~5k reasoning tokens). A series with Sonnet in it costs ~$0.27, and ~$0.05–0.11 without. Both fit $5/day easily at 2 series per shift.
+   - *Question:* keep Sonnet in the rotation for quality, or reserve it for Warhol and the writing roles?
+
+3. **p5 1.x vs 2.x.** Variants pin **p5 1.11.13** (the maintained `r1` line) rather than 2.3.3: models write 1.x reliably, and 2.x broke `preload()` and other APIs. Published works will load 1.11.13 from jsDelivr forever.
+   - *Options:* (a) stay on 1.x; (b) move to 2.x later and re-brief the assistants.
+   - *Recommendation:* (a) for v1.
+
+4. **Subjects from before the exclusion rule.** The floor is append-only, so two subjects posted before the 2026-09-24 sensitive-subjects rule are still selectable: the US Navy suicide attempts, and the UN photos of slain children. `silver series latest` or the Phase 8 shift could still pick them.
+   - *Options:* (a) leave it to the veto; (b) add a `subject.retired` event and `silver subjects --retire <id>`, which hides a subject from `latest`, `--open` and the shift; (c) have Phase 8 skip any subject posted before a given date.
+   - *Recommendation:* (b). A new event type keeps the floor append-only, and it's a reusable way to take a subject off the table.
+
+5. **Technique adherence.** Assistants don't always follow their technique. One `screen-test-portrait` variant came back as a Warholian invoice grid of nine smartphones. It's good work, but it isn't the technique.
+   - *Options:* (a) keep it as drift and let Warhol judge (Phase 4); (b) add an adherence note to Warhol's review; (c) re-prompt when the technique is ignored.
+   - *Recommendation:* (a), possibly (b).
+
+6. **Spend that never reaches the ledger.** When a reply times out or the connection drops, OpenRouter may still bill the generation, and it never reaches `cost.recorded`. In the first series, three DeepSeek calls may have been billed like that, costing at most about $0.03. My direct `curl` tests tonight (about 8 calls, well under $0.10) are outside the ledger too.
+   - *Options:* (a) ignore it at this scale; (b) `silver cost --reconcile`, which compares the ledger with OpenRouter's `/api/v1/key` usage and reports the gap; (c) let the budget check read the real usage, which is slower.
+   - *Recommendation:* (b), in Phase 8.
+
+7. **Screenshots per variant, for Phase 4.** The renderer can shoot seeds 1–3 of each variant (a small grid showing the drift *within* a variant). Today it shoots seed 1 only.
+   - *Question:* should Warhol see 1 or 3 screenshots per variant? Three triples the images in his vision call (about 12 → 36 per review).
