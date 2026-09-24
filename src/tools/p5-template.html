@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="Silver Factory">
+<title>{{TITLE}}</title>
+<!--
+  Silver Factory variant: {{TITLE}}
+  Subject: {{SUBJECT}}
+  Made by the Studio assistants with the Technician's p5 template ({{TEMPLATE_VERSION}}).
+  ?seed=N makes a load reproducible; without it, every load drifts.
+-->
+<script type="application/json" id="silver-meta">{{META_JSON}}</script>
+<style>
+  html, body { margin: 0; padding: 0; background: #111; overflow: hidden; }
+  main { display: flex; align-items: center; justify-content: center; width: 100vw; height: 100vh; }
+  canvas { display: block; max-width: 100vw; max-height: 100vh; width: auto !important; height: auto !important; }
+</style>
+<script src="{{P5_URL}}"></script>
+<script>
+  (function () {
+    var params = new URLSearchParams(location.search);
+    var raw = params.get('seed');
+    var seed = raw !== null && /^\d+$/.test(raw) ? Number(raw) : null;
+    var freeze = params.get('freeze') === '1';
+    var readyAfterFrames = {{READY_FRAMES}};
+    if (seed !== null) {
+      // mulberry32: sketches that call Math.random() are reproducible too.
+      var a = seed >>> 0;
+      Math.random = function () {
+        a = (a + 0x6d2b79f5) | 0;
+        var t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+    var meta = JSON.parse(document.getElementById('silver-meta').textContent);
+    window.SILVER = Object.freeze({ width: {{WIDTH}}, height: {{HEIGHT}}, seed: seed, meta: meta });
+    window.__silverReady = false;
+    window.__silverFrames = 0;
+    p5.prototype.registerMethod('init', function () {
+      if (seed !== null) {
+        this.randomSeed(seed);
+        this.noiseSeed(seed);
+      }
+    });
+    p5.prototype.registerMethod('afterSetup', function () {
+      // A sketch without draw() is finished once setup() returns.
+      if (typeof window.draw !== 'function') window.__silverReady = true;
+    });
+    p5.prototype.registerMethod('post', function () {
+      window.__silverFrames = this.frameCount;
+      if (window.__silverReady) return;
+      if (this.frameCount >= readyAfterFrames || !this.isLooping()) {
+        window.__silverReady = true;
+        if (freeze) this.noLoop();
+      }
+    });
+  })();
+</script>
+</head>
+<body>
+<main></main>
+<script>
+// SKETCH: {{TITLE}}
+{{SKETCH}}
+</script>
+</body>
+</html>

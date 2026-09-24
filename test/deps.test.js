@@ -5,7 +5,18 @@ import { readFile } from 'node:fs/promises';
 
 const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
 
+// Browser-only packages: served as files to the renderer, never imported in Node.
+const BROWSER_ONLY = { p5: 'p5/lib/p5.min.js' };
+
 for (const name of Object.keys(pkg.dependencies ?? {})) {
+  if (name in BROWSER_ONLY) {
+    test(`browser dependency "${name}" resolves to a file`, async () => {
+      const { createRequire } = await import('node:module');
+      const { existsSync } = await import('node:fs');
+      assert.ok(existsSync(createRequire(import.meta.url).resolve(BROWSER_ONLY[name])));
+    });
+    continue;
+  }
   test(`dependency "${name}" can be imported`, async () => {
     const mod = await import(name);
     assert.ok(mod, `${name} exported nothing`);

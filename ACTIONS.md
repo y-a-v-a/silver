@@ -254,15 +254,15 @@ Also added along the way:
 ## Phase 3: Technician tools and Studio assistants
 
 - [x] Write `roles/technician.md` (done in Phase 1). It is used in v1 only for its voice: when a template changes, the human runs `silver release <tool>` and the Technician writes the release note as a `tool.released` event.
-- [ ] `tools/p5-template.html`: a single file that loads p5 from a pinned CDN version with an injected `// SKETCH` block
-  - [ ] Seeds from `?seed=` (`randomSeed` + `noiseSeed`), so screenshots are reproducible while a normal load still drifts
-  - [ ] Fixed canvas size (e.g. 1080×1080), with a `window.__silverReady` flag set after N frames
-  - [ ] Embeds the title and subject as a comment/metadata, with no visible UI chrome
-- [ ] `tools/render.js` (Playwright):
-  - [ ] Loads the sketch, collects console errors, waits for `__silverReady` or a timeout
-  - [ ] Takes a screenshot at seed 1 (and optionally seeds 2 and 3, for a small grid)
-  - [ ] Blank-canvas check: near-uniform pixels count as a failure
-  - [ ] Emits `variant.failed` on error or blank output, otherwise returns the PNG path
+- [x] `tools/p5-template.html` (in `src/tools/`, built by `src/tools/template.js`): a single file that loads p5 from a pinned CDN version (**p5 1.11.13**, see the open points) with an injected `// SKETCH` block
+  - [x] Seeds from `?seed=` (`randomSeed` + `noiseSeed`), so screenshots are reproducible while a normal load still drifts. `Math.random` is seeded too (mulberry32).
+  - [x] Fixed canvas size (e.g. 1080×1080), with a `window.__silverReady` flag set after N frames (30), or right after `setup()` for sketches without `draw()`. `?freeze=1` stops the loop at that frame.
+  - [x] Embeds the title and subject as a comment/metadata, with no visible UI chrome (a `silver-meta` JSON script tag, escaped against `</script>`)
+- [x] `tools/render.js` (Playwright):
+  - [x] Loads the sketch, collects console errors, waits for `__silverReady` or a timeout. It stops waiting at the first uncaught error. p5 is served from `node_modules`, and all other network is blocked and reported.
+  - [x] Takes a screenshot at seed 1 (and optionally seeds 2 and 3, for a small grid)
+  - [x] Blank-canvas check: near-uniform pixels count as a failure (the dominant colour covers ≥ 99.5% of a 96×96 sample)
+  - [x] Emits `variant.failed` on error or blank output, otherwise returns the PNG path. The renderer returns `{ok, reason, shots, errors, blocked}`, and the assistants agent emits the event.
 - [ ] Write `roles/studio-assistant.md` (Malanga/Smith): turn a subject into a p5 sketch in a given **technique**; serial repetition, silkscreen logic (flat colour fields, registration offset, grids of repeats, photo-to-halftone); output only the sketch body.
 - [x] A technique menu in config, e.g. `grid-repeat`, `misregistered-silkscreen`, `halftone`, `camouflage`, `death-and-disaster-tint`, `screen-test-portrait`. Each is one line of guidance injected into the prompt. (Done in Phase 0: the top-level `techniques` map in `silver.config.js`.)
 - [ ] `agents/assistants.js`: for each subject selected in this shift → `series.started` → run the 12-cell matrix (models × temperatures × techniques) in parallel, with a concurrency limit → write to `archive/variants/<series>/<variant>.html` → render → `variant.produced` / `variant.failed` → `series.completed` with a generated contact sheet
