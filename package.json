@@ -17,9 +17,21 @@
     "silver": "src/cli.js"
   },
   "scripts": {
+    "setup": "bash bin/setup.sh",
     "test": "node --test",
+    "test:fast": "SILVER_SKIP_BROWSER=1 node --test",
     "test:watch": "node --test --watch",
     "log": "node bin/log-progress.js",
     "log:list": "node bin/log-progress.js --list"
+  },
+  "dependencies": {
+    "commander": "^15.0.0",
+    "gray-matter": "^4.0.3",
+    "playwright": "^1.63.0",
+    "rss-parser": "^3.13.0",
+    "ulid": "^3.0.2"
+  },
+  "devDependencies": {
+    "vercel": "^59.26.0"
   }
 }
