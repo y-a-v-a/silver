@@ -1,0 +1,1 @@
+{"ts":"2026-09-24T07:06:17.115Z","phase":"0","task":"npm package scaffold","status":"done","summary":"package.json (ESM, bin silver -> src/cli.js, node>=24, test via node:test), .gitignore (floor/archive/canon deliberately tracked), .env.example","files":["package.json",".gitignore",".env.example"]}

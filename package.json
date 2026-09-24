@@ -1,0 +1,25 @@
+{
+  "name": "silver",
+  "version": "0.0.1",
+  "description": "A multi-agent Warhol Factory that produces generative internet art",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "author": "Vincent Bruijn <vebruijn@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/y-a-v-a/silver.git"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "bin": {
+    "silver": "src/cli.js"
+  },
+  "scripts": {
+    "test": "node --test",
+    "test:watch": "node --test --watch",
+    "log": "node bin/log-progress.js",
+    "log:list": "node bin/log-progress.js --list"
+  }
+}

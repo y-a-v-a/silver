@@ -1,0 +1,25 @@
+# dependencies
+node_modules/
+
+# secrets
+.env
+.env.*
+!.env.example
+
+# deploy state
+site/.vercel/
+.vercel/
+
+# generated gallery (rebuilt from canon/ on every publish)
+site/
+
+# playwright
+test-results/
+playwright-report/
+
+# os / editor
+.DS_Store
+*.log
+
+# NOTE: floor/, archive/ and canon/ are committed on purpose.
+# The record is part of the work (ARCHITECTURE.md, principle 3).
