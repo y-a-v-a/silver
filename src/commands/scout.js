@@ -33,7 +33,8 @@ export default async function scoutCommand(_args, opts, ctx) {
   ctx.stderr.write(`${plural(result.candidates, 'candidate')}, ${result.duplicates} already seen, ${result.shown} shown to the Scout\n\n`);
   for (const e of result.posted) {
     const p = e.payload;
-    ctx.stdout.write(`* ${p.title}  (${p.source})\n  why:   ${p.why}\n${p.image ? `  image: ${p.image}\n` : ''}  ${p.url ?? ''}\n\n`);
+    const flag = p.sensitive?.flag ? `  SENSITIVE${p.sensitive.reason ? `: ${p.sensitive.reason}` : ''}\n` : '';
+    ctx.stdout.write(`* ${p.title}  (${p.source})\n${flag}  why:   ${p.why}\n${p.image ? `  image: ${p.image}\n` : ''}  ${p.url ?? ''}\n\n`);
   }
   if (result.note) ctx.stdout.write(`scout's note: ${result.note}\n`);
   for (const p of result.problems) ctx.stderr.write(`problem: ${p}\n`);

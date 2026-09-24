@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { tmpFactory, completion, routeFetch } from './helpers.js';
-import { runScouts, validatePicks, formatCandidates } from '../src/agents/scouts.js';
+import { runScouts, validatePicks, formatCandidates, normalizeSensitive } from '../src/agents/scouts.js';
 import { extractPage, snapshotPage } from '../src/lib/snapshot.js';
 import { trendsUrl } from '../src/sources/google-trends.js';
 
@@ -74,8 +74,8 @@ test('validatePicks keeps valid unique picks up to count and explains the rest',
     2,
   );
   assert.deepEqual(picks, [
-    { index: 1, why: 'A face everyone saw.', image: 'The face, twelve times.' },
-    { index: 2, why: 'numeric string is fine', image: null },
+    { index: 1, why: 'A face everyone saw.', image: 'The face, twelve times.', sensitive: { flag: false, reason: null } },
+    { index: 2, why: 'numeric string is fine', image: null, sensitive: { flag: false, reason: null } },
   ]);
   assert.equal(note, 'slow news day');
   assert.equal(problems.length, 4);
@@ -102,7 +102,12 @@ async function scoutSetup(replies) {
 }
 
 test('runScouts: gathers, asks the Scout with the real role file, posts subject cards with snapshots', async () => {
-  const reply = JSON.stringify({ picks: [{ n: 1, why: 'The can everyone owns.', image: 'One can, repeated.' }, { n: 6, why: 'A chair people queue to see.' }] });
+  const reply = JSON.stringify({
+    picks: [
+      { n: 1, why: 'The can everyone owns.', image: 'One can, repeated.', sensitive: { flag: false } },
+      { n: 6, why: 'A chair people queue to see.', sensitive: { flag: true, reason: 'execution device' } },
+    ],
+  });
   const f = await scoutSetup([completion(reply)]);
   const result = await runScouts({ config: f.config, floor: f.floor, llm: f.llm, fetch: f.sourcesFetch });
 
@@ -129,6 +134,9 @@ test('runScouts: gathers, asks the Scout with the real role file, posts subject 
   assert.equal(soup.payload.snapshot.page.title, 'Soup maker changes can design');
   assert.match(soup.payload.snapshot.snippet, /2000\+ searches/);
   assert.equal(chair.payload.title, 'Electric chair museum reopens');
+  assert.deepEqual(soup.payload.sensitive, { flag: false, reason: null });
+  assert.deepEqual(chair.payload.sensitive, { flag: true, reason: 'execution device' });
+  assert.match(system, /What you never pick[\s\S]*Suicide or self-harm[\s\S]*Children[\s\S]*Named private victims/);
   assert.equal(chair.payload.snapshot.page.error, 'HTTP 404'); // unreachable page: recorded, not fatal
 });
 
@@ -167,4 +175,14 @@ test('runScouts: no fresh candidates means no model call', async () => {
   assert.equal(f.fetch.requests.length, 0);
   assert.match(result.problems[0], /no fresh candidates/);
   assert.ok(result.report.every((r) => !r.ok));
+});
+
+test('normalizeSensitive: explicit false is clean, anything else ambiguous is flagged', () => {
+  assert.deepEqual(normalizeSensitive(undefined), { flag: false, reason: null });
+  assert.deepEqual(normalizeSensitive({ flag: false }), { flag: false, reason: null });
+  assert.deepEqual(normalizeSensitive(false), { flag: false, reason: null });
+  assert.deepEqual(normalizeSensitive(true), { flag: true, reason: null });
+  assert.deepEqual(normalizeSensitive({ flag: true, reason: ' war ' }), { flag: true, reason: 'war' });
+  assert.deepEqual(normalizeSensitive({ reason: 'grief' }), { flag: true, reason: 'grief' });
+  assert.deepEqual(normalizeSensitive('violence'), { flag: true, reason: 'violence' });
 });

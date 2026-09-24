@@ -17,11 +17,26 @@ export function formatCandidates(candidates) {
 }
 
 /**
+ * The Scout's sensitivity flag, normalised to {flag, reason}. Anything malformed that is
+ * not clearly `false` counts as flagged: a spurious warning costs less than a missing one.
+ * @returns {{flag: boolean, reason: string|null}}
+ */
+export function normalizeSensitive(value) {
+  if (value === undefined || value === null || value === false) return { flag: false, reason: null };
+  if (value === true) return { flag: true, reason: null };
+  if (typeof value === 'object') {
+    const reason = typeof value.reason === 'string' && value.reason.trim() ? value.reason.trim() : null;
+    return { flag: value.flag !== false, reason };
+  }
+  return { flag: true, reason: typeof value === 'string' && value.trim() ? value.trim() : null };
+}
+
+/**
  * Check the Scout's reply. Keeps valid, unique picks up to `count`; reports the rest.
  * @param {unknown} json
  * @param {number} candidateCount
  * @param {number} count
- * @returns {{picks: {index: number, why: string, image: string|null}[], note: string|null, problems: string[]}}
+ * @returns {{picks: {index: number, why: string, image: string|null, sensitive: {flag: boolean, reason: string|null}}[], note: string|null, problems: string[]}}
  */
 export function validatePicks(json, candidateCount, count) {
   const problems = [];
@@ -48,7 +63,12 @@ export function validatePicks(json, candidateCount, count) {
       continue;
     }
     used.add(n);
-    picks.push({ index: n - 1, why: p.why.trim(), image: typeof p.image === 'string' && p.image.trim() ? p.image.trim() : null });
+    picks.push({
+      index: n - 1,
+      why: p.why.trim(),
+      image: typeof p.image === 'string' && p.image.trim() ? p.image.trim() : null,
+      sensitive: normalizeSensitive(p.sensitive),
+    });
   }
   const note = typeof json.note === 'string' && json.note.trim() ? json.note.trim() : null;
   return { picks, note, problems };
@@ -101,6 +121,7 @@ export async function runScouts({ config, floor, llm, fetch = globalThis.fetch }
         source: c.source,
         why: pick.why,
         image: pick.image,
+        sensitive: pick.sensitive,
         snapshot: { snippet: c.snippet, fetchedAt: c.fetchedAt, meta: c.meta, page },
       },
     });
