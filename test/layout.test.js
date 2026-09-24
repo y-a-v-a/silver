@@ -52,3 +52,11 @@ test('code, roles, config and docs stay tracked', async () => {
   }
   assert.ok(existsSync(join(cfg.paths.roles, 'superstars')), 'roles/superstars/ exists');
 });
+
+test('licences: MIT for code (package.json + LICENSE), CC BY 4.0 for artworks', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const pkg = JSON.parse(await readFile(join(ROOT, 'package.json'), 'utf8'));
+  assert.equal(pkg.license, 'MIT');
+  assert.match(await readFile(join(ROOT, 'LICENSE'), 'utf8'), /^MIT License/);
+  assert.match(await readFile(join(ROOT, 'LICENSE-ARTWORKS.md'), 'utf8'), /creativecommons\.org\/licenses\/by\/4\.0/);
+});

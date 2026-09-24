@@ -4,7 +4,7 @@
   "description": "A multi-agent Warhol Factory that produces generative internet art",
   "type": "module",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
   "author": "Vincent Bruijn <vebruijn@gmail.com>",
   "repository": {
     "type": "git",

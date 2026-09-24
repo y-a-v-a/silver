@@ -123,3 +123,9 @@ canon/             signed works (local only; published through the site)
 site/              the generated gallery (gitignored, rebuilt on publish)
 test/              node:test suites
 ```
+
+## Licence
+
+- **Code** (everything in this repository): [MIT](LICENSE)
+- **Artworks** (the signed works the Factory publishes): [CC BY 4.0](LICENSE-ARTWORKS.md). This covers the Factory's own contribution only, not the third-party subjects, brands or likenesses a work may depict.
+

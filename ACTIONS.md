@@ -249,7 +249,7 @@ Also added along the way:
 - [x] **Sensitive subjects:** add the exclusion rule to `roles/scout.md` (no suicide, no children, no named private victims), plus a `sensitive: {flag, reason}` field per pick. `validatePicks` carries it onto the subject card (`payload.sensitive`).
 - [x] **Repeat window:** add `sources.repeatAfterDays: 7` to the config (validated). Dedupe against the floor only looks at subjects posted within the window, and the Scout's "recent subjects" list uses the same window.
 - [x] **Scout annotates commissions:** after `postCommission`, one Scout call (a small prompt section in `roles/scout.md`, or a separate `roles/scout-annotate.md`) adds `scoutWhy` and `image`. The human's `why` is never overwritten. A failed call leaves the commission as it is and is recorded as `llm.failed`. `--no-annotate` skips it.
-- [ ] **Licence:** add `LICENSE` (MIT, code) and `LICENSE-ARTWORKS.md` (CC BY 4.0, works), set `"license": "MIT"` in `package.json`, and add a README section.
+- [x] **Licence:** add `LICENSE` (MIT, code) and `LICENSE-ARTWORKS.md` (CC BY 4.0, works), set `"license": "MIT"` in `package.json`, and add a README section.
 
 ## Phase 3: Technician tools and Studio assistants
 
