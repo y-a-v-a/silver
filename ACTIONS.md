@@ -320,9 +320,11 @@ These came up while building. Each lists what the code does **today**, so nothin
    - *Options:* (a) keep it open, since the veto is the gate; (b) let the Scout pick disasters but exclude suicide, children and named private victims; (c) mark sensitive subjects so they show a warning on the contact sheet.
    - *Recommendation:* (b) + (c). The Scout rule is one paragraph in `roles/scout.md`, and the flag is one field on the card.
 
-2. **Copyrighted text in a public repo.** ~~Snapshots are committed to a public repo.~~ **Mostly resolved on 2026-09-24:** data stays out of git, so new snapshots never reach GitHub. Two things remain:
-   - **History.** Commits `20a76a8` and `b8187bd` put the first live floor and three transcripts, including up to 2,000 characters of BBC and Guardian article text, into the public history of `main`. They are removed from the current tree but still reachable in history. *Options:* (a) leave it, since it's small; (b) rewrite history (`git filter-repo --path floor --path archive --invert-paths`) and force-push `main`. That is destructive: it changes every commit hash from `0840085` onward. *Recommendation:* (b), soon, while nobody else has cloned the repo. **Needs your explicit go-ahead.**
-   - **Publishing.** The gallery (Phase 5) is public too. Wall text should quote at most a headline, never article text.
+2. **Copyrighted text in a public repo.** **Resolved 2026-09-24.**
+   - Data stays out of git, so new snapshots never reach GitHub.
+   - The history was rewritten with `git filter-branch`: `floor/`, `archive/`, `canon/` and `taste.md` were removed from every commit, and `main` was force-pushed. The code is identical, and every commit hash changed.
+   - *One remainder:* GitHub keeps orphaned commits fetchable by their exact hash until its own garbage collection runs. No branch or listing leads to them, but anyone holding an old hash can still open them. To purge them immediately, ask GitHub Support to remove the cached views (their "removing sensitive data" procedure) and give them the two old commit hashes `20a76a8` and `b8187bd`.
+   - *Still applies to publishing:* the gallery (Phase 5) is public, so wall text should quote at most a headline, never article text.
 
 3. **Real people's likenesses.** Subjects include public figures (McConnell, Trump, Xi), and the works will depict them. Warhol did exactly this, but the published gallery will be public.
    - *Options:* (a) allow public figures, never private individuals; (b) no identifiable real faces, only objects and scenes; (c) decide case by case at the veto.
