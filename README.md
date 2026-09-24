@@ -40,7 +40,7 @@ npx silver scout                 # post today's subject cards (--list to just br
 npx silver commission "<text|URL>" [--why ...]   # bring your own subject; --list shows the queue
 ```
 
-Open questions that need the owner's decision are listed at the bottom of [ACTIONS.md](ACTIONS.md#open-decisions-need-your-call).
+Decisions taken so far are in the table at the top of [ACTIONS.md](ACTIONS.md#decisions-resolved); new open questions are collected at its bottom.
 
 ## Requirements
 

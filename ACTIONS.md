@@ -21,6 +21,17 @@ The build plan for the Silver Factory in Node.js, derived from [ARCHITECTURE.md]
 | Warhol's taste | **Learns from vetoes** through an append-only `taste.md` |
 | Archivist | **Deterministic code** that records everything, plus an **end-of-shift LLM diary** (Pat Hackett style) |
 | Data in git | **Kept out** (decided 2026-09-24). `floor/`, `archive/`, `canon/` and `taste.md` stay on local disk, gitignored. The repo holds code, roles, config and docs. |
+| Sensitive subjects | **Exclude + flag** (2026-09-24). The Scout may pick disasters, but never suicide, children or named private victims. Other sensitive subjects carry a `sensitive` flag and show a warning on the contact sheet. |
+| Real people's likenesses | **Case by case at the veto** (2026-09-24). No rule in the roles; the human decides per work. |
+| Backup of the local record | **Private data repo** (2026-09-24). A separate private GitHub repo (e.g. `silver-record`) that the Archivist commits to and pushes after each shift. |
+| Licence | **MIT for the code, CC BY 4.0 for the artworks** (2026-09-24). |
+| Source language / region | **Keep the mix** (2026-09-24): English + Dutch feeds, Google Trends `US`. |
+| Gallery language | **English** (2026-09-24). Titles and wall text are English, including for Dutch subjects. |
+| Commissions vs the series cap | **Fill the slots, the rest waits** (2026-09-24). Commissions take `seriesPerShift` slots first (oldest first); the rest roll over to the next shift. `--now` is for anything urgent. |
+| `commission --now` | **Chatter + series + shortlist** (2026-09-24). The superstars react, the assistants produce the series, and Warhol shortlists it, so the work lands on the contact sheet right away. |
+| Scout annotates commissions | **Yes, never overwriting the human's `--why`** (2026-09-24). One cheap Scout call adds its own `why` and `image`, marked as the Scout's. |
+| Repeat subjects | **7-day window** (2026-09-24). A scouted subject may return after 7 days (configurable); commissions may always repeat. |
+| Reddit | **Keep r/all for now** (2026-09-24). Switch to curated subreddits if NSFW shows up. |
 
 ## Stack
 
@@ -227,10 +238,17 @@ Also added along the way:
 - [x] `agents/scouts.js`: fetch all sources → dedupe against subjects already on the floor → the Scout LLM picks `subjectsPerShift` → emit `subject.posted` with a text snapshot, so the subject survives link rot
   - Dedupe: normalised URL (tracking params stripped), normalised title, or titles sharing ≥ 75% of their words (Jaccard)
   - Snapshot (`src/lib/snapshot.js`): og title, description and image, plus up to 2,000 characters of article text. It never throws, and failures such as paywall 403s are recorded on the card.
-- [x] `silver commission "<text | URL>" [--now]`: emits `subject.posted` with `origin: commission`. Commissions **always get a series** in the next shift, ahead of scouted subjects. `--now` runs a mini-shift for just that subject. **Partly done:** `--now` needs the studio (Phase 3), so for now it queues and says so. Also added `--why <note>` and `--list` (commissions still waiting for a series).
+- [x] `silver commission "<text | URL>" [--now]`: emits `subject.posted` with `origin: commission`. Commissions **always get a series** in the next shift, ahead of scouted subjects. `--now` runs a mini-shift for just that subject. **Partly done:** `--now` needs the studio (Phase 3), so for now it queues and says so. Once built, it runs chatter + series + shortlist (see Phase 8). Also added `--why <note>` and `--list` (commissions still waiting for a series).
 - [x] `silver scout`: runs the scouts on their own (useful for tuning). Options: `--count`, `--source`, `--list` (no model call), `--no-snapshot`, `--dry-run`, `--json`.
 
 **Done when:** `silver scout` posts ~6 subject cards to the floor, each showing a "why it's a ready-made" line that makes sense. ✅ The first live run on 2026-09-24 posted 6 cards for $0.0086. Its notes embellished facts, which led to the facts-only rule; the rerun stayed factual.
+
+## Phase 2b: follow-ups from the 2026-09-24 decisions
+
+- [ ] **Sensitive subjects:** add the exclusion rule to `roles/scout.md` (no suicide, no children, no named private victims), plus a `sensitive: {flag, reason}` field per pick. `validatePicks` carries it onto the subject card (`payload.sensitive`).
+- [ ] **Repeat window:** add `sources.repeatAfterDays: 7` to the config (validated). Dedupe against the floor only looks at subjects posted within the window, and the Scout's "recent subjects" list uses the same window.
+- [ ] **Scout annotates commissions:** after `postCommission`, one Scout call (a small prompt section in `roles/scout.md`, or a separate `roles/scout-annotate.md`) adds `scoutWhy` and `image`. The human's `why` is never overwritten. A failed call leaves the commission as it is and is recorded as `llm.failed`. `--no-annotate` skips it.
+- [ ] **Licence:** add `LICENSE` (MIT, code) and `LICENSE-ARTWORKS.md` (CC BY 4.0, works), set `"license": "MIT"` in `package.json`, and add a README section.
 
 ## Phase 3: Technician tools and Studio assistants
 
@@ -263,6 +281,8 @@ Also added along the way:
   - [ ] Each pick has Approve / Veto and an optional note field. Posting a decision emits `review.decision` and appends to `taste.md`.
   - [ ] The human may also approve a variant Warhol did **not** pick (the veto works both ways)
   - [ ] Pending reviews persist across shifts until they are decided
+  - [ ] Subjects with `payload.sensitive.flag` show a visible warning and the reason (decision 2026-09-24)
+  - [ ] Real people's likenesses are judged here, case by case: no automated rule (decision 2026-09-24)
 - [ ] Rejected and vetoed variants stay in `archive/`, since nothing is ever deleted
 
 **Done when:** after a shift, `silver review` shows Warhol's shortlist, and approving one emits the decision and grows `taste.md`.
@@ -275,12 +295,13 @@ Also added along the way:
   - [ ] Renders a poster PNG (fixed seed) for thumbnails and OG images
   - [ ] **Signature:** sha256 of the sketch source + Warhol's note + the human approval event id, stored in `canon.json`
   - [ ] Emits `work.published`
-- [ ] Write `roles/fred-hughes.md`: the business side: a title (Warhol-flat: "Silver Car Crash (Double Disaster)"-style), short wall text, edition number
+- [ ] Write `roles/fred-hughes.md`: the business side: a title (Warhol-flat: "Silver Car Crash (Double Disaster)"-style), short wall text, edition number. **Always in English**, also for Dutch subjects, and wall text quotes at most a headline, never article text.
 - [ ] `agents/hughes.js`: assigns sequential edition numbers, writes the wall text, regenerates the site, emits `edition.released`
 - [ ] Static site generator `src/site.js` → `site/`:
   - [ ] `index.html`: the canon as a grid of posters, newest first
   - [ ] `works/<id>/`: the live sketch, full-bleed, with wall text below
   - [ ] `feed.xml`: an Atom feed of the editions
+  - [ ] A CC BY 4.0 notice on every work page and in the feed (decision 2026-09-24)
 - [ ] Deploy with `vercel deploy site --prod --token $VERCEL_TOKEN --yes`. Record the URL in `work.published`.
 - [ ] `silver publish`: rebuilds and redeploys by hand
 
@@ -299,6 +320,7 @@ Also added along the way:
 
 - [ ] `agents/archivist.js` (code): after each shift, checks that every event has its transcript or artifact, writes a shift manifest and a summary of the shift. It does **not** commit to git, since data stays out of the repo (see the backup decision below).
 - [ ] Write `roles/archivist.md` (Billy Name / Pat Hackett): writes a diary entry from the day's floor (who said what, what got made, what died) → `archive/diary/YYYY-MM-DD.md` → `diary.written`
+- [ ] **Backup** (decision 2026-09-24): `floor/`, `archive/`, `canon/` and `taste.md` form their own git repo, pushed to a **private** GitHub repo (e.g. `silver-record`). At the end of each shift the Archivist commits with a shift summary and pushes. If the push fails, it is recorded and retried next shift, without failing the shift. Setup: `silver init-record` creates the repo (confirming before creating anything on GitHub).
 - [ ] **Feedback loop** (principle 3): Scouts treat the diary and the reject pile as an extra source, with `origin: archive`, and at most one archive subject per shift
 
 **Done when:** a diary entry exists for each shift, and an archive-origin subject appears within a week.
@@ -306,6 +328,8 @@ Also added along the way:
 ## Phase 8: the daily shift and launchd
 
 - [ ] `src/shift.js`: `shift.started` → scouts → superstars → pick subjects (commissions first, then scouted) → assistants (N series) → Warhol shortlists → archivist → `shift.ended`
+  - [ ] Commissions fill the `seriesPerShift` slots first, oldest first. The rest wait for the next shift (decision 2026-09-24).
+  - [ ] `silver commission --now` runs a mini-shift for one subject: superstar chatter → series → Warhol shortlist (decision 2026-09-24)
   - [ ] Idempotent per date: running it twice on one day continues the shift without duplicating it
   - [ ] Stops cleanly on `BudgetExhausted` and records the reason
   - [ ] Printing happens **outside** the shift, at the moment of human approval, because the veto is async
@@ -325,51 +349,20 @@ Also added along the way:
 - Image-model techniques (photo-silkscreen) alongside p5
 - Continuous tempo: floor subscribers instead of a sequential shift
 
-## Open decisions (need your call)
+## Decisions taken on 2026-09-24
 
-These came up while building. Each lists what the code does **today**, so nothing is blocked, plus the options and my recommendation. Answer inline or tell me, and I'll update the code and this list.
+The open decisions from Phases 0–2 were answered on 2026-09-24. They are summarised in the decisions table at the top, and the resulting work is in **Phase 2b** and the later phases. For the record, each question and the options that were considered:
 
-1. **Sensitive subjects.** The first live Scout run picked US Navy suicide attempts and an Iranian president holding up photos of slain children. That is squarely Warhol's *Death and Disaster* territory, but these are recent, real, identifiable victims.
-   - *Today:* no filter. Anything in the news can become a subject, and your veto is the only gate.
-   - *Options:* (a) keep it open, since the veto is the gate; (b) let the Scout pick disasters but exclude suicide, children and named private victims; (c) mark sensitive subjects so they show a warning on the contact sheet.
-   - *Recommendation:* (b) + (c). The Scout rule is one paragraph in `roles/scout.md`, and the flag is one field on the card.
+1. **Sensitive subjects:** real, recent victims (the Scout had picked Navy suicide attempts and photos of slain children). *Chosen:* exclude suicide, children and named private victims, and flag other sensitive subjects. *Considered:* keep open, flag only, exclude only.
+2. **Copyrighted text in a public repo:** resolved earlier the same day. Data stays out of git, and the history was rewritten and force-pushed. *Remainder:* GitHub serves the orphaned commits `20a76a8` and `b8187bd` by hash until its own GC runs, and GitHub Support can purge them sooner. The gallery quotes at most a headline.
+3. **Real people's likenesses:** *Chosen:* case by case at the veto. *Considered:* public figures only; no real faces.
+4. **Source language / region:** *Chosen:* keep the English + Dutch mix with US Trends. *Considered:* add NL Trends, switch to NL, English only. **Gallery language:** *Chosen:* English. *Considered:* source language, Dutch, bilingual.
+5. **Commissions vs the series cap:** *Chosen:* commissions fill the slots first and the rest waits. *Considered:* all commissions always; a separate cap.
+6. **Scout annotates commissions:** *Chosen:* yes, never overwriting the human's `--why`. *Considered:* image line only; no.
+7. **`--now`:** *Chosen:* chatter + series + shortlist. *Considered:* series only; series + shortlist.
+8. **Repeat subjects:** *Chosen:* a 7-day window for scouted subjects; commissions always allowed. *Considered:* forever, 30 days, 90 days.
+9. **Reddit NSFW:** *Chosen:* keep r/all for now and switch if NSFW appears. *Considered:* curated subreddits now; drop Reddit.
+10. **Licence:** *Chosen:* MIT for code, CC BY 4.0 for artworks. *Considered:* CC BY-NC for works; all rights reserved for works; stay UNLICENSED.
+11. **Backup of the local record:** *Chosen:* a private data repo pushed by the Archivist. *Considered:* Time Machine only, a sync folder or rsync, tarballs.
 
-2. **Copyrighted text in a public repo.** **Resolved 2026-09-24.**
-   - Data stays out of git, so new snapshots never reach GitHub.
-   - The history was rewritten with `git filter-branch`: `floor/`, `archive/`, `canon/` and `taste.md` were removed from every commit, and `main` was force-pushed. The code is identical, and every commit hash changed.
-   - *One remainder:* GitHub keeps orphaned commits fetchable by their exact hash until its own garbage collection runs. No branch or listing leads to them, but anyone holding an old hash can still open them. To purge them immediately, ask GitHub Support to remove the cached views (their "removing sensitive data" procedure) and give them the two old commit hashes `20a76a8` and `b8187bd`.
-   - *Still applies to publishing:* the gallery (Phase 5) is public, so wall text should quote at most a headline, never article text.
-
-3. **Real people's likenesses.** Subjects include public figures (McConnell, Trump, Xi), and the works will depict them. Warhol did exactly this, but the published gallery will be public.
-   - *Today:* no rule. The Scout may pick anyone in the news, and your veto is the only gate.
-   - *Options:* (a) allow public figures, never private individuals; (b) no identifiable real faces, only objects and scenes; (c) decide case by case at the veto.
-   - *Recommendation:* (a), written into the Scout and assistant roles.
-
-4. **Language and region of the sources.** The feeds mix English and Dutch (NOS), and Google Trends is set to `US`.
-   - *Options:* (a) keep the mix, since multilingual noise is floor texture; (b) English only; (c) switch Trends to `NL` or add both.
-   - *Also:* should titles and wall text on the gallery be English, Dutch, or the language of the source?
-
-5. **Commissions and the series cap.** `shift.seriesPerShift` is 2. If you commission 5 subjects in one day, then:
-   - *Options:* (a) commissions may exceed the cap, so all get a series; (b) commissions fill the slots first and the rest wait for the next shift; (c) commissions get their own separate cap.
-   - *Today:* not built yet (Phase 8 decides). *Recommendation:* (b), plus `silver commission --now` for anything urgent.
-
-6. **Should the Scout annotate commissions?** Today a commission has only your `--why` (or none), and no `image` line.
-   - *Option:* one cheap Scout call per commission to add a `why` and an `image`, marked as the Scout's.
-   - *Recommendation:* yes, but never overwrite your own `--why`.
-
-7. **What `--now` does once the studio exists.** Just produce the series (Phase 3), or also run Warhol's shortlist (Phase 4) so it lands on the contact sheet right away?
-   - *Recommendation:* series + shortlist.
-
-8. **Can a subject come back?** Dedupe currently blocks a subject **forever**. Warhol returned to Marilyn and Mao many times.
-   - *Options:* (a) forever; (b) a window, e.g. 30 days; (c) forever for scouts, with commissions always allowed (today's behaviour for commissions).
-   - *Recommendation:* (b) + (c).
-
-9. **Reddit NSFW.** The r/all Atom feed doesn't mark NSFW posts.
-   - *Options:* (a) rely on the Scout and your veto; (b) replace r/all with a curated list of subreddits; (c) drop Reddit.
-   - *Recommendation:* (b) if NSFW shows up in practice.
-
-10. **Licence.** Still `UNLICENSED` since Phase 0, although the repo is public. This matters more once works are published: the code and the artworks may want different licences (for example MIT for code and CC BY-NC for works).
-
-11. **Backup of the local record.** Now that the floor, archive and canon are out of git, they exist only on this Mac. Losing the disk means losing the record and the canon.
-   - *Options:* (a) nothing, and rely on Time Machine; (b) a second, **private** git repo just for data (for example `silver-record`), pushed by the Archivist at the end of each shift; (c) a sync folder (iCloud or Dropbox) or an rsync to another machine; (d) a tarball per shift in `archive/backups/`, copied wherever you like.
-   - *Recommendation:* (b). It keeps the append-only history and diffs, and costs one private repo. Until you decide, the Archivist (Phase 7) writes the manifest but backs nothing up.
+New open questions go here as they come up.
