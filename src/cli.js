@@ -7,6 +7,16 @@ import { COMMANDS, NOT_IMPLEMENTED_EXIT } from './commands/registry.js';
 import { ROOT } from './config.js';
 import { loadDotEnv } from './lib/env.js';
 
+const EXPECTED_ERRORS = new Set([
+  'ConfigError',
+  'RoleError',
+  'TemplateError',
+  'LlmError',
+  'LlmOutputError',
+  'BudgetExhausted',
+  'EventError',
+]);
+
 const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
 
 /**
@@ -50,7 +60,8 @@ async function main() {
 // Run only when executed directly, not when imported by tests.
 if (import.meta.main) {
   main().catch((err) => {
-    console.error(`silver: ${err.stack ?? err}`);
+    // Expected failures get a one-line message; anything else is a bug and gets a stack.
+    console.error(`silver: ${EXPECTED_ERRORS.has(err?.name) ? err.message : (err?.stack ?? err)}`);
     process.exit(1);
   });
 }

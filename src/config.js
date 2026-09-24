@@ -162,6 +162,15 @@ function deepFreeze(o) {
 }
 
 /**
+ * Load the config the way the CLI does: SILVER_CONFIG picks the file and SILVER_ROOT the
+ * directory that paths resolve against. Both default to this repository.
+ * @param {Record<string, string|undefined>} [env]
+ */
+export function loadConfigFromEnv(env = process.env) {
+  return loadConfig({ file: env.SILVER_CONFIG || DEFAULT_CONFIG_PATH, env, root: env.SILVER_ROOT ? resolve(env.SILVER_ROOT) : ROOT });
+}
+
+/**
  * Load, override, validate and freeze. `paths` come back as absolute paths.
  * @param {{file?: string, env?: Record<string, string|undefined>, root?: string}} [opts]
  * @returns {Promise<SilverConfig & {root: string}>}

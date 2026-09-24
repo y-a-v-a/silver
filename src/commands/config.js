@@ -1,10 +1,10 @@
 // `silver config`: show the resolved config or just validate it.
-import { loadConfig, ConfigError } from '../config.js';
+import { loadConfigFromEnv, ConfigError } from '../config.js';
 
 export default async function config(_args, opts, ctx) {
   let cfg;
   try {
-    cfg = await loadConfig();
+    cfg = await loadConfigFromEnv();
   } catch (err) {
     if (!(err instanceof ConfigError)) throw err;
     ctx.stderr.write(err.message + '\n');
