@@ -105,6 +105,8 @@ reads: [series.completed, chatter.posted]
 emits: [shortlist.proposed]
 max_tokens: 2000
 output: json                        # json | text
+vision: true                        # optional: the role sends images
+reasoning: low                      # optional: off | low | medium | high
 ---
 
 You are Andy Warhol at the Factory. You did not make these; your assistants did.
@@ -116,6 +118,7 @@ Return JSON: { "picks": [{ "variant_id": "...", "note": "..." }], "rejects_note"
 
 Rules:
 - `roles.js` validates the frontmatter and fails loudly if a field is missing or unknown.
+- Reasoning tokens count against `max_tokens`. A reasoning model can spend all of them thinking and return an empty reply, so set `reasoning` (use `off` for chatter) and leave enough headroom.
 - The prompt body may use `{{placeholders}}` (e.g. `{{taste}}`, `{{subject}}`, `{{floor_excerpt}}`), which are filled at call time.
 - Superstars share one frontmatter shape and differ only in voice. A new persona means adding a new file, with no code change.
 - Principle 6 (blurry roles): each role prompt says it *may* step outside its role, and the orchestrator accepts off-role events such as a superstar posting a `subject.posted`.
@@ -145,6 +148,7 @@ Event types, extending the draft list in ARCHITECTURE.md:
 | `work.published` | printer | canon id, edition, URL, render hash |
 | `edition.released` | Fred Hughes | work id, channel (`site`, `rss`), edition number |
 | `cost.recorded` | llm client | model, tokens, USD, ref |
+| `llm.failed` | llm client | role, model, error, attempts, reason (`empty`, `invalid-json`) |
 | `diary.written` | archivist | path |
 
 ---
@@ -173,21 +177,29 @@ Also added along the way:
 
 **Done when:** `silver --help` prints the command list. ✅
 
-## Phase 1: the floor, the LLM client, roles, budget
+## Phase 1: the floor, the LLM client, roles, budget ✅
 
-- [ ] `floor.js`: `append(event)`, `read({ shift, type, since })`, and `tail()` (async iterator used by the contact sheet). Append only, with no update or delete API.
-- [ ] `llm.js`: `call(role, { vars, messages, images })` →
-  - [ ] POST to `https://openrouter.ai/api/v1/chat/completions` with the role's model, temperature, and system prompt
-  - [ ] Request usage accounting so each response reports its cost, then emit `cost.recorded`
-  - [ ] Save the full request and response to `archive/transcripts/<event-id>.json`
-  - [ ] Retry with backoff on 429/5xx. When `output: json` returns unparseable JSON, retry once with a repair message, and if that also fails, record the failure and move on.
-  - [ ] Support image input (base64 PNG) for Warhol's review
-- [ ] `budget.js`: a daily ledger built from `cost.recorded` events. `assertBudget(estimateUsd)` throws `BudgetExhausted`. The shift catches it and ends gracefully (principle: stop cleanly without crashing, and record why).
-- [ ] `roles.js`: load and validate `roles/**/*.md`, and render placeholders
-- [ ] `silver floor [--shift date] [--type t]`: pretty-prints the log
-- [ ] `silver cost [--shift date]`: spend for each role and model
+- [x] `floor.js`: `append(event)`, `read({ shift, type, since })`, and `tail()` (async iterator used by the contact sheet). Append only, with no update or delete API. `read` also filters by `actor` and `ref`, and accepts `shift: 'all'` and `prefix.*` type patterns.
+- [x] `llm.js`: `call(role, { vars, messages, images })` →
+  - [x] POST to `https://openrouter.ai/api/v1/chat/completions` with the role's model, temperature, and system prompt
+  - [x] Request usage accounting so each response reports its cost, then emit `cost.recorded`
+  - [x] Save the full request and response to `archive/transcripts/<event-id>.json`. Base64 images are reduced to a fingerprint, since the images themselves are archived with the variants.
+  - [x] Retry with backoff on 429/5xx. When `output: json` returns unparseable JSON, retry once with a repair message, and if that also fails, record the failure and move on (`llm.failed` + `LlmOutputError`). Empty replies are handled the same way.
+  - [x] Support image input (base64 PNG) for Warhol's review. The role must declare `vision: true`.
+- [x] `budget.js`: a daily ledger built from `cost.recorded` events. `check(estimateUsd)` / `reserve(estimateUsd)` throw `BudgetExhausted`. Chatter has its own share of the cap, and reservations are serialised so parallel calls can't overspend. (Catching it at the end of a shift is Phase 8.)
+- [x] `roles.js`: load and validate `roles/**/*.md`, and render placeholders
+- [x] `silver floor [--shift date|all] [--type t] [--actor a] [--follow] [--json]`: pretty-prints the log
+- [x] `silver cost [--shift date|all] [--json]`: spend for each role and model
 
-**Done when:** a throwaway `silver ping <role>` makes one call, and the floor shows `cost.recorded` with the transcript in the archive.
+Also added along the way:
+
+- `src/pricing.js`: OpenRouter's public `/models`, used for pre-call estimates and as a fallback cost
+- `silver models`: checks every configured model exists on OpenRouter and that image roles are on vision models
+- The `reasoning` frontmatter field and the `llm.failed` event (see above)
+- `SILVER_ROOT`, `SILVER_CONFIG` and `OPENROUTER_BASE_URL` env hooks, used by the end-to-end tests
+- `roles/technician.md`, written ahead of Phase 3 so `ping` had a real role
+
+**Done when:** a throwaway `silver ping <role>` makes one call, and the floor shows `cost.recorded` with the transcript in the archive. ✅ The first real call was `silver ping technician` on 2026-09-24 (claude-sonnet-5, $0.00136).
 
 ## Phase 2: Scouts and commissions
 
@@ -205,7 +217,7 @@ Also added along the way:
 
 ## Phase 3: Technician tools and Studio assistants
 
-- [ ] Write `roles/technician.md`. It is used in v1 only for its voice: when a template changes, the human runs `silver release <tool>` and the Technician writes the release note as a `tool.released` event.
+- [x] Write `roles/technician.md` (done in Phase 1). It is used in v1 only for its voice: when a template changes, the human runs `silver release <tool>` and the Technician writes the release note as a `tool.released` event.
 - [ ] `tools/p5-template.html`: a single file that loads p5 from a pinned CDN version with an injected `// SKETCH` block
   - [ ] Seeds from `?seed=` (`randomSeed` + `noiseSeed`), so screenshots are reproducible while a normal load still drifts
   - [ ] Fixed canvas size (e.g. 1080×1080), with a `window.__silverReady` flag set after N frames

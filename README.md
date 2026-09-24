@@ -18,9 +18,24 @@ Everything is recorded, including drafts, chatter and rejects. The record is com
 
 ## Status
 
-Early construction. **Phase 0 (scaffold) is done**: config, CLI skeleton, test suite. No agent runs yet. `silver --help` lists every planned command, each tagged with the ACTIONS.md phase that builds it, and a command that isn't built yet exits with code 2.
+Early construction. **Phases 0 and 1 are done**:
+- The floor (the event log) records everything.
+- The OpenRouter client runs as any role, archives transcripts and costs every call.
+- The daily budget cap is enforced.
+
+No agents run on their own yet. `silver --help` lists every planned command, each tagged with the ACTIONS.md phase that builds it, and a command that isn't built yet exits with code 2.
 
 See [`process-log.jsonl`](process-log.jsonl) for a task-by-task log of the build (`npm run log:list`).
+
+## Commands (so far)
+
+```sh
+npx silver config [--check]      # resolved configuration / validate it
+npx silver models                # every configured model: on OpenRouter? price? can it see images?
+npx silver ping technician       # one real call as a role: prints the reply, cost and transcript path
+npx silver floor [-f]            # today's events (or --shift YYYY-MM-DD|all, --type, --actor, --json)
+npx silver cost                  # spend by role and by model against the $5/day cap
+```
 
 ## Requirements
 
@@ -50,9 +65,21 @@ All tunables live in [`silver.config.js`](silver.config.js):
 - `techniques`: the technique menu (grid-repeat, misregistered silkscreen, halftone, …)
 - `shift`, `sources`, `review`, `deploy`, `paths`
 
-`npx silver config --check` validates the file and reports every problem at once. Two values can be overridden from the environment: `SILVER_BUDGET_DAILY_USD` and `SILVER_REVIEW_PORT`.
+`npx silver config --check` validates the file and reports every problem at once. `npx silver models` checks the model slugs against OpenRouter's live catalogue.
 
-Roles will be defined as markdown files in `roles/`: the body is the role's system prompt, and the frontmatter holds its model and settings. See [ACTIONS.md → Role file format](ACTIONS.md#role-file-format).
+Environment variables:
+
+| Variable | Purpose |
+|---|---|
+| `OPENROUTER_API_KEY` | Required for any LLM call |
+| `VERCEL_TOKEN` | Deploys (Phase 5) |
+| `SILVER_BUDGET_DAILY_USD` | Overrides `budget.dailyUsd` |
+| `SILVER_REVIEW_PORT` | Overrides `review.port` |
+| `SILVER_ROOT` | Directory that `paths` resolve against (default: this repo) |
+| `SILVER_CONFIG` | Alternative config file |
+| `OPENROUTER_BASE_URL` | Alternative API endpoint (used by the tests' mock server) |
+
+Roles are markdown files in `roles/`: the body is the role's system prompt, and the frontmatter holds its model and settings (temperature, `max_tokens`, `output: json|text`, `vision`, `reasoning`). Files in `roles/superstars/` are superstars. See [ACTIONS.md → Role file format](ACTIONS.md#role-file-format).
 
 ## npm scripts
 
@@ -73,7 +100,14 @@ Roles will be defined as markdown files in `roles/`: the body is the role's syst
 silver.config.js   configuration
 src/cli.js         the `silver` command; commands are declared in src/commands/registry.js
 src/config.js      config loader and validator
-src/lib/           shared helpers (append-only JSONL, process log, .env)
+src/floor.js       the event log: append, read, tail
+src/events.js      event types and envelope validation
+src/roles.js       role file loader and {{placeholder}} rendering
+src/llm.js         OpenRouter client: transcripts, costing, retries, JSON repair
+src/budget.js      daily ledger and caps
+src/pricing.js     model prices and capabilities from OpenRouter
+src/factory.js     wires the parts together for commands
+src/lib/           shared helpers (append-only JSONL, process log, .env, formatting)
 bin/               project scripts (setup, process log)
 roles/             role system prompts (markdown)
 floor/             the event log, one JSONL file per shift (append-only, committed)
