@@ -124,7 +124,7 @@ test('silver commission posts text and URLs, lists pending ones, and explains --
   r = await silver(root, ['commission', pageUrl, '--now']);
   assert.equal(r.code, 0, r.stderr);
   assert.match(r.stdout, /commissioned: Brillo Box, 1964\n.*\n {2}snapshot: text\/html, 15 chars of text/);
-  assert.match(r.stderr, /--now needs the studio \(ACTIONS\.md phase 3\)/);
+  assert.match(r.stderr, /--now needs OPENROUTER_API_KEY; the commission is queued/);
 
   r = await silver(root, ['commission', 'twelve identical parking tickets']);
   assert.match(r.stderr, /note: this repeats [0-9A-Z]{26}/);

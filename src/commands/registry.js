@@ -90,7 +90,7 @@ export const COMMANDS = [
     options: [
       ['--why <note>', 'your reason: why it is a ready-made'],
       ['--no-annotate', 'skip the Scout\'s notes (why, image, sensitive flag)'],
-      ['--now', 'run a mini-shift for this subject immediately (needs phase 3; queues for now)'],
+      ['--now', 'produce its series immediately (chatter and Warhol\'s shortlist join in phases 6 and 4)'],
       ['--list', 'list commissions still waiting for a series'],
       ['--json', 'print the posted event as JSON'],
     ],

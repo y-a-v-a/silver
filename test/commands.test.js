@@ -3,7 +3,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { mkdtemp, mkdir, writeFile, readFile, readdir } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, readdir, cp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -142,4 +142,31 @@ test('the budget cap stops a ping before it reaches the API', async () => {
   assert.equal(r.code, 1);
   assert.match(r.stderr, /daily budget exhausted/);
   assert.equal(requests.length, before);
+});
+
+test('commission --now annotates, then produces and renders a series right away', { skip: process.env.SILVER_SKIP_BROWSER ? 'SILVER_SKIP_BROWSER is set' : false, timeout: 120_000 }, async () => {
+  const root = await mkdtemp(join(tmpdir(), 'silver-now-'));
+  await cp(fileURLToPath(new URL('../roles', import.meta.url)), join(root, 'roles'), { recursive: true });
+  mock.state.reply = (body) => {
+    const system = body.messages[0].content;
+    if (/annotating a commission|This time you did not find the subject/.test(system)) {
+      return completion(JSON.stringify({ why: 'A parking ticket everyone gets.', image: 'Twelve tickets.', sensitive: { flag: false } }), { cost: 0.001 });
+    }
+    return completion('```js\nfunction setup(){ createCanvas(SILVER.width, SILVER.height); noLoop(); }\nfunction draw(){ background(250,220,0); fill(0); for (let i=0;i<4;i++) rect(90+i*240, 300, 180, 480); }\n```', { cost: 0.002 });
+  };
+  try {
+    const r = await silver(root, ['commission', 'Twelve identical parking tickets', '--now']);
+    assert.equal(r.code, 0, r.stderr);
+    assert.match(r.stdout, /scout: A parking ticket everyone gets\./);
+    assert.match(r.stdout, /series [0-9A-Z]{26}: 12\/12 produced, 12 calls, \$0\.02\d*/);
+    assert.match(r.stderr, /--now: producing the series/);
+    const [floorFile] = await readdir(join(root, 'floor'));
+    const events = (await readFile(join(root, 'floor', floorFile), 'utf8')).trim().split('\n').map(JSON.parse);
+    const subject = events.find((e) => e.type === 'subject.posted');
+    const started = events.find((e) => e.type === 'series.started');
+    assert.equal(started.payload.subjectId, subject.id);
+    assert.equal(events.filter((e) => e.type === 'variant.produced').length, 12);
+  } finally {
+    mock.state.reply = defaultReply;
+  }
 });
