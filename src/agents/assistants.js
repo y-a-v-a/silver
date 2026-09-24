@@ -114,7 +114,9 @@ export async function runSeries({ config, floor, llm, renderer }, subjectRef, { 
       } catch (err) {
         const replyPath = join(dir, `${cell.variant}.reply.txt`);
         await writeFile(replyPath, res.content);
-        return fail('extract', err.message, { callId: res.id, model: res.model, reply: rel(replyPath) });
+        // A reply cut off at max_tokens usually fails extraction; say so, it's the actionable part.
+        const why = res.finishReason === 'length' ? `truncated at max_tokens (${err.message})` : err.message;
+        return fail('extract', why, { callId: res.id, model: res.model, reply: rel(replyPath), finishReason: res.finishReason });
       }
 
       const htmlPath = join(dir, `${cell.variant}.html`);

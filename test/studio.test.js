@@ -124,8 +124,10 @@ function fakeRenderer() {
 
 const sketchReply = (marker = '') => completion('```js\nfunction setup(){ createCanvas(SILVER.width, SILVER.height); }\nfunction draw(){ background(200); ' + marker + ' }\n```', { cost: 0.01 });
 
-async function studioSetup(replyFor, { variants = 4, dailyUsd = 5 } = {}) {
-  const f = await tmpFactory({ roles: { 'studio-assistant.md': ASSISTANT_ROLE }, replies: [], dailyUsd });
+async function studioSetup(replyFor, { variants = 4, dailyUsd = 5, maxTokens } = {}) {
+  // maxTokens pins the role's token ceiling, so budget tests don't depend on the shipped tuning.
+  const role = maxTokens ? ASSISTANT_ROLE.replace(/^max_tokens: \d+$/m, `max_tokens: ${maxTokens}`) : ASSISTANT_ROLE;
+  const f = await tmpFactory({ roles: { 'studio-assistant.md': role }, replies: [], dailyUsd });
   // Replies are chosen per request (concurrency makes the order unpredictable).
   f.fetch.queue.push(...Array.from({ length: 50 }, () => (body) => replyFor(body)));
   const config = {
@@ -188,7 +190,7 @@ test('runSeries: failures at every stage are recorded, not dropped', async () =>
   const f = await studioSetup(() => {
     n++;
     if (n === 1) return { status: 400, body: { error: { code: 400, message: 'bad request' } } };
-    if (n === 2) return completion('Sorry, I only write haiku.');
+    if (n === 2) return completion('Sorry, I only write haiku.', { finish: 'length' });
     if (n === 3) return sketchReply('CRASH');
     return sketchReply('BLANK');
   }, { variants: 4 });
@@ -200,6 +202,7 @@ test('runSeries: failures at every stage are recorded, not dropped', async () =>
   assert.deepEqual(failed.map((e) => e.actor), ['studio-assistant', 'studio-assistant', 'renderer', 'renderer']);
   const extract = failed.find((e) => e.payload.stage === 'extract');
   assert.match(await readFile(join(f.root, extract.payload.reply), 'utf8'), /haiku/);
+  assert.match(extract.payload.error, /^truncated at max_tokens \(no setup\(\)/);
   const [done] = await f.floor.read({ type: 'series.completed' });
   assert.deepEqual(done.payload.produced, []);
   assert.equal(done.payload.failed.length, 4);
@@ -207,9 +210,9 @@ test('runSeries: failures at every stage are recorded, not dropped', async () =>
 });
 
 test('runSeries: an exhausted budget stops new work and records the unstarted cells', async () => {
-  // Each call costs $0.01, but is reserved at its upper-bound estimate (~$0.017 with
-  // max_tokens 8000), so a $0.03 cap lets one or two calls through, never all four.
-  const f = await studioSetup(() => sketchReply(), { variants: 4, dailyUsd: 0.03 });
+  // Each call costs $0.01, but is reserved at its upper-bound estimate (~$0.009 with
+  // max_tokens 4000), so a $0.03 cap lets some calls through, never all four.
+  const f = await studioSetup(() => sketchReply(), { variants: 4, dailyUsd: 0.03, maxTokens: 4000 });
   const out = await runSeries({ config: f.config, floor: f.floor, llm: f.llm, renderer: fakeRenderer() }, f.subject.id, { concurrency: 1, rng: seq(0.5) });
   const ok = out.results.filter((r) => r.ok).length;
   assert.ok(ok >= 1 && ok < 4, `produced ${ok}`);

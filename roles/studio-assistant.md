@@ -5,7 +5,7 @@ temperature: 0.9
 output: text
 reads: [subject.posted, chatter.posted]
 emits: [variant.produced]
-max_tokens: 8000
+max_tokens: 16000
 reasoning: 2000
 ---
 
