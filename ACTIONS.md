@@ -136,10 +136,10 @@ Event types, extending the draft list in ARCHITECTURE.md:
 | Event | Actor | Payload |
 |---|---|---|
 | `shift.started` / `shift.ended` | orchestrator | budget remaining, counts |
-| `subject.posted` | scout, superstar, **human** (commission) | source, url, snapshot, why it is a ready-made, `origin: scouted\|commission\|archive` |
+| `subject.posted` | scout, superstar, **human** (commission) | `origin: scouted\|commission\|archive`, `title`, `url`, `source`, `why` (why it is a ready-made), `image` (the image it suggests), `snapshot: {snippet, fetchedAt, meta, page}`. `ref` points at the Scout call (or at the earlier subject a commission repeats). |
 | `chatter.posted` | superstar | persona id, text, ref |
 | `tool.released` | technician | tool name, version (in v1, emitted manually when a template changes) |
-| `series.started` | assistant | subject id, technique list, model matrix |
+| `series.started` | assistant | `subjectId` (this claims the subject; commissions without one are pending), technique list, model matrix |
 | `variant.produced` | assistant | series id, path, model, temperature, technique, seed |
 | `variant.failed` | renderer | series id, error (kept in the archive, since failures are material) |
 | `series.completed` | orchestrator | series id, variant ids, contact-sheet path |
@@ -201,19 +201,21 @@ Also added along the way:
 
 **Done when:** a throwaway `silver ping <role>` makes one call, and the floor shows `cost.recorded` with the transcript in the archive. ✅ The first real call was `silver ping technician` on 2026-09-24 (claude-sonnet-5, $0.00136).
 
-## Phase 2: Scouts and commissions
+## Phase 2: Scouts and commissions ✅
 
-- [ ] Write `roles/scout.md` (Latow/Geldzahler): *find, don't invent*; judge whether an item is a true ready-made (mass-produced, widely seen, emotionally loaded or banal); output subject cards as JSON.
-- [ ] Source adapters, each returning `{ title, url, snippet, source, fetchedAt }`:
-  - [ ] `google-trends.js` (daily trending RSS for a configured geo)
-  - [ ] `hackernews.js` (front page, via the official Firebase API)
-  - [ ] `reddit.js` (`/r/all/top.json?t=day`, with a proper User-Agent)
-  - [ ] `rss.js` (configured news feeds)
-- [ ] `agents/scouts.js`: fetch all sources → dedupe against subjects already on the floor → the Scout LLM picks `subjectsPerShift` → emit `subject.posted` with a text snapshot, so the subject survives link rot
-- [ ] `silver commission "<text | URL>" [--now]`: emits `subject.posted` with `origin: commission`. Commissions **always get a series** in the next shift, ahead of scouted subjects. `--now` runs a mini-shift for just that subject.
-- [ ] `silver scout`: runs the scouts on their own (useful for tuning)
+- [x] Write `roles/scout.md` (Latow/Geldzahler): *find, don't invent*; judge whether an item is a true ready-made (mass-produced, widely seen, emotionally loaded or banal); output subject cards as JSON. The Scout picks by candidate number, so titles are never rewritten. `why` must use only facts from the source, and `image` may be imagined.
+- [x] Source adapters, each returning `{ title, url, snippet, source, fetchedAt }` (plus `meta`):
+  - [x] `google-trends.js` (daily trending RSS for a configured geo; the lead news link becomes the url)
+  - [x] `hackernews.js` (front page, via the official Firebase API)
+  - [x] `reddit.js`: **changed.** `/r/all/top.json` answers 403 without OAuth (checked 2026-09-24), so it uses the public Atom feed `/r/all/top/.rss?t=day` and takes the post's own target from its `[link]` anchor
+  - [x] `rss.js` (configured news feeds; each is its own source `rss:<host>`)
+- [x] `agents/scouts.js`: fetch all sources → dedupe against subjects already on the floor → the Scout LLM picks `subjectsPerShift` → emit `subject.posted` with a text snapshot, so the subject survives link rot
+  - Dedupe: normalised URL (tracking params stripped), normalised title, or titles sharing ≥ 75% of their words (Jaccard)
+  - Snapshot (`src/lib/snapshot.js`): og title, description and image, plus up to 2,000 characters of article text. It never throws, and failures such as paywall 403s are recorded on the card.
+- [x] `silver commission "<text | URL>" [--now]`: emits `subject.posted` with `origin: commission`. Commissions **always get a series** in the next shift, ahead of scouted subjects. `--now` runs a mini-shift for just that subject. **Partly done:** `--now` needs the studio (Phase 3), so for now it queues and says so. Also added `--why <note>` and `--list` (commissions still waiting for a series).
+- [x] `silver scout`: runs the scouts on their own (useful for tuning). Options: `--count`, `--source`, `--list` (no model call), `--no-snapshot`, `--dry-run`, `--json`.
 
-**Done when:** `silver scout` posts ~6 subject cards to the floor, each showing a "why it's a ready-made" line that makes sense.
+**Done when:** `silver scout` posts ~6 subject cards to the floor, each showing a "why it's a ready-made" line that makes sense. ✅ The first live run on 2026-09-24 posted 6 cards for $0.0086. Its notes embellished facts, which led to the facts-only rule; the rerun stayed factual.
 
 ## Phase 3: Technician tools and Studio assistants
 
@@ -307,3 +309,47 @@ Also added along the way:
 - Social channels for Fred Hughes (Bluesky/Mastodon)
 - Image-model techniques (photo-silkscreen) alongside p5
 - Continuous tempo: floor subscribers instead of a sequential shift
+
+## Open decisions (need your call)
+
+These came up while building. Each lists what the code does **today**, so nothing is blocked, plus the options and my recommendation. Answer inline or tell me, and I'll update the code and this list.
+
+1. **Sensitive subjects.** The first live Scout run picked US Navy suicide attempts and an Iranian president holding up photos of slain children. That is squarely Warhol's *Death and Disaster* territory, but these are recent, real, identifiable victims.
+   - *Today:* no filter. Anything in the news can become a subject, and your veto is the only gate.
+   - *Options:* (a) keep it open, since the veto is the gate; (b) let the Scout pick disasters but exclude suicide, children and named private victims; (c) mark sensitive subjects so they show a warning on the contact sheet.
+   - *Recommendation:* (b) + (c). The Scout rule is one paragraph in `roles/scout.md`, and the flag is one field on the card.
+
+2. **Copyrighted text in a public repo.** Snapshots store up to 2,000 characters of article text from BBC, NYT, the Guardian and others, and `floor/` is committed to a **public** GitHub repo.
+   - *Today:* full snapshots are committed.
+   - *Options:* (a) keep as is; (b) commit only title, description, image URL and a short excerpt (~300 characters, quotation-sized), and keep full text in a gitignored `archive/snapshots/`; (c) make the repo private.
+   - *Recommendation:* (b).
+
+3. **Real people's likenesses.** Subjects include public figures (McConnell, Trump, Xi), and the works will depict them. Warhol did exactly this, but the published gallery will be public.
+   - *Options:* (a) allow public figures, never private individuals; (b) no identifiable real faces, only objects and scenes; (c) decide case by case at the veto.
+   - *Recommendation:* (a), written into the Scout and assistant roles.
+
+4. **Language and region of the sources.** The feeds mix English and Dutch (NOS), and Google Trends is set to `US`.
+   - *Options:* (a) keep the mix, since multilingual noise is floor texture; (b) English only; (c) switch Trends to `NL` or add both.
+   - *Also:* should titles and wall text on the gallery be English, Dutch, or the language of the source?
+
+5. **Commissions and the series cap.** `shift.seriesPerShift` is 2. If you commission 5 subjects in one day, then:
+   - *Options:* (a) commissions may exceed the cap, so all get a series; (b) commissions fill the slots first and the rest wait for the next shift; (c) commissions get their own separate cap.
+   - *Today:* not built yet (Phase 8 decides). *Recommendation:* (b), plus `silver commission --now` for anything urgent.
+
+6. **Should the Scout annotate commissions?** Today a commission has only your `--why` (or none), and no `image` line.
+   - *Option:* one cheap Scout call per commission to add a `why` and an `image`, marked as the Scout's.
+   - *Recommendation:* yes, but never overwrite your own `--why`.
+
+7. **What `--now` does once the studio exists.** Just produce the series (Phase 3), or also run Warhol's shortlist (Phase 4) so it lands on the contact sheet right away?
+   - *Recommendation:* series + shortlist.
+
+8. **Can a subject come back?** Dedupe currently blocks a subject **forever**. Warhol returned to Marilyn and Mao many times.
+   - *Options:* (a) forever; (b) a window, e.g. 30 days; (c) forever for scouts, with commissions always allowed (today's behaviour for commissions).
+   - *Recommendation:* (b) + (c).
+
+9. **Reddit NSFW.** The r/all Atom feed doesn't mark NSFW posts.
+   - *Options:* (a) rely on the Scout and your veto; (b) replace r/all with a curated list of subreddits; (c) drop Reddit.
+   - *Recommendation:* (b) if NSFW shows up in practice.
+
+10. **Licence.** Still `UNLICENSED` since Phase 0, although the repo is public. This matters more once works are published: the code and the artworks may want different licences (for example MIT for code and CC BY-NC for works).
+

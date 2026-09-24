@@ -18,12 +18,13 @@ Everything is recorded, including drafts, chatter and rejects. The record is com
 
 ## Status
 
-Early construction. **Phases 0 and 1 are done**:
+Early construction. **Phases 0–2 are done**:
 - The floor (the event log) records everything.
 - The OpenRouter client runs as any role, archives transcripts and costs every call.
 - The daily budget cap is enforced.
+- The Scouts pull ready-made subjects from Google Trends, Hacker News, Reddit and news RSS, and you can commission your own.
 
-No agents run on their own yet. `silver --help` lists every planned command, each tagged with the ACTIONS.md phase that builds it, and a command that isn't built yet exits with code 2.
+Nothing turns subjects into artworks yet (Phase 3), and nothing runs on a schedule yet. `silver --help` lists every planned command, each tagged with the ACTIONS.md phase that builds it, and a command that isn't built yet exits with code 2.
 
 See [`process-log.jsonl`](process-log.jsonl) for a task-by-task log of the build (`npm run log:list`).
 
@@ -35,7 +36,11 @@ npx silver models                # every configured model: on OpenRouter? price?
 npx silver ping technician       # one real call as a role: prints the reply, cost and transcript path
 npx silver floor [-f]            # today's events (or --shift YYYY-MM-DD|all, --type, --actor, --json)
 npx silver cost                  # spend by role and by model against the $5/day cap
+npx silver scout                 # post today's subject cards (--list to just browse the sources)
+npx silver commission "<text|URL>" [--why ...]   # bring your own subject; --list shows the queue
 ```
+
+Open questions that need the owner's decision are listed at the bottom of [ACTIONS.md](ACTIONS.md#open-decisions-need-your-call).
 
 ## Requirements
 
@@ -107,7 +112,9 @@ src/llm.js         OpenRouter client: transcripts, costing, retries, JSON repair
 src/budget.js      daily ledger and caps
 src/pricing.js     model prices and capabilities from OpenRouter
 src/factory.js     wires the parts together for commands
-src/lib/           shared helpers (append-only JSONL, process log, .env, formatting)
+src/sources/       scout sources: Google Trends, Hacker News, Reddit, RSS
+src/agents/        scouts, commissions (more roles in later phases)
+src/lib/           shared helpers (append-only JSONL, process log, .env, formatting, dedupe, page snapshots)
 bin/               project scripts (setup, process log)
 roles/             role system prompts (markdown)
 floor/             the event log, one JSONL file per shift (append-only, committed)
