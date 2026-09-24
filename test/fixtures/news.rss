@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"><channel><title>Example World News</title>
+<item><title>Celebrity &amp;amp; the &lt;b&gt;car crash&lt;/b&gt;</title><link>https://news.example.com/crash?utm_source=rss</link><description>&lt;p&gt;A famous face, a twisted car.&lt;/p&gt;</description><pubDate>Thu, 24 Sep 2026 07:00:00 GMT</pubDate></item>
+<item><title>Electric chair museum reopens</title><link>https://news.example.com/chair</link><description>Visitors queue for hours.</description></item>
+<item><description>An item without a title is skipped.</description></item>
+</channel></rss>
