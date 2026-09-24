@@ -1,0 +1,289 @@
+# Silver: actions
+
+The build plan for the Silver Factory in Node.js, derived from [ARCHITECTURE.md](ARCHITECTURE.md). Work top to bottom; each phase ends in something runnable.
+
+## Decisions (resolved)
+
+| Question | Decision |
+|---|---|
+| Who is Warhol? | A **Warhol agent shortlists and signs; the human holds a veto**. Nothing enters the canon without human approval. |
+| Medium | **Generative p5.js sketches**, one self-contained HTML file per variant |
+| Runtime | **OpenRouter API** (OpenAI-compatible `/chat/completions`) via native `fetch`, so every role can run on a different model |
+| Tempo | **One daily shift**, triggered by macOS `launchd` |
+| User input | **Two paths**: `silver commission "<text or URL>"` for the human's own subjects, plus autonomous scouting during the shift |
+| Scout sources | **Trending lists** (Google Trends RSS, Hacker News, Reddit r/all) and **news RSS** (configurable feed list) |
+| Veto UI | **Local web contact sheet** (`silver review`) showing live sketches, Warhol's picks and notes, with approve/veto buttons |
+| Deploy | **Vercel**, static gallery, `vercel deploy --prod` |
+| Series size | **12 variants per series** from roughly 3 models × 2 temperatures × 2 techniques |
+| Budget | **$5/day hard cap** on OpenRouter spend |
+| v1 scope | Superstars are live. The Technician has a role file, but its tools are hand-built in v1. |
+| Fred Hughes | **Numbered editions + RSS/Atom feed**, plus a title and wall text for each work |
+| Warhol's taste | **Learns from vetoes** through an append-only `taste.md` |
+| Archivist | **Deterministic code** that records everything, plus an **end-of-shift LLM diary** (Pat Hackett style) |
+
+## Stack
+
+- Node 24, ESM, plain JavaScript with JSDoc types. No build step.
+- Minimal dependencies:
+  - `gray-matter`: role file frontmatter
+  - `rss-parser`: news and Google Trends feeds
+  - `commander`: the CLI
+  - `ulid`: event ids
+  - `playwright`: headless render and screenshot of sketches
+  - `vercel`: deploy CLI, as a dev dependency
+- No database. The floor is JSONL and everything else is files on disk.
+- Secrets in `.env`: `OPENROUTER_API_KEY`, `VERCEL_TOKEN`.
+
+## Repository layout
+
+```
+silver/
+  ARCHITECTURE.md
+  ACTIONS.md
+  silver.config.js          # models, budget, feeds, series matrix, shift settings
+  roles/                    # the "system prompts": one markdown file per role
+    scout.md
+    studio-assistant.md
+    warhol.md
+    printer.md
+    fred-hughes.md
+    archivist.md
+    technician.md
+    superstars/
+      brigid.md
+      ondine.md
+      viva.md
+  taste.md                  # append-only log of human approve/veto notes; read by Warhol
+  src/
+    cli.js                  # `silver` entry point
+    floor.js                # append/read/subscribe to the event log
+    llm.js                  # OpenRouter client, cost tracking, transcript capture
+    roles.js                # loads roles/*.md → { meta, systemPrompt }
+    budget.js               # daily ledger, hard cap
+    shift.js                # orchestrates one daily shift
+    agents/
+      scouts.js
+      superstars.js
+      assistants.js
+      warhol.js
+      printer.js
+      hughes.js
+      archivist.js
+    sources/
+      google-trends.js
+      hackernews.js
+      reddit.js
+      rss.js
+    tools/                  # the Technician's workbench (hand-built in v1)
+      p5-template.html
+      render.js             # Playwright: run sketch, catch errors, screenshot
+      contact-sheet/        # local review web app
+  floor/                    # YYYY-MM-DD.jsonl, append-only, never edited
+  archive/
+    transcripts/            # every LLM request+response, by event id
+    variants/<series-id>/   # every sketch + screenshot, including rejects
+    diary/                  # Archivist's daily entries (YYYY-MM-DD.md)
+  canon/
+    canon.json              # signed works, edition numbers, hashes
+    works/<canon-id>/       # final sketch, poster PNG, wall text
+  site/                     # generated static gallery → Vercel
+  launchd/
+    com.silver.shift.plist
+```
+
+## Role file format
+
+Each role is a markdown file. The body is the system prompt, and the frontmatter holds its runtime settings. Code never hardcodes a prompt.
+
+```markdown
+---
+id: warhol
+name: Warhol
+model: <openrouter model slug>      # must be vision-capable for Warhol
+temperature: 0.4
+reads: [series.completed, chatter.posted]
+emits: [shortlist.proposed]
+max_tokens: 2000
+output: json                        # json | text
+---
+
+You are Andy Warhol at the Factory. You did not make these; your assistants did.
+Your job is to choose. ...
+
+## Output
+Return JSON: { "picks": [{ "variant_id": "...", "note": "..." }], "rejects_note": "..." }
+```
+
+Rules:
+- `roles.js` validates the frontmatter and fails loudly if a field is missing or unknown.
+- The prompt body may use `{{placeholders}}` (e.g. `{{taste}}`, `{{subject}}`, `{{floor_excerpt}}`), which are filled at call time.
+- Superstars share one frontmatter shape and differ only in voice. A new persona means adding a new file, with no code change.
+- Principle 6 (blurry roles): each role prompt says it *may* step outside its role, and the orchestrator accepts off-role events such as a superstar posting a `subject.posted`.
+
+## Floor events
+
+Envelope, one JSON object per line:
+
+```json
+{ "id": "01J…", "ts": "2026-09-23T09:00:00Z", "shift": "2026-09-23", "type": "subject.posted", "actor": "scout", "ref": null, "payload": {} }
+```
+
+Event types, extending the draft list in ARCHITECTURE.md:
+
+| Event | Actor | Payload |
+|---|---|---|
+| `shift.started` / `shift.ended` | orchestrator | budget remaining, counts |
+| `subject.posted` | scout, superstar, **human** (commission) | source, url, snapshot, why it is a ready-made, `origin: scouted\|commission\|archive` |
+| `chatter.posted` | superstar | persona id, text, ref |
+| `tool.released` | technician | tool name, version (in v1, emitted manually when a template changes) |
+| `series.started` | assistant | subject id, technique list, model matrix |
+| `variant.produced` | assistant | series id, path, model, temperature, technique, seed |
+| `variant.failed` | renderer | series id, error (kept in the archive, since failures are material) |
+| `series.completed` | orchestrator | series id, variant ids, contact-sheet path |
+| `shortlist.proposed` | Warhol agent | picks with notes, reject note |
+| `review.decision` | **human** | variant id, approved\|vetoed, note (this also appends to `taste.md`) |
+| `work.published` | printer | canon id, edition, URL, render hash |
+| `edition.released` | Fred Hughes | work id, channel (`site`, `rss`), edition number |
+| `cost.recorded` | llm client | model, tokens, USD, ref |
+| `diary.written` | archivist | path |
+
+---
+
+## Phase 0: scaffold
+
+- [ ] `npm init`, set `"type": "module"`, add a `bin` entry for `silver` → `src/cli.js`
+- [ ] Install the dependencies listed above, plus `npx playwright install chromium`
+- [ ] `.env.example`, `.gitignore` (ignore `.env`, `site/.vercel`, `node_modules`)
+- [ ] `git init`. The floor, archive, and canon **are committed** (the record is the work).
+- [ ] `silver.config.js` with:
+  - [ ] `models`: a pool of 3–4 OpenRouter slugs across providers, plus a cheap one for chatter
+  - [ ] `budget.dailyUsd: 5`
+  - [ ] `series.variants: 12`, `series.temperatures: [0.7, 1.1]`, `series.techniques: [...]`
+  - [ ] `shift.seriesPerShift: 2`, `shift.subjectsPerShift: 6`
+  - [ ] `sources.rss: [...]`, `sources.trending: { googleTrendsGeo, hackernews: true, reddit: true }`
+- [ ] In ARCHITECTURE.md, mark the four open decisions as resolved and link to this file
+
+**Done when:** `silver --help` prints the command list.
+
+## Phase 1: the floor, the LLM client, roles, budget
+
+- [ ] `floor.js`: `append(event)`, `read({ shift, type, since })`, and `tail()` (async iterator used by the contact sheet). Append only, with no update or delete API.
+- [ ] `llm.js`: `call(role, { vars, messages, images })` →
+  - [ ] POST to `https://openrouter.ai/api/v1/chat/completions` with the role's model, temperature, and system prompt
+  - [ ] Request usage accounting so each response reports its cost, then emit `cost.recorded`
+  - [ ] Save the full request and response to `archive/transcripts/<event-id>.json`
+  - [ ] Retry with backoff on 429/5xx. When `output: json` returns unparseable JSON, retry once with a repair message, and if that also fails, record the failure and move on.
+  - [ ] Support image input (base64 PNG) for Warhol's review
+- [ ] `budget.js`: a daily ledger built from `cost.recorded` events. `assertBudget(estimateUsd)` throws `BudgetExhausted`. The shift catches it and ends gracefully (principle: stop cleanly without crashing, and record why).
+- [ ] `roles.js`: load and validate `roles/**/*.md`, and render placeholders
+- [ ] `silver floor [--shift date] [--type t]`: pretty-prints the log
+- [ ] `silver cost [--shift date]`: spend for each role and model
+
+**Done when:** a throwaway `silver ping <role>` makes one call, and the floor shows `cost.recorded` with the transcript in the archive.
+
+## Phase 2: Scouts and commissions
+
+- [ ] Write `roles/scout.md` (Latow/Geldzahler): *find, don't invent*; judge whether an item is a true ready-made (mass-produced, widely seen, emotionally loaded or banal); output subject cards as JSON.
+- [ ] Source adapters, each returning `{ title, url, snippet, source, fetchedAt }`:
+  - [ ] `google-trends.js` (daily trending RSS for a configured geo)
+  - [ ] `hackernews.js` (front page, via the official Firebase API)
+  - [ ] `reddit.js` (`/r/all/top.json?t=day`, with a proper User-Agent)
+  - [ ] `rss.js` (configured news feeds)
+- [ ] `agents/scouts.js`: fetch all sources → dedupe against subjects already on the floor → the Scout LLM picks `subjectsPerShift` → emit `subject.posted` with a text snapshot, so the subject survives link rot
+- [ ] `silver commission "<text | URL>" [--now]`: emits `subject.posted` with `origin: commission`. Commissions **always get a series** in the next shift, ahead of scouted subjects. `--now` runs a mini-shift for just that subject.
+- [ ] `silver scout`: runs the scouts on their own (useful for tuning)
+
+**Done when:** `silver scout` posts ~6 subject cards to the floor, each showing a "why it's a ready-made" line that makes sense.
+
+## Phase 3: Technician tools and Studio assistants
+
+- [ ] Write `roles/technician.md`. It is used in v1 only for its voice: when a template changes, the human runs `silver release <tool>` and the Technician writes the release note as a `tool.released` event.
+- [ ] `tools/p5-template.html`: a single file that loads p5 from a pinned CDN version with an injected `// SKETCH` block
+  - [ ] Seeds from `?seed=` (`randomSeed` + `noiseSeed`), so screenshots are reproducible while a normal load still drifts
+  - [ ] Fixed canvas size (e.g. 1080×1080), with a `window.__silverReady` flag set after N frames
+  - [ ] Embeds the title and subject as a comment/metadata, with no visible UI chrome
+- [ ] `tools/render.js` (Playwright):
+  - [ ] Loads the sketch, collects console errors, waits for `__silverReady` or a timeout
+  - [ ] Takes a screenshot at seed 1 (and optionally seeds 2 and 3, for a small grid)
+  - [ ] Blank-canvas check: near-uniform pixels count as a failure
+  - [ ] Emits `variant.failed` on error or blank output, otherwise returns the PNG path
+- [ ] Write `roles/studio-assistant.md` (Malanga/Smith): turn a subject into a p5 sketch in a given **technique**; serial repetition, silkscreen logic (flat colour fields, registration offset, grids of repeats, photo-to-halftone); output only the sketch body.
+- [ ] A technique menu in config, e.g. `grid-repeat`, `misregistered-silkscreen`, `halftone`, `camouflage`, `death-and-disaster-tint`, `screen-test-portrait`. Each is one line of guidance injected into the prompt.
+- [ ] `agents/assistants.js`: for each subject selected in this shift → `series.started` → run the 12-cell matrix (models × temperatures × techniques) in parallel, with a concurrency limit → write to `archive/variants/<series>/<variant>.html` → render → `variant.produced` / `variant.failed` → `series.completed` with a generated contact sheet
+- [ ] **Keep the drift:** assistants do not get to see each other's variants within a series. Each one gets the subject plus the recent floor chatter only.
+
+**Done when:** `silver series <subject-id>` produces a folder of 12 sketches with screenshots, and broken ones are recorded rather than dropped.
+
+## Phase 4: Warhol and the contact sheet (veto)
+
+- [ ] `taste.md`: starts with a short hand-written header of what the human likes and dislikes. After that it is append-only: one entry per human decision, with date, variant, verdict, and note.
+- [ ] Write `roles/warhol.md`: terse, flat, deadpan; chooses the piece, never makes it; judges *seriality and surface*, not effort. Its `{{taste}}` placeholder receives the last N entries of `taste.md`. Output: 1–3 picks per series with a one-line note each, plus a note for the rejects.
+- [ ] `agents/warhol.js`: on `series.completed`, sends the screenshots (vision) and the sketch metadata (not the full code, which would bias it toward code quality) → `shortlist.proposed`
+- [ ] `tools/contact-sheet/`: a small `node:http` server, with no framework
+  - [ ] `silver review` starts it on `localhost:4747` and opens the browser
+  - [ ] One page per series: a grid of **live** sketches in iframes, with Warhol's picks highlighted and his notes shown
+  - [ ] The Floor chatter for that subject is shown in a side column
+  - [ ] Each pick has Approve / Veto and an optional note field. Posting a decision emits `review.decision` and appends to `taste.md`.
+  - [ ] The human may also approve a variant Warhol did **not** pick (the veto works both ways)
+  - [ ] Pending reviews persist across shifts until they are decided
+- [ ] Rejected and vetoed variants stay in `archive/`, since nothing is ever deleted
+
+**Done when:** after a shift, `silver review` shows Warhol's shortlist, and approving one emits the decision and grows `taste.md`.
+
+## Phase 5: Printer, Fred Hughes, Vercel
+
+- [ ] Write `roles/printer.md`. The Printer is mostly code; the LLM is used only for a final "print check" (does the sketch hold up at full size, and does it run for more than 60s without degrading?). It may send the piece back as a floor event, but it cannot un-sign it.
+- [ ] `agents/printer.js`, run on `review.decision: approved`:
+  - [ ] Copies the sketch to `canon/works/<canon-id>/`, removes the dev seed so the published piece drifts on every load
+  - [ ] Renders a poster PNG (fixed seed) for thumbnails and OG images
+  - [ ] **Signature:** sha256 of the sketch source + Warhol's note + the human approval event id, stored in `canon.json`
+  - [ ] Emits `work.published`
+- [ ] Write `roles/fred-hughes.md`: the business side: a title (Warhol-flat: "Silver Car Crash (Double Disaster)"-style), short wall text, edition number
+- [ ] `agents/hughes.js`: assigns sequential edition numbers, writes the wall text, regenerates the site, emits `edition.released`
+- [ ] Static site generator `src/site.js` → `site/`:
+  - [ ] `index.html`: the canon as a grid of posters, newest first
+  - [ ] `works/<id>/`: the live sketch, full-bleed, with wall text below
+  - [ ] `feed.xml`: an Atom feed of the editions
+- [ ] Deploy with `vercel deploy site --prod --token $VERCEL_TOKEN --yes`. Record the URL in `work.published`.
+- [ ] `silver publish`: rebuilds and redeploys by hand
+
+**Done when:** approving a variant in the contact sheet results in a live Vercel URL and a new feed entry.
+
+## Phase 6: Superstars
+
+- [ ] Write 3 persona files in `roles/superstars/` (e.g. Brigid: tape-recorder gossip; Ondine: amphetamine monologue; Viva: withering commentary). Each is **cast talent**: a strong voice with opinions about the subjects.
+- [ ] `agents/superstars.js`: after the Scouts, each superstar reads the shift's subjects and recent chatter → 1–3 `chatter.posted` events, and occasionally a `subject.posted` (blurry roles)
+- [ ] Run chatter on the cheap model and cap it per shift in the budget
+- [ ] The chatter goes into the assistants' prompts (`{{floor_excerpt}}`) and appears on the contact sheet
+
+**Done when:** series visibly change when the chatter changes (A/B the same subject with and without chatter once).
+
+## Phase 7: Archivist
+
+- [ ] `agents/archivist.js` (code): after each shift, checks that every event has its transcript or artifact, writes a shift manifest, and commits `floor/ archive/ canon/` to git with a message summarising the shift
+- [ ] Write `roles/archivist.md` (Billy Name / Pat Hackett): writes a diary entry from the day's floor (who said what, what got made, what died) → `archive/diary/YYYY-MM-DD.md` → `diary.written`
+- [ ] **Feedback loop** (principle 3): Scouts treat the diary and the reject pile as an extra source, with `origin: archive`, and at most one archive subject per shift
+
+**Done when:** a diary entry exists for each shift, and an archive-origin subject appears within a week.
+
+## Phase 8: the daily shift and launchd
+
+- [ ] `src/shift.js`: `shift.started` → scouts → superstars → pick subjects (commissions first, then scouted) → assistants (N series) → Warhol shortlists → archivist → `shift.ended`
+  - [ ] Idempotent per date: running it twice on one day continues the shift without duplicating it
+  - [ ] Stops cleanly on `BudgetExhausted` and records the reason
+  - [ ] Printing happens **outside** the shift, at the moment of human approval, because the veto is async
+- [ ] `silver shift [--dry-run]`: dry-run uses the cheapest model and 2 variants
+- [ ] A macOS notification at the end of a shift (`osascript -e 'display notification …'`) saying "N series waiting for review"
+- [ ] `launchd/com.silver.shift.plist`: `StartCalendarInterval` (e.g. 09:00), absolute paths to `node` and the repo, and logs to `archive/logs/`
+- [ ] `silver install-schedule`: copies the plist to `~/Library/LaunchAgents/` and runs `launchctl bootstrap`. `silver uninstall-schedule` reverses it.
+- [ ] Document that if the Mac is asleep at the scheduled time, launchd runs the job on wake
+
+**Done when:** the Mac runs a shift unattended overnight, the notification appears, and the review → publish flow works the next morning.
+
+## Later (not v1)
+
+- The Technician goes live: an agent that proposes and writes new techniques and templates, gated by `tool.released`
+- More sources: product catalogs (the soup cans), Wikipedia most-read
+- Social channels for Fred Hughes (Bluesky/Mastodon)
+- Image-model techniques (photo-silkscreen) alongside p5
+- Continuous tempo: floor subscribers instead of a sequential shift
