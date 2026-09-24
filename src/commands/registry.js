@@ -84,10 +84,16 @@ export const COMMANDS = [
   },
   {
     name: 'commission',
-    args: '<text-or-url>',
+    args: '[text-or-url]',
     description: 'post your own subject; it always gets a series in the next shift',
     phase: 2,
-    options: [['--now', 'run a mini-shift for this subject immediately']],
+    options: [
+      ['--why <note>', 'your reason: why it is a ready-made'],
+      ['--now', 'run a mini-shift for this subject immediately (needs phase 3; queues for now)'],
+      ['--list', 'list commissions still waiting for a series'],
+      ['--json', 'print the posted event as JSON'],
+    ],
+    load: () => import('./commission.js'),
   },
   { name: 'series', args: '<subject-id>', description: 'produce one series of variants for a subject', phase: 3 },
   { name: 'release', args: '<tool>', description: 'announce a changed Technician tool on the floor', phase: 3 },

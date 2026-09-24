@@ -64,7 +64,7 @@ test('an unknown command fails with help', async () => {
 });
 
 test('a missing required argument fails', async () => {
-  const { code, stderr } = await silver('commission');
+  const { code, stderr } = await silver('ping');
   assert.equal(code, 1);
   assert.match(stderr, /missing required argument/);
 });

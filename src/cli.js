@@ -15,6 +15,7 @@ const EXPECTED_ERRORS = new Set([
   'LlmOutputError',
   'BudgetExhausted',
   'EventError',
+  'CommissionError',
 ]);
 
 const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
