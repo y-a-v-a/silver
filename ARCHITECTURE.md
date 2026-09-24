@@ -95,9 +95,11 @@ sequenceDiagram
 | `work.published` | Printer | canon id, URL, render hash |
 | `edition.released` | Fred Hughes | work id, channel, edition number |
 
-## Open decisions
+## Decisions
 
-1. **Who is Warhol?** The user, an agent with a human veto, or fully autonomous. This is the authorship question: a Warholian reading treats delegation as authorship; an intention-centered reading says authorship requires intention at the moment of making. The choice here decides which view the project embodies.
-2. **Medium.** Single-file HTML/SVG, generative pieces, or ARTX-notated works.
-3. **Runtime.** OpenClaw as the gateway, or the Claude Agent SDK with the floor as a simple append-only log.
-4. **Tempo.** Continuous operation, or daily "shifts."
+Originally left open; resolved on 2026-09-23. The full list, including smaller choices, is in [ACTIONS.md](ACTIONS.md#decisions-resolved).
+
+1. **Who is Warhol?** ~~The user, an agent with a human veto, or fully autonomous.~~ **Resolved: an agent with a human veto.** A Warhol agent shortlists and signs; nothing enters the canon until the human approves it on a local contact sheet, and each decision feeds Warhol's taste log. This is the authorship question: a Warholian reading treats delegation as authorship, while an intention-centered reading says authorship requires intention at the moment of making. The veto keeps a human intention at the point of selection while leaving the making delegated.
+2. **Medium.** ~~Single-file HTML/SVG, generative pieces, or ARTX-notated works.~~ **Resolved: generative p5.js sketches**, one self-contained HTML file per variant.
+3. **Runtime.** ~~OpenClaw as the gateway, or the Claude Agent SDK with the floor as a simple append-only log.~~ **Resolved: the OpenRouter API** from Node.js, so every role and every variant can run on a different model. The floor is a simple append-only JSONL log.
+4. **Tempo.** ~~Continuous operation, or daily "shifts."~~ **Resolved: one daily shift**, triggered by macOS launchd.
