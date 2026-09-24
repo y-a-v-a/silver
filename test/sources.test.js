@@ -8,23 +8,9 @@ import { parseFeed, rssSourceName } from '../src/sources/rss.js';
 import { gatherCandidates, enabledSources } from '../src/sources/index.js';
 import { htmlToText, decodeEntities, clip, fetchText, fetchJson, USER_AGENT, SourceError } from '../src/sources/http.js';
 import { candidate } from '../src/sources/candidate.js';
+import { routeFetch } from './helpers.js';
 
 const fixture = (name) => readFile(new URL(`./fixtures/${name}`, import.meta.url), 'utf8');
-
-/** fetch that serves `routes[url]` (string -> text, object -> JSON, number -> status) and records headers. */
-function routeFetch(routes) {
-  const seen = [];
-  const fn = async (url, init) => {
-    seen.push({ url, headers: init?.headers });
-    const r = routes[url];
-    if (r === undefined) return new Response('not found', { status: 404 });
-    if (r instanceof Error) throw r;
-    if (typeof r === 'number') return new Response('', { status: r });
-    return typeof r === 'string' ? new Response(r) : Response.json(r);
-  };
-  fn.seen = seen;
-  return fn;
-}
 
 // ---------- helpers ----------
 

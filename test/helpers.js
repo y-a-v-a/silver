@@ -69,7 +69,7 @@ export async function tmpFactory({ roles: roleFiles = {}, dailyUsd = 5, replies 
   }
   const config = {
     root,
-    models: { studio: ['test/text'], roles: { technician: 'test/text', warhol: 'test/vision', superstar: 'test/cheap' }, dryRun: 'test/cheap' },
+    models: { studio: ['test/text'], roles: { technician: 'test/text', scout: 'test/text', warhol: 'test/vision', superstar: 'test/cheap' }, dryRun: 'test/cheap' },
     budget: { dailyUsd, chatterShare: 0.1 },
     paths: { roles: rolesDir, floor: join(root, 'floor'), archive: join(root, 'archive'), canon: join(root, 'canon') },
   };
@@ -119,4 +119,23 @@ export async function mockOpenRouter({ models = [], reply = () => completion('ok
     state,
     close: () => new Promise((r) => server.close(r)),
   };
+}
+
+/**
+ * fetch that serves `routes[url]` and records requests: string -> text, object -> JSON,
+ * number -> that status, Error -> thrown, function -> its (Response) return value.
+ */
+export function routeFetch(routes) {
+  const seen = [];
+  const fn = async (url, init) => {
+    seen.push({ url, headers: init?.headers });
+    const r = routes[url];
+    if (r === undefined) return new Response('not found', { status: 404 });
+    if (r instanceof Error) throw r;
+    if (typeof r === 'function') return r(url, init);
+    if (typeof r === 'number') return new Response('', { status: r });
+    return typeof r === 'string' ? new Response(r) : Response.json(r);
+  };
+  fn.seen = seen;
+  return fn;
 }

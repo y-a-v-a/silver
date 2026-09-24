@@ -68,7 +68,20 @@ export const COMMANDS = [
     options: [['--json', 'print the audit as JSON']],
     load: () => import('./models.js'),
   },
-  { name: 'scout', description: 'run the scouts on their own and post subject cards', phase: 2 },
+  {
+    name: 'scout',
+    description: 'run the scouts on their own and post subject cards',
+    phase: 2,
+    options: [
+      ['--count <n>', 'how many subjects to post (default: shift.subjectsPerShift)'],
+      ['--source <name...>', 'only these sources (e.g. hackernews, reddit, rss, rss:bbci.co.uk)'],
+      ['--list', 'just list what the sources offer; no model call, nothing posted'],
+      ['--no-snapshot', 'skip fetching page snapshots of the picks'],
+      ['--dry-run', 'use the dry-run model from the config'],
+      ['--json', 'print the full result as JSON'],
+    ],
+    load: () => import('./scout.js'),
+  },
   {
     name: 'commission',
     args: '<text-or-url>',
