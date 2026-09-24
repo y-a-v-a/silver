@@ -1,5 +1,10 @@
 // Deduplication of scout candidates, within a batch and against subjects already on the floor.
-// Two candidates are the same subject if their normalised URL or normalised title matches.
+// Two candidates are the same subject if their normalised URL or normalised title matches,
+// or if their titles share most of their words (e.g. the trend terms "dunkin free coffee"
+// and "dunkin free coffee code", seen live on 2026-09-24).
+
+/** Titles whose word sets overlap at least this much (Jaccard) are the same subject. */
+export const SIMILAR_TITLE = 0.75;
 
 const TRACKING = /^(utm_|at_|mc_|fbclid$|gclid$|dclid$|yclid$|igshid$|smid$|smtyp$|ref$|ref_src$|cmpid$|ocid$|__twitter_impression$)/i;
 
@@ -60,6 +65,15 @@ export function subjectKeys(events) {
   return keys;
 }
 
+/** Jaccard similarity of two titles' word sets, from their `title:` keys. */
+export function titleSimilarity(a, b) {
+  const wa = new Set(a.split(' '));
+  const wb = new Set(b.split(' '));
+  let shared = 0;
+  for (const w of wa) if (wb.has(w)) shared++;
+  return shared / (wa.size + wb.size - shared);
+}
+
 /**
  * Split candidates into fresh ones and duplicates. The first of several equal
  * candidates in the batch wins. `seen` is not modified.
@@ -70,15 +84,19 @@ export function subjectKeys(events) {
  */
 export function dedupe(candidates, seen = new Set()) {
   const taken = new Set(seen);
+  const titles = [...taken].filter((k) => k.startsWith('title:')).map((k) => k.slice(6));
   const fresh = [];
   const duplicates = [];
   for (const c of candidates) {
     const keys = keysOf(c);
-    if (keys.some((k) => taken.has(k))) {
+    const title = keys.find((k) => k.startsWith('title:'))?.slice(6);
+    const similar = title !== undefined && titles.some((t) => titleSimilarity(t, title) >= SIMILAR_TITLE);
+    if (similar || keys.some((k) => taken.has(k))) {
       duplicates.push(c);
       continue;
     }
     keys.forEach((k) => taken.add(k));
+    if (title !== undefined) titles.push(title);
     fresh.push(c);
   }
   return { fresh, duplicates };

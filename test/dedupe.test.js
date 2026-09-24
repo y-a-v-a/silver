@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeUrl, normalizeTitle, keysOf, subjectKeys, dedupe } from '../src/lib/dedupe.js';
+import { normalizeUrl, normalizeTitle, keysOf, subjectKeys, dedupe, titleSimilarity, SIMILAR_TITLE } from '../src/lib/dedupe.js';
 
 test('normalizeUrl drops tracking, fragments, www, trailing slashes and http', () => {
   assert.equal(
@@ -60,4 +60,33 @@ test('dedupe checks against subjects already on the floor, without mutating the 
 test('candidates with neither a usable url nor title are always fresh', () => {
   const { fresh } = dedupe([{ title: 'soup', url: null }, { title: 'soup', url: null }]);
   assert.equal(fresh.length, 2);
+});
+
+test('titleSimilarity is word-set Jaccard', () => {
+  assert.equal(titleSimilarity('dunkin free coffee', 'dunkin free coffee code'), 0.75);
+  assert.equal(titleSimilarity('a b c', 'a b c'), 1);
+  assert.equal(titleSimilarity('a b c', 'd e f'), 0);
+});
+
+test('near-identical titles are duplicates (live case: two Google Trends terms for one story)', () => {
+  const seen = subjectKeys([{ type: 'subject.posted', payload: { title: 'dunkin free coffee code', url: 'https://mashable.com/a' } }]);
+  const { fresh, duplicates } = dedupe(
+    [
+      { title: 'dunkin free coffee', url: 'https://news.dunkindonuts.com/b' },
+      { title: 'Court blocks Trump ban on CNN', url: 'https://x.org/1' },
+      { title: 'Court blocks Trump ban on Politico', url: 'https://x.org/2' }, // 5/7 < 0.75: kept
+    ],
+    seen,
+  );
+  assert.deepEqual(duplicates.map((c) => c.title), ['dunkin free coffee']);
+  assert.equal(fresh.length, 2);
+  assert.equal(SIMILAR_TITLE, 0.75);
+});
+
+test('near-identical titles within one batch keep the first', () => {
+  const { fresh } = dedupe([
+    { title: 'Electric chair museum reopens today', url: 'https://a.org/1' },
+    { title: 'Electric chair museum reopens', url: 'https://b.org/2' },
+  ]);
+  assert.deepEqual(fresh.map((c) => c.url), ['https://a.org/1']);
 });

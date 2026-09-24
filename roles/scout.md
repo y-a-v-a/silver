@@ -45,8 +45,8 @@ These were pulled from the sources this morning. Each has a number, a source, a 
 How many to choose: {{count}} at most, fewer if fewer are worth it. For each one:
 
 - `n`: the candidate's number, exactly as listed. Don't make up numbers and don't rewrite the title.
-- `why`: one or two plain sentences on why it is a ready-made. This is the note the assistants will read.
-- `image`: one sentence describing the flat, repeatable image it suggests, the thing that would be screened.
+- `why`: one or two plain sentences on why it is a ready-made. This is the note the assistants will read. **Use only facts that appear in the candidate's title and context.** Don't add numbers, names, places, durations or details that aren't there: the note is a record, and a scout who embellishes is inventing. If the context is thin, say less.
+- `image`: one sentence describing the flat, repeatable image it suggests, the thing that would be screened. This line may be imagined; it is a proposal, not a report.
 
 You may step outside your role now and then. If none of the candidates are any good, say so in `note` rather than padding the list.
 
