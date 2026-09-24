@@ -32,7 +32,7 @@ The build plan for the Silver Factory in Node.js, derived from [ARCHITECTURE.md]
   - `ulid`: event ids
   - `playwright`: headless render and screenshot of sketches
   - `vercel`: deploy CLI, as a dev dependency
-- No database. The floor is JSONL and everything else is files on disk.
+- No database. The floor is JSONL and everything else is files on local disk (runtime data is not in git).
 - Secrets in `.env`: `OPENROUTER_API_KEY`, `VERCEL_TOKEN`.
 
 ## Repository layout
@@ -54,16 +54,26 @@ silver/
       brigid.md
       ondine.md
       viva.md
-  taste.md                  # append-only log of human approve/veto notes; read by Warhol
+  taste.md                  # append-only log of human approve/veto notes; read by Warhol (local only)
+  process-log.jsonl         # build progress, one line per finished task
+  bin/                      # setup.sh, log-progress.js
   src/
     cli.js                  # `silver` entry point
+    commands/               # one module per CLI command + registry.js
+    config.js               # loads and validates silver.config.js
+    factory.js              # wires config, floor, budget, pricing, roles, llm
+    events.js               # event types + envelope validation
     floor.js                # append/read/subscribe to the event log
     llm.js                  # OpenRouter client, cost tracking, transcript capture
+    pricing.js              # model prices/capabilities from OpenRouter /models
+    model-audit.js          # `silver models`
     roles.js                # loads roles/*.md → { meta, systemPrompt }
     budget.js               # daily ledger, hard cap
     shift.js                # orchestrates one daily shift
+    lib/                    # jsonl, dedupe, snapshot, format, env, process-log
     agents/
       scouts.js
+      commissions.js
       superstars.js
       assistants.js
       warhol.js
@@ -71,6 +81,9 @@ silver/
       hughes.js
       archivist.js
     sources/
+      index.js              # gatherCandidates: all sources in parallel
+      http.js               # UA, timeouts, htmlToText
+      candidate.js
       google-trends.js
       hackernews.js
       reddit.js
@@ -79,6 +92,7 @@ silver/
       p5-template.html
       render.js             # Playwright: run sketch, catch errors, screenshot
       contact-sheet/        # local review web app
+  # --- runtime data: local disk only, gitignored (floor/, archive/, canon/, taste.md) ---
   floor/                    # YYYY-MM-DD.jsonl, append-only, never edited
   archive/
     transcripts/            # every LLM request+response, by event id
@@ -87,7 +101,7 @@ silver/
   canon/
     canon.json              # signed works, edition numbers, hashes
     works/<canon-id>/       # final sketch, poster PNG, wall text
-  site/                     # generated static gallery → Vercel
+  site/                     # generated static gallery → Vercel (gitignored, rebuilt)
   launchd/
     com.silver.shift.plist
 ```
@@ -231,7 +245,7 @@ Also added along the way:
   - [ ] Blank-canvas check: near-uniform pixels count as a failure
   - [ ] Emits `variant.failed` on error or blank output, otherwise returns the PNG path
 - [ ] Write `roles/studio-assistant.md` (Malanga/Smith): turn a subject into a p5 sketch in a given **technique**; serial repetition, silkscreen logic (flat colour fields, registration offset, grids of repeats, photo-to-halftone); output only the sketch body.
-- [ ] A technique menu in config, e.g. `grid-repeat`, `misregistered-silkscreen`, `halftone`, `camouflage`, `death-and-disaster-tint`, `screen-test-portrait`. Each is one line of guidance injected into the prompt.
+- [x] A technique menu in config, e.g. `grid-repeat`, `misregistered-silkscreen`, `halftone`, `camouflage`, `death-and-disaster-tint`, `screen-test-portrait`. Each is one line of guidance injected into the prompt. (Done in Phase 0: the top-level `techniques` map in `silver.config.js`.)
 - [ ] `agents/assistants.js`: for each subject selected in this shift → `series.started` → run the 12-cell matrix (models × temperatures × techniques) in parallel, with a concurrency limit → write to `archive/variants/<series>/<variant>.html` → render → `variant.produced` / `variant.failed` → `series.completed` with a generated contact sheet
 - [ ] **Keep the drift:** assistants do not get to see each other's variants within a series. Each one gets the subject plus the recent floor chatter only.
 
@@ -327,6 +341,7 @@ These came up while building. Each lists what the code does **today**, so nothin
    - *Still applies to publishing:* the gallery (Phase 5) is public, so wall text should quote at most a headline, never article text.
 
 3. **Real people's likenesses.** Subjects include public figures (McConnell, Trump, Xi), and the works will depict them. Warhol did exactly this, but the published gallery will be public.
+   - *Today:* no rule. The Scout may pick anyone in the news, and your veto is the only gate.
    - *Options:* (a) allow public figures, never private individuals; (b) no identifiable real faces, only objects and scenes; (c) decide case by case at the veto.
    - *Recommendation:* (a), written into the Scout and assistant roles.
 
