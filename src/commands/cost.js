@@ -1,7 +1,7 @@
 // `silver cost`: spend per role and per model against the daily cap.
 import { createFactory } from '../factory.js';
 import { summarise } from '../budget.js';
-import { usd, int, table } from '../lib/format.js';
+import { usd, int, plural, table } from '../lib/format.js';
 
 export default async function costCommand(_args, opts, ctx) {
   const { floor, budget } = await createFactory();
@@ -14,7 +14,7 @@ export default async function costCommand(_args, opts, ctx) {
   }
 
   const pct = (part, whole) => `${((part / whole) * 100).toFixed(1)}%`;
-  const lines = [`shift ${shift}: ${ledger.calls} calls, ${int(ledger.promptTokens)} tokens in / ${int(ledger.completionTokens)} out`];
+  const lines = [`shift ${shift}: ${plural(ledger.calls, 'call')}, ${int(ledger.promptTokens)} tokens in / ${int(ledger.completionTokens)} out`];
   if (shift !== 'all') {
     lines.push(
       `  spent    ${usd(ledger.total)} of ${usd(budget.dailyUsd)} (${pct(ledger.total, budget.dailyUsd)})`,
@@ -26,7 +26,7 @@ export default async function costCommand(_args, opts, ctx) {
   const rows = (bucket) =>
     Object.entries(bucket)
       .sort(([, a], [, b]) => b.usd - a.usd)
-      .map(([name, r]) => [name, `${r.calls} calls`, `${int(r.promptTokens)} in`, `${int(r.completionTokens)} out`, usd(r.usd)]);
+      .map(([name, r]) => [name, plural(r.calls, 'call'), `${int(r.promptTokens)} in`, `${int(r.completionTokens)} out`, usd(r.usd)]);
   if (ledger.calls) {
     lines.push('', 'by role', table(rows(ledger.byRole)), '', 'by model', table(rows(ledger.byModel)));
   }

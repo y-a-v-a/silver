@@ -2,6 +2,7 @@
 
 export const usd = (n) => `$${(n ?? 0).toFixed(n !== 0 && Math.abs(n) < 0.01 ? 5 : 2)}`;
 export const int = (n) => (n ?? 0).toLocaleString('en-US');
+export const plural = (n, word) => `${int(n)} ${word}${n === 1 ? '' : 's'}`;
 
 export function truncate(text, max) {
   const flat = String(text).replace(/\s+/g, ' ').trim();

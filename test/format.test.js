@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { usd, int, truncate, clock, summarizeEvent, formatEvent, table } from '../src/lib/format.js';
+import { usd, int, plural, truncate, clock, summarizeEvent, formatEvent, table } from '../src/lib/format.js';
 
 test('usd shows sub-cent amounts with five decimals', () => {
   assert.equal(usd(5), '$5.00');
@@ -11,6 +11,8 @@ test('usd shows sub-cent amounts with five decimals', () => {
 
 test('int, truncate and clock', () => {
   assert.equal(int(1234567), '1,234,567');
+  assert.equal(plural(1, 'call'), '1 call');
+  assert.equal(plural(1200, 'call'), '1,200 calls');
   assert.equal(truncate('a  b\n c', 10), 'a b c');
   assert.equal(truncate('abcdefghij', 5), 'abcd…');
   assert.match(clock('2026-09-24T08:05:09Z'), /^\d\d:05:09$/);

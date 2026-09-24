@@ -69,7 +69,9 @@ test('a text call builds the request from the role, archives a transcript and co
   assert.equal(cost.payload.estimated, false);
   assert.equal(cost.payload.transcript, `archive/transcripts/${res.id}.json`);
 
-  const transcript = JSON.parse(await readFile(join(f.root, cost.payload.transcript), 'utf8'));
+  const raw = await readFile(join(f.root, cost.payload.transcript), 'utf8');
+  assert.ok(!raw.includes('test-key'), 'the API key must never reach a transcript');
+  const transcript = JSON.parse(raw);
   assert.equal(transcript.id, res.id);
   assert.equal(transcript.request.model, 'test/text');
   assert.equal(transcript.response.choices[0].message.content, 'Rewired the projector.');
