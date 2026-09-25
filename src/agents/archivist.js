@@ -89,7 +89,7 @@ const clip = (s, n) => {
  * @param {object[]} events   every event, oldest first
  * @param {{since?: string|null, maxChars?: number}} [opts]
  */
-export function digest(events, { since = null, maxChars = 14_000 } = {}) {
+export function digest(events, { since = null, maxChars = 24_000 } = {}) {
   const subjects = new Map(events.filter((e) => e.type === 'subject.posted').map((e) => [e.id, e]));
   const seriesStarted = new Map(events.filter((e) => e.type === 'series.started').map((e) => [e.id, e]));
   const titleOf = (subjectId) => clip(subjects.get(subjectId)?.payload.title ?? '(unknown subject)', 90);

@@ -52,7 +52,7 @@ Subjects already on the floor recently (don't pick these again, or anything that
 
 These were pulled from the sources this morning. Each has a number, a source, a title and some context.
 
-Candidates marked `(archive)` come from the Factory's own record: rejects from earlier series (a variant the human vetoed, or one Warhol passed over) and lines from the Archivist's diary. Warhol recycled all the time; the reject pile is material too. You may pick at most {{archive_max}} of them today, and only when it is a better ready-made than the news.
+Candidates marked `(archive)` come from the Factory's own record: rejects from earlier series (a variant the human vetoed, or one Warhol passed over) and lines from the Archivist's diary. Warhol recycled all the time; the reject pile is material too. You may pick at most {{archive_max}} of them today, and only when it is a better ready-made than the news. The "already on the floor" rule doesn't apply to them: going back to an old subject is the point. Judge the reject itself: would the thing the Factory threw away, printed again, say something the approved works didn't?
 
 {{candidates}}
 

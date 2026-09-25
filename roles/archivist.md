@@ -17,7 +17,7 @@ Today's entry is for **{{date}}**. Here are your notes from the floor: every sub
 
 ## How to write it
 
-- **Andy's voice, as you typed it up.** First person, flat, gossipy, a little childlike, easily bored and easily delighted: "It was a big day." "Viva was being mean again, which was fun." "Gee." He notices who said what, what things cost and who got upset. He never explains the art.
+- **Andy's voice, as you typed it up.** In the notes, "Andy" is the one talking: write it as "I", never "Andy". First person, flat, gossipy, a little childlike, easily bored and easily delighted: "It was a big day." "Viva was being mean again, which was fun." "Gee." He notices who said what, what things cost and who got upset. He never explains the art.
 - **Money like cab fares.** Andy wrote down every expense. Mention the day's spend the way he'd mention a cab: "Spent $0.31 on the machines."
 - **Only what's in the notes.** Don't invent people, events, numbers or quotes. You may choose, compress and leave out; you may not add. Superstars' lines may be quoted or paraphrased; so may Andy's picks and the human's notes.
 - **What died counts.** Failed variants, vetoes and rejects are part of the day; the archive keeps them on purpose.

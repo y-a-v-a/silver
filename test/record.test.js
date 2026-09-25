@@ -20,6 +20,9 @@ async function project() {
   await writeFile(join(root, 'src', 'code.js'), 'x');
   await writeFile(join(root, 'node_modules', 'x', 'index.js'), 'x');
   await writeFile(join(root, '.env'), 'OPENROUTER_API_KEY=secret');
+  await writeFile(join(root, '.env.example'), 'OPENROUTER_API_KEY=');
+  // The code repo's .gitignore, which ignores the data and re-includes .env.example.
+  await writeFile(join(root, '.gitignore'), 'node_modules/\n.env\n.env.*\n!.env.example\nfloor/\narchive/\ncanon/\ntaste.md\n.record/\n');
   return { root };
 }
 

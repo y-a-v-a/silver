@@ -109,7 +109,7 @@ export async function runScouts({ config, floor, llm, fetch = globalThis.fetch }
   const history = withinWindow(posted, config.sources.repeatAfterDays, now);
   const { fresh, duplicates } = dedupe(candidates, subjectKeys(history));
   const shown = [...fresh.slice(0, MAX_CANDIDATES - archive.length), ...archive];
-  const result = { report, candidates: candidates.length, duplicates: duplicates.length, shown: shown.length, posted: [], problems: [], note: null, callId: null, leftovers: [] };
+  const result = { report, candidates: candidates.length + archive.length, duplicates: duplicates.length, shown: shown.length, posted: [], problems: [], note: null, callId: null, leftovers: [] };
   if (!shown.length) {
     result.problems.push('no fresh candidates: every source failed or everything was already on the floor');
     return result;
@@ -135,7 +135,7 @@ export async function runScouts({ config, floor, llm, fetch = globalThis.fetch }
   result.note = note;
   // What the Scout passed over: the pile a superstar may rummage through (Phase 6).
   const picked = new Set(picks.map((p) => p.index));
-  result.leftovers = shown.filter((_, i) => !picked.has(i));
+  result.leftovers = shown.filter((c, i) => !picked.has(i) && c.source !== 'archive');
 
   for (const pick of picks) {
     const c = shown[pick.index];
