@@ -4,6 +4,7 @@ import { snapshotPage } from '../lib/snapshot.js';
 import { keysOf } from '../lib/dedupe.js';
 import { clip } from '../sources/http.js';
 import { normalizeSensitive } from './scouts.js';
+import { retiredSubjects } from './retire.js';
 
 export const MAX_COMMISSION_CHARS = 4000;
 const TITLE_CHARS = 140;
@@ -91,5 +92,6 @@ export class CommissionError extends Error {
 export async function pendingCommissions(floor) {
   const all = await floor.read({ shift: 'all', type: ['subject.posted', 'series.started'] });
   const started = new Set(all.filter((e) => e.type === 'series.started').map((e) => e.payload?.subjectId));
-  return all.filter((e) => e.type === 'subject.posted' && e.payload?.origin === 'commission' && !started.has(e.id));
+  const retired = await retiredSubjects(floor);
+  return all.filter((e) => e.type === 'subject.posted' && e.payload?.origin === 'commission' && !started.has(e.id) && !retired.has(e.id));
 }

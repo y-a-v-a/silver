@@ -102,7 +102,9 @@ export const COMMANDS = [
     phase: 3,
     options: [
       ['--shift <date>', 'only this shift (default: all)'],
-      ['--open', 'only subjects without a series yet'],
+      ['--open', 'only subjects without a series yet (and not retired)'],
+      ['--retire <id>', 'take a subject off the table (hidden from latest, --open and the shift)'],
+      ['--reason <text>', 'why it is retired (with --retire)'],
       ['--json', 'print as JSON'],
     ],
     load: () => import('./subjects.js'),

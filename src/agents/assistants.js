@@ -6,6 +6,7 @@ import { join, relative } from 'node:path';
 import { buildMatrix, extractSketch, sketchVars } from './studio.js';
 import { buildSketchHtml } from '../tools/template.js';
 import { buildContactSheet } from '../tools/contact-sheet.js';
+import { retiredSubjects } from './retire.js';
 
 export const ASSISTANT_PROMPT = 'Make your variant now. Reply with the JavaScript in one ```js block, nothing else.';
 
@@ -17,24 +18,38 @@ export class SeriesError extends Error {
 }
 
 /**
- * Find a subject by full id, a unique id suffix, or "latest" (the newest subject without a series).
+ * Match a subject by full id or unique id suffix (retired ones included).
+ * @param {import('../floor.js').FloorEvent[]} subjects
+ * @param {string} ref
+ */
+export function matchSubject(subjects, ref) {
+  const key = ref.toUpperCase();
+  const matches = subjects.filter((s) => s.id === key || s.id.endsWith(key));
+  if (matches.length === 1) return matches[0];
+  if (!matches.length) throw new SeriesError(`no subject matches "${ref}" (see: silver subjects)`);
+  throw new SeriesError(`"${ref}" matches ${matches.length} subjects; use more characters`);
+}
+
+/**
+ * Find a subject for a series: full id, a unique id suffix, or "latest" (the newest
+ * subject without a series). Retired subjects are never returned.
  * @param {ReturnType<import('../floor.js').createFloor>} floor
  * @param {string} ref
  */
 export async function findSubject(floor, ref) {
   const events = await floor.read({ shift: 'all', type: ['subject.posted', 'series.started'] });
   const subjects = events.filter((e) => e.type === 'subject.posted');
+  const retired = await retiredSubjects(floor);
   if (ref === 'latest') {
     const claimed = new Set(events.filter((e) => e.type === 'series.started').map((e) => e.payload.subjectId));
-    const open = subjects.filter((s) => !claimed.has(s.id));
+    const open = subjects.filter((s) => !claimed.has(s.id) && !retired.has(s.id));
     if (!open.length) throw new SeriesError('no subject is waiting for a series');
     return open.at(-1);
   }
-  const key = ref.toUpperCase();
-  const matches = subjects.filter((s) => s.id === key || s.id.endsWith(key));
-  if (matches.length === 1) return matches[0];
-  if (!matches.length) throw new SeriesError(`no subject matches "${ref}" (see: silver subjects)`);
-  throw new SeriesError(`"${ref}" matches ${matches.length} subjects; use more characters`);
+  const subject = matchSubject(subjects, ref);
+  const r = retired.get(subject.id);
+  if (r) throw new SeriesError(`"${subject.payload.title}" was retired on ${r.shift}${r.payload.reason ? ` (${r.payload.reason})` : ''}`);
+  return subject;
 }
 
 /** Run `fn` over `items` with at most `limit` in flight. Stops starting new work once `stop()` is true. */

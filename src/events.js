@@ -4,6 +4,7 @@ export const EVENT_TYPES = Object.freeze([
   'shift.started',
   'shift.ended',
   'subject.posted',
+  'subject.retired',
   'chatter.posted',
   'tool.released',
   'series.started',
