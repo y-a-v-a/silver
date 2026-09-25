@@ -353,14 +353,14 @@ Also added in Phase 3:
 - **Verified:** approving in `silver review` now triggers the background publish. On 2026-09-25, `silver publish --no-deploy` turned your 20 approvals into **19 editions** (one approval was a duplicate click): printed, print-checked (18 ok, 1 concern), titled by Fred Hughes, and built into `site/` with the feed. That took 6 minutes and cost $0.09. The gallery was checked in headless Chromium at desktop and phone widths.
 - **Open:** the live Vercel URL needs `VERCEL_TOKEN` in `.env` (see the open questions).
 
-## Phase 5b: follow-ups from the Phase 5 decisions (2026-09-25)
+## Phase 5b: follow-ups from the Phase 5 decisions (2026-09-25) ✅ (except going live: the token is empty)
 
-- [ ] **Poster = later frame:** the Printer uses `later.png` as the poster (falling back to frame 30, then the review screenshot). Re-poster the 19 existing editions.
-- [ ] **Titles:** Fred Hughes's prompt lists the titles already released for the same series (and subject), and asks him to vary them or number them deliberately.
-- [ ] **`silver retitle <No.> [--title …] [--wall …]`:** appends a new `edition.released` for the same `canonId` and edition number (`correction: true`, `replaces: <event id>`). The canon and the site use the latest. Without `--title`/`--wall`, Fred Hughes rewrites it, with the facts-only rule. Then correct **No. 016**.
-- [ ] **Dry-run subjects:** `subject.posted` from a dry-run shift carries `dryRun: true`. The real shift's "scouted today?" check ignores them, and its subject picker skips them.
-- [ ] **Backlog:** `silver shortlist` the three real pre-Phase-4 series once (about $0.18).
-- [ ] **Go live:** add `VERCEL_TOKEN` to `.env`, run `silver publish`, then set `deploy.siteUrl`.
+- [x] **Poster = later frame:** the gallery and feed use `later.png` as the poster (`posterOf` in `src/canon.js`), falling back to frame 30 when the hold went wrong. It's derived at build time, so the 19 existing editions switched without reprinting; all 19 now use the later frame.
+- [x] **Titles:** Fred Hughes's prompt lists the titles already released for the same subject or series (`{{taken}}`, including ones released earlier in the same run) and asks him to vary them or number them deliberately. The existing repeats (Nos. 002/004, 012/013/015) stay: they're the record.
+- [x] **`silver retitle <No.> [--title …] [--wall …] [--note …]`:** appends a new `edition.released` for the same `canonId` and edition number (`correction: true`, `replaces: <event id>`, actor `human` or `fred-hughes`). The canon, site and feed use the latest label ("label revised <date>" on the work page; the feed entry's `updated` moves, no new entry). Without `--title`/`--wall`, Fred Hughes rewrites it, told what was wrong via `--note`. Afterwards it republishes. **No. 016** is corrected: now "Free Coffee Code (Camouflage) II", with the invented million cups gone.
+- [x] **Dry-run subjects:** `subject.posted` from a dry-run shift (or `silver scout --dry-run`) carries `dryRun: true`. The real shift's "scouted today?" check ignores them, its subject picker skips them, and the real Scout's dedupe ignores them, so it may pick the same headline for real. `silver subjects` marks them `D`. Subjects from earlier dry runs weren't marked and count as real.
+- [x] **Backlog:** by 2026-09-25 only two real series were unshortlisted (Dunkin' `…STFC1P` and sushi `…YHKTYA`; the NGV series already had one). Both are now shortlisted, after your decisions on them, so Warhol's notes are for the record. Signatures of works already printed are unchanged.
+- [ ] **Go live:** blocked. `.env` has a `VERCEL_TOKEN=` line with an empty value. Fill it in, then run `silver publish --redeploy` and set `deploy.siteUrl` to the URL it prints (then `--redeploy` once more for absolute feed/OG links). `silver publish` now deploys whenever the canon changed since the last deploy, corrections included.
 - [ ] Later: the print check on the review page, before the veto.
 
 ## Phase 6: Superstars
@@ -503,3 +503,9 @@ The open questions from Phase 5 and the day shift were answered on 2026-09-25. T
    - *Recommendation:* (b) if you plan to dry-run often on days the real shift also runs.
 
 6. **Node path in the schedule.** The plist pins the absolute path of the `node` binary that installed it (`/usr/local/bin/node` here). If you upgrade Node through a version manager and that path changes, re-run `silver install-schedule`. No decision needed; this is a note.
+
+## Open questions from Phase 5b (2026-09-25)
+
+1. **The Vercel token.** `.env` has `VERCEL_TOKEN=` with no value, so nothing is live yet. Fill it in and run `silver publish --redeploy`.
+2. **No. 017 carries the same invented number in the artwork itself.** "One Million Free Coffees (Dunkin)" prints "1,000,000 FREE COFFEES" in the sketch, from the same pre-rule Scout note. A retitle only fixes the label.
+   - *Options:* (a) leave it, since the label can say what the image claims; (b) retitle the label only; (c) a way to withdraw an edition from the site (a `work.withdrawn` event), keeping its number as a gap in the record.

@@ -63,3 +63,4 @@
 {"ts":"2026-09-25T15:09:20Z","phase":"5b","event":"decisions","note":"9 Phase 5 / day-shift questions answered via AskUserQuestion and recorded in ACTIONS.md; Phase 5b follow-ups added"}
 {"ts":"2026-09-25T15:12:09Z","phase":"5b","event":"done","task":"dry-run subjects marked; real shift scouts anyway and skips them"}
 {"ts":"2026-09-25T15:14:35Z","phase":"5b","event":"done","task":"later-frame poster, taken titles for Fred Hughes, silver retitle corrections, deploy on any canon change, publish --redeploy"}
+{"ts":"2026-09-25T15:16:25Z","phase":"5b","event":"live","task":"backlog shortlisted (2 series), No. 016 retitled, site rebuilt with later-frame posters; deploy blocked: VERCEL_TOKEN empty"}
