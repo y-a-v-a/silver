@@ -295,12 +295,12 @@ Also added in Phase 3:
 - `reasoning` in role frontmatter may be a number: a thinking-token budget (advisory in practice: several providers ignore it)
 - The Technician's release notes use the tool's own header and a facts-only rule (the first live notes invented features)
 
-## Phase 3b: follow-ups from the 2026-09-25 decisions
+## Phase 3b: follow-ups from the 2026-09-25 decisions ✅
 
 - [x] **Replace DeepSeek with Qwen 3.8 Flash** in `models.studio`: check it with `silver models`, run one dry-run series on it, and record the result here. **Result (2026-09-25):** `silver models` OK. The dry-run series `01M3BTRDR1GHPGNZX56FZJ6DXP` (4 variants, Qwen only) produced **3/4** for $0.0069 ($0.0017/call) in 49s. The one failure was `fill('#hex', alpha)`, which p5 1.x rejects and which GPT-6 Luna Pro had also hit, so the Studio assistant's brief now shows the correct pattern.
 - [x] **Retire subjects:** add a `subject.retired` event type (payload `subjectId`, `reason`, actor `human`) and `silver subjects --retire <id> [--reason ...]`. `findSubject('latest')`, `subjects --open` and `pendingCommissions` skip retired subjects. `silver subjects` marks them. Then retire the two subjects from before the exclusion rule (the US Navy suicide attempts and the UN photos of slain children). **Done 2026-09-25:** `HFC44P1D` and `DG602VC4` are retired. An explicit `silver series <id>` of a retired subject is refused too.
 
-## Phase 4: Warhol and the contact sheet (veto)
+## Phase 4: Warhol and the contact sheet (veto) ✅
 
 - [x] `taste.md` (`src/lib/taste.js`): starts with a short hand-written header of what the human likes and dislikes. After that it is append-only: one entry per human decision, with date, variant, verdict, and note.
 - [x] Write `roles/warhol.md`: terse, flat, deadpan; chooses the piece, never makes it; judges *seriality and surface*, not effort. Its `{{taste}}` placeholder receives the last N entries of `taste.md`. Output: 1–3 picks per series with a one-line note each, plus a note for the rejects.
@@ -319,7 +319,7 @@ Also added in Phase 3:
   - [x] Real people's likenesses are judged here, case by case: no automated rule (decision 2026-09-24)
 - [x] Rejected and vetoed variants stay in `archive/`, since nothing is ever deleted
 
-**Done when:** after a shift, `silver review` shows Warhol's shortlist, and approving one emits the decision and grows `taste.md`.
+**Done when:** after a shift, `silver review` shows Warhol's shortlist, and approving one emits the decision and grows `taste.md`. ✅ The first live shortlist (NGV series) shows on `silver review` with Warhol's notes, checked in headless Chromium at desktop and phone widths. Approve, veto and close are covered by tests against the real server. **The first real approval is left to you**, since that veto is yours.
 
 ## Phase 5: Printer, Fred Hughes, Vercel
 
@@ -359,7 +359,7 @@ Also added in Phase 3:
 
 **Done when:** a diary entry exists for each shift, and an archive-origin subject appears within a week.
 
-## Phase 8: the daily shift and launchd
+## Phase 8: the daily shift and launchd ✅ (built; the schedule is waiting for you to install it)
 
 - [x] `src/shift.js`: `shift.started` → scouts → superstars → pick subjects (commissions first, then scouted) → assistants (N series) → Warhol shortlists → archivist → `shift.ended`
   - [x] Commissions fill the `seriesPerShift` slots first, oldest first. The rest wait for the next shift (decision 2026-09-24).
@@ -377,7 +377,10 @@ Also added in Phase 3:
 - [x] `silver install-schedule`: copies the plist to `~/Library/LaunchAgents/` and runs `launchctl bootstrap`. `silver uninstall-schedule` reverses it. Install refuses unless `.env` has `OPENROUTER_API_KEY` (launchd jobs don't inherit the shell's variables); `--force` overrides.
 - [x] Document that if the Mac is asleep at the scheduled time, launchd runs the job on wake (in `src/schedule.js`, the install output and the README; if the Mac is switched off, that day's shift is skipped)
 
-**Done when:** the Mac runs a shift unattended overnight, the notification appears, and the review → publish flow works the next morning.
+**Done when:** the Mac runs a shift unattended overnight, the notification appears, and the review → publish flow works the next morning. **Partly verified:**
+- **Verified:** `silver shift --dry-run` ran live on 2026-09-25 (6 subjects, 1 series, 1 shortlist, reconcile OK, about 2 minutes). The tests cover full, repeated, resumed, budget-stopped and dry-run shifts.
+- **Open:** the unattended run needs `silver install-schedule`, which I didn't run: it schedules daily spending, and `.env` doesn't hold the key yet (see the open questions).
+- **Open:** "publish" is Phase 5, so for now the morning flow ends at approval.
 
 ## Later (not v1)
 
@@ -416,3 +419,27 @@ The open points from the Phase 2b/3 night shift were answered on 2026-09-25. The
 7. **Screenshots per variant for Warhol.** *Chosen:* 1 (seed 1). *Considered:* 3 seeds per variant; 1, plus 3 for his picks.
 
 New open questions go here as they come up.
+
+## Open questions from the 2026-09-25 day shift (Phases 3b, 4 and 8)
+
+1. **Install the daily schedule?** Everything is built. To start:
+   - put `OPENROUTER_API_KEY=...` in `.env` (launchd doesn't see your shell's variables; today the key lives only in your shell),
+   - then run `silver install-schedule`.
+
+   It runs `silver shift` daily at `shift.at` (09:00) and spends real money within the $5 cap: about $0.30–0.60 a day at 2 series plus shortlists. If the Mac is asleep at 09:00, the shift runs on wake; if it's off, that day is skipped.
+   - *Questions:* install now, or after a first real (non-dry-run) shift by hand? Is 09:00 right?
+
+2. **Write your taste.** `taste.md` exists as a template (it appears on the first `silver review`). Warhol reads its header before every shortlist, together with your latest decisions. Until you write your likes and dislikes, he only has his own taste.
+
+3. **An all-time reconcile gap of $0.38.** OpenRouter billed $0.92 on this key; the ledger holds $0.53. Known causes: my direct `curl` tests (under $0.10), one test in a throwaway folder, and three DeepSeek timeouts.
+   - *Question:* was this key also used outside Silver this month? If so, the gap is expected, and a dedicated key for Silver would make `--reconcile` exact.
+
+4. **Unshortlisted series from before Phase 4.** The shift only shortlists *today's* series, so the four earlier series (three real, one dry run) have no Warhol shortlist. `silver shortlist <id>` does them by hand, at about $0.06 each on Opus.
+   - *Options:* (a) leave them; (b) shortlist the backlog once, by hand; (c) have the shift also shortlist any unlisted series from the last N days.
+   - *Recommendation:* (b) now, then (a).
+
+5. **Dry-run scouting posts real subjects.** A dry-run shift scouts with the cheap model, and its picks are real subject cards on the floor. The next real shift then skips scouting that day, because scouts run once a day. Dry-run series and shift ends are already kept separate.
+   - *Options:* (a) keep it: they're real subjects, just picked by a cheaper Scout; (b) mark dry-run subjects so the real shift scouts anyway and the series picker ignores them.
+   - *Recommendation:* (b) if you plan to dry-run often on days the real shift also runs.
+
+6. **Node path in the schedule.** The plist pins the absolute path of the `node` binary that installed it (`/usr/local/bin/node` here). If you upgrade Node through a version manager and that path changes, re-run `silver install-schedule`. No decision needed; this is a note.

@@ -18,14 +18,16 @@ Everything is recorded, including drafts, chatter and rejects, and the record fe
 
 ## Status
 
-Early construction. **Phases 0–3 are done**:
+Early construction. **Phases 0–4 and 8 are done**:
 - The floor (the event log) records everything.
 - The OpenRouter client runs as any role, archives transcripts and costs every call.
 - The daily budget cap is enforced.
 - The Scouts pull ready-made subjects from Google Trends, Hacker News, Reddit and news RSS, and you can commission your own.
 - The Studio assistants turn a subject into a series of 12 p5.js sketches across models, temperatures and techniques. Each sketch is rendered headless and checked for errors and blank canvases, and every series gets a contact sheet.
+- Warhol shortlists each series from its screenshots, and you approve or veto on a local review page. Every decision goes into `taste.md`, which Warhol reads next time.
+- `silver shift` runs the whole day (scouts → series → shortlists) and can be scheduled with launchd.
 
-Nothing selects, signs or publishes yet (Phases 4–5), and nothing runs on a schedule yet. `silver --help` lists every planned command, each tagged with the ACTIONS.md phase that builds it, and a command that isn't built yet exits with code 2.
+Nothing is signed or published yet (Phase 5), the superstars (Phase 6) and the Archivist (Phase 7) don't exist yet, and the schedule is built but not installed. `silver --help` lists every planned command, each tagged with the ACTIONS.md phase that builds it, and a command that isn't built yet exits with code 2.
 
 See [`process-log.jsonl`](process-log.jsonl) for a task-by-task log of the build (`npm run log:list`).
 
@@ -42,7 +44,20 @@ npx silver commission "<text|URL>" [--why ...] [--now]   # bring your own subjec
 npx silver subjects [--open]     # subjects with short ids
 npx silver series <id|latest>    # 12 variants + screenshots + a contact sheet (--dry-run: 2 cheap ones)
 npx silver release <tool>        # the Technician announces a changed tool
+npx silver shortlist [series]    # Warhol picks from a finished series (default: the newest without a shortlist)
+npx silver review                # the review page on http://127.0.0.1:4747: approve, veto, close
+npx silver shift [--dry-run]     # the whole day: scouts, series (commissions first), shortlists
+npx silver cost --reconcile      # the ledger against what OpenRouter actually billed
+npx silver subjects --retire <id> --reason "..."   # take a subject off the table
 ```
+
+## Running the daily shift
+
+1. Put your key in `.env`: `OPENROUTER_API_KEY=...`. The scheduled job doesn't see your shell's variables.
+2. Try a cheap round first: `npx silver shift --dry-run`.
+3. Install the schedule: `npx silver install-schedule` (`--print` shows the launchd plist first).
+
+The shift runs daily at `shift.at` (09:00) and sends a macOS notification when it's done. If the Mac is asleep at that time, it runs when the Mac wakes; if the Mac is off, that day is skipped. Logs go to `archive/logs/`. Running `silver shift` again the same day does nothing (`--again` runs another round), and an interrupted shift resumes where it stopped. A dry run never counts as the real shift. `npx silver uninstall-schedule` removes the job.
 
 Decisions taken so far are in the table at the top of [ACTIONS.md](ACTIONS.md#decisions-resolved); new open questions are collected at its bottom.
 
@@ -117,8 +132,11 @@ src/budget.js      daily ledger and caps
 src/pricing.js     model prices and capabilities from OpenRouter
 src/factory.js     wires the parts together for commands
 src/sources/       scout sources: Google Trends, Hacker News, Reddit, RSS
-src/agents/        scouts, commissions, studio assistants, technician
-src/tools/         the Technician's workbench: p5 template, headless renderer, contact sheet
+src/agents/        scouts, commissions, studio assistants, technician, Warhol, review, retire
+src/shift.js       the daily shift
+src/schedule.js    the launchd job
+src/reconcile.js   ledger vs OpenRouter billing
+src/tools/         the Technician's workbench: p5 template, headless renderer, contact sheet, review server
 src/lib/           shared helpers (append-only JSONL, process log, .env, formatting, dedupe, page snapshots)
 bin/               project scripts (setup, process log)
 roles/             role system prompts (markdown)
