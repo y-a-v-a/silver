@@ -324,12 +324,12 @@ Also added in Phase 3:
 
 ## Phase 5: Printer, Fred Hughes, Vercel
 
-- [ ] Write `roles/printer.md`. The Printer is mostly code; the LLM is used only for a final "print check" (does the sketch hold up at full size, and does it run for more than 60s without degrading?). It may send the piece back as a floor event, but it cannot un-sign it.
-- [ ] `agents/printer.js`, run on `review.decision: approved`:
-  - [ ] Copies the sketch to `canon/works/<canon-id>/`, removes the dev seed so the published piece drifts on every load
-  - [ ] Renders a poster PNG (fixed seed) for thumbnails and OG images
-  - [ ] **Signature:** sha256 of the sketch source + Warhol's note + the human approval event id, stored in `canon.json`
-  - [ ] Emits `work.published`
+- [x] Write `roles/printer.md`. The Printer is mostly code; the LLM is used only for a final "print check" (does the sketch hold up at full size, and does it run for more than 60s without degrading?). It may send the piece back as a floor event, but it cannot un-sign it.
+- [x] `agents/printer.js`, run on `review.decision: approved` (the latest decision per variant counts; nothing is printed twice):
+  - [x] Copies the sketch to `canon/works/<canon-id>/sketch.html`. The template only seeds when `?seed=` is given, so the published piece drifts on every load as built. Canon ids are readable: `<subject-slug>-<variant>-<series tail>`.
+  - [x] Renders a poster PNG (fixed seed) for thumbnails and OG images, falling back to the review screenshot. It also holds the piece `printer.holdSeconds` (10s rather than the planned 60s) and looks again (`later.png`).
+  - [x] **Signature:** sha256 of the sketch source + Warhol's note + the human approval event id, stored in `canon.json` (`src/canon.js`; `canon.json` is a cache rebuilt from the floor)
+  - [x] Emits `work.published`. The print check flags but never blocks: `printCheck.verdict` is `ok`, `concern` or `unchecked`, and an error or blank frame while running is always a concern, whatever the model says.
 - [ ] Write `roles/fred-hughes.md`: the business side: a title (Warhol-flat: "Silver Car Crash (Double Disaster)"-style), short wall text, edition number. **Always in English**, also for Dutch subjects, and wall text quotes at most a headline, never article text.
 - [ ] `agents/hughes.js`: assigns sequential edition numbers, writes the wall text, regenerates the site, emits `edition.released`
 - [ ] Static site generator `src/site.js` → `site/`:

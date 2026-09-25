@@ -70,10 +70,12 @@ export async function tmpFactory({ roles: roleFiles = {}, dailyUsd = 5, replies 
   }
   const config = {
     root,
-    models: { studio: ['test/text'], roles: { technician: 'test/text', scout: 'test/text', warhol: 'test/vision', superstar: 'test/cheap' }, dryRun: 'test/cheap' },
+    models: { studio: ['test/text'], roles: { technician: 'test/text', scout: 'test/text', warhol: 'test/vision', printer: 'test/vision', 'fred-hughes': 'test/text', superstar: 'test/cheap' }, dryRun: 'test/cheap' },
     budget: { dailyUsd, chatterShare: 0.1 },
     review: { port: 0, tasteEntriesInPrompt: 40 },
-    paths: { roles: rolesDir, floor: join(root, 'floor'), archive: join(root, 'archive'), canon: join(root, 'canon'), taste: join(root, 'taste.md') },
+    printer: { holdSeconds: 1 },
+    deploy: { provider: 'vercel', project: 'silver-test', siteUrl: null },
+    paths: { roles: rolesDir, floor: join(root, 'floor'), archive: join(root, 'archive'), canon: join(root, 'canon'), site: join(root, 'site'), taste: join(root, 'taste.md') },
   };
   const fetch = fakeFetch(replies);
   const floor = createFloor({ dir: config.paths.floor });
@@ -174,4 +176,34 @@ export async function seedSeries(f, { produced = ['v01', 'v02', 'v03'], failed =
   }
   await f.floor.append({ type: 'series.completed', actor: 'studio-assistant', ref: seriesId, payload: { seriesId, subjectId: subject.id, produced, failed: failed.map((v) => ({ variant: v, stage: 'blank' })), contactSheet: `archive/variants/${seriesId}/index.html` } });
   return { subject, seriesId, dir };
+}
+
+/** Approve (or veto) variants of a seeded series, as the review page would. */
+export async function decide(f, seriesId, verdicts) {
+  const out = [];
+  for (const [variant, verdict, note = null] of verdicts) {
+    out.push(await f.floor.append({ type: 'review.decision', actor: 'human', ref: seriesId, payload: { seriesId, variant, verdict, note } }));
+  }
+  return out;
+}
+
+/** A fake renderer for the Printer: writes stub PNGs; `failHold` makes the later look fail. */
+export function fakePrintRenderer({ failHold = null } = {}) {
+  const calls = [];
+  return {
+    calls,
+    async render(path, { pngPath }) {
+      const { writeFile: write } = await import('node:fs/promises');
+      calls.push(['render', path]);
+      await write(pngPath(1), Buffer.from([0x89, 0x50, 0x4e, 0x47, 1]));
+      return { ok: true, reason: null, shots: [{ seed: 1, png: pngPath(1) }], errors: [], blocked: [], readySignal: true, ms: 1 };
+    },
+    async hold(path, { pngPath, holdMs }) {
+      const { writeFile: write } = await import('node:fs/promises');
+      calls.push(['hold', path, holdMs]);
+      await write(pngPath, Buffer.from([0x89, 0x50, 0x4e, 0x47, 2]));
+      if (failHold) return { ok: false, reason: failHold, png: pngPath, errors: failHold === 'error' ? ['ReferenceError: later is not defined'] : [], blank: failHold === 'blank', colors: 1, ms: 1 };
+      return { ok: true, reason: null, png: pngPath, errors: [], blank: false, colors: 30, ms: 1 };
+    },
+  };
 }
