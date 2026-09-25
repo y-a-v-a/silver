@@ -69,3 +69,4 @@
 {"ts":"2026-09-25T17:12:01Z","phase":"7","event":"built","task":"archivist: artifact check, manifests, Pat Hackett diary (roles/archivist.md), private record in .record/ with init-record/commit/push, shift step 5 + backup after shift.ended; 296 tests"}
 {"ts":"2026-09-25T17:14:12Z","phase":"7","event":"built","task":"archive as a Scout source: reject pile + diary lines, offered once, capped by maxArchiveSubjectsPerShift"}
 {"ts":"2026-09-25T17:16:51Z","phase":"7","event":"live","task":"manifests 0 missing (344 artifacts), first diary $0.02, record in .record (337 files, local only), archive-origin subject posted live (Dunkin v09 reject)"}
+{"ts":"2026-09-25T17:22:20Z","phase":"7","event":"done","task":"Phase 7 ticked; live dry-run shift ran the whole chain (superstars 429s noted); open questions for Phases 6/7 appended"}

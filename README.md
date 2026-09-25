@@ -18,21 +18,24 @@ Everything is recorded, including drafts, chatter and rejects, and the record fe
 
 ## Status
 
-Early construction. **Phases 0–5 and 8 are done**:
+**All phases (0–8) are built.** The gallery isn't live on Vercel yet.
 - The floor (the event log) records everything.
 - The OpenRouter client runs as any role, archives transcripts and costs every call.
 - The daily budget cap is enforced.
 - The Scouts pull ready-made subjects from Google Trends, Hacker News, Reddit and news RSS, and you can commission your own.
 - The Studio assistants turn a subject into a series of 12 p5.js sketches across models, temperatures and techniques. Each sketch is rendered headless and checked for errors and blank canvases, and every series gets a contact sheet.
 - Warhol shortlists each series from its screenshots, and you approve or veto on a local review page. Every decision goes into `taste.md`, which Warhol reads next time.
-- `silver shift` runs the whole day (scouts → series → shortlists) and can be scheduled with launchd.
+- Three Superstars (Brigid, Ondine, Viva) gossip about the day's subjects on a cheap model. Their chatter goes into the assistants' prompts, Warhol's review and the contact sheet, and now and then one of them pushes a subject onto the floor.
+- `silver shift` runs the whole day (scouts → superstars → series → shortlists → Archivist) and can be scheduled with launchd.
 - Every approval is printed into the canon (signed, print-checked), given an edition number, an English title and wall text by Fred Hughes, and published to a static gallery with an Atom feed, deployed to Vercel.
 
-The superstars (Phase 6) and the Archivist, with its backup, (Phase 7) don't exist yet. `silver --help` lists every planned command, each tagged with the ACTIONS.md phase that builds it, and a command that isn't built yet exits with code 2.
+- The Archivist checks every event's artifacts after a shift, writes a manifest and a diary entry (Andy's morning call to Pat Hackett), and commits the record (floor, archive, canon, taste) to its own git repository in `.record/`. The Scout treats the reject pile and the diary as one more source.
+
+`silver --help` lists every command, each tagged with the ACTIONS.md phase that built it.
 
 See [`process-log.jsonl`](process-log.jsonl) for a task-by-task log of the build (`npm run log:list`).
 
-## Commands (so far)
+## Commands
 
 ```sh
 npx silver config [--check]      # resolved configuration / validate it
@@ -47,7 +50,13 @@ npx silver series <id|latest>    # 12 variants + screenshots + a contact sheet (
 npx silver release <tool>        # the Technician announces a changed tool
 npx silver shortlist [series]    # Warhol picks from a finished series (default: the newest without a shortlist)
 npx silver review                # the review page on http://127.0.0.1:4747: approve, veto, close
-npx silver shift [--dry-run]     # the whole day: scouts, series (commissions first), shortlists
+npx silver shift [--dry-run]     # the whole day: scouts, superstars, series (commissions first), shortlists, Archivist
+npx silver chatter [subject]     # the superstars talk (default: today's waiting subjects); --list shows the floor's chatter
+npx silver series <id> --no-chatter --matrix-seed 7   # an A/B: the same matrix without the floor's chatter
+npx silver diary [date] [--write] # the Archivist's diary entry
+npx silver archive [date]        # check every event's artifacts on disk; write the day's manifest
+npx silver init-record           # the private record in .record/ (--github <name> --yes to add a private GitHub remote)
+npx silver scout --source archive  # the Scout looks only at the reject pile and the diary
 npx silver publish [--no-deploy] # print approvals, release editions, rebuild site/, deploy to Vercel
 npx silver publish --redeploy    # deploy even when the canon hasn't changed
 npm run preview                  # build site/ exactly as it would deploy, and serve it on localhost:3000
@@ -136,8 +145,8 @@ src/llm.js         OpenRouter client: transcripts, costing, retries, JSON repair
 src/budget.js      daily ledger and caps
 src/pricing.js     model prices and capabilities from OpenRouter
 src/factory.js     wires the parts together for commands
-src/sources/       scout sources: Google Trends, Hacker News, Reddit, RSS
-src/agents/        scouts, commissions, studio assistants, technician, Warhol, review, retire, printer, Fred Hughes
+src/sources/       scout sources: Google Trends, Hacker News, Reddit, RSS, and the archive (rejects, diary)
+src/agents/        scouts, commissions, superstars, studio assistants, technician, Warhol, review, retire, printer, Fred Hughes, archivist
 src/shift.js       the daily shift
 src/schedule.js    the launchd job
 src/reconcile.js   ledger vs OpenRouter billing
@@ -145,12 +154,13 @@ src/canon.js       the canon (signed works), derived from the floor
 src/publish.js     print → editions → site → deploy
 src/site.js        the static gallery and feed
 src/deploy.js      Vercel
+src/record.js      the private record: a git repo in .record/ over floor/, archive/, canon/, taste.md
 src/tools/         the Technician's workbench: p5 template, headless renderer, contact sheet, review server
 src/lib/           shared helpers (append-only JSONL, process log, .env, formatting, dedupe, page snapshots)
 bin/               project scripts (setup, process log)
-roles/             role system prompts (markdown)
+roles/             role system prompts (markdown); roles/superstars/ holds the personas
 floor/             the event log, one JSONL file per shift (append-only, local only)
-archive/           transcripts, every variant including rejects, the Archivist's diary (local only)
+archive/           transcripts, every variant including rejects, the diary, daily manifests (local only)
 canon/             signed works (local only; published through the site)
 site/              the generated gallery (gitignored, rebuilt on publish)
 test/              node:test suites

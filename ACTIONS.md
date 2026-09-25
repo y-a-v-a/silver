@@ -377,27 +377,27 @@ Also added in Phase 3:
 - with chatter, original brief (`…14RVN5`): no line of chatter visible. The brief listed the chatter without saying what to do with it;
 - with chatter, new brief (`…BX8542`): the chatter is printed on the work: "they can see your name. the surveillance is polite." (Viva) and "YOU ARE THE ACCUSER AND THE ACCUSED." (Ondine). Cost of the A/B: $0.018.
 
-## Phase 7: Archivist
+## Phase 7: Archivist ✅ (the GitHub remote waits for your go)
 
-- [ ] `agents/archivist.js` (code): after each shift, checks that every event has its transcript or artifact, writes a shift manifest and a summary of the shift. It does **not** commit to git, since data stays out of the repo (see the backup decision below).
-- [ ] Write `roles/archivist.md` (Billy Name / Pat Hackett): writes a diary entry from the day's floor (who said what, what got made, what died) → `archive/diary/YYYY-MM-DD.md` → `diary.written`
-- [ ] **Backup** (decision 2026-09-24): `floor/`, `archive/`, `canon/` and `taste.md` form their own git repo, pushed to a **private** GitHub repo (e.g. `silver-record`). At the end of each shift the Archivist commits with a shift summary and pushes. If the push fails, it is recorded and retried next shift, without failing the shift. Setup: `silver init-record` creates the repo (confirming before creating anything on GitHub).
-- [ ] **Feedback loop** (principle 3): Scouts treat the diary and the reject pile as an extra source, with `origin: archive`, and at most one archive subject per shift
+- [x] `agents/archivist.js` (code): after each shift, checks that every event's artifacts exist (any payload path: `transcript`, `path`, `png`, `contactSheet`, `sketch`, `poster`, `later`, `manifest`), writes `archive/manifests/<day>.json` (events by type and actor, spend by role, subjects, series, decisions, editions, missing artifacts) and a `shift.archived` event. It does not commit to the code repo. `silver archive [date]` runs the check by hand. **Live 2026-09-25:** 344 artifacts checked over both days, none missing.
+- [x] Write `roles/archivist.md` (Pat Hackett typing up Andy's morning call; money like cab fares; only what's in the notes): the code builds plain notes from the floor since the previous entry (so the morning's reviews land in the next entry, dry runs left out), and the Archivist (Sonnet 5) writes `archive/diary/YYYY-MM-DD.md` → `diary.written`. The shift writes it for real shifts only; `silver diary [date] [--write] [--force]`. **Live:** the first entry (both days, 343 words) cost $0.02.
+- [x] **Backup** (decision 2026-09-24): the record is its own git repository with its git dir in `.record/` (ignored by the code repo) and the repo root as work tree. It force-adds exactly `floor/`, `archive/`, `canon/` and `taste.md` (never the publish lock), because the code repo's `.gitignore` outranks the record's own excludes. After `shift.ended` the shift commits it with a summary and pushes if a remote is set; the result goes into a `record.pushed` event, and a failed push is simply retried next shift. `silver init-record` created the local record on 2026-09-25 (337 files, 18 MB). **Not done:** creating the private GitHub repo. `silver init-record --github silver-record --yes` does it (via `gh repo create --private`), but that creates something on your GitHub account, so it waits for your go (see the open questions).
+- [x] **Feedback loop** (principle 3): `src/sources/archive.js` offers the Scout the reject pile (variants the human vetoed or Warhol passed over, from earlier days) and lines from recent diary entries, each until used once. At most `shift.maxArchiveSubjectsPerShift` (1) become subjects, with `origin: archive` and a pointer to the reject or the line. The Scout role exempts them from the "already on the floor" rule. `silver scout --source archive` runs only this source.
 
-**Done when:** a diary entry exists for each shift, and an archive-origin subject appears within a week.
+**Done when:** a diary entry exists for each shift, and an archive-origin subject appears within a week. ✅ The shift writes the diary for every real shift from 2026-09-26. An archive subject appeared on the first try, once the Scout role said revisiting is the point: "The reject pile: 'dunkin free coffee code', v09 (grid-repeat)", which Warhol had passed over as "too gray". The full chain ran as a live dry-run shift: scouts → superstars → Archivist (manifest, diary skipped for dry runs) → record commit `6785e0c`.
 
 ## Phase 8: the daily shift and launchd ✅ (installed 2026-09-25; first unattended run 2026-09-26 09:00)
 
 - [x] `src/shift.js`: `shift.started` → scouts → superstars → pick subjects (commissions first, then scouted) → assistants (N series) → Warhol shortlists → archivist → `shift.ended`
   - [x] Commissions fill the `seriesPerShift` slots first, oldest first. The rest wait for the next shift (decision 2026-09-24).
-  - [x] `silver commission --now` runs a mini-shift for one subject: superstar chatter → series → Warhol shortlist (decision 2026-09-24). Chatter is still pending Phase 6.
+  - [x] `silver commission --now` runs a mini-shift for one subject: superstar chatter → series → Warhol shortlist (decision 2026-09-24). The chatter runs first (Phase 6).
   - [x] Idempotent per date: running it twice on one day continues the shift without duplicating it
   - [x] Stops cleanly on `BudgetExhausted` and records the reason
   - [x] Skips retired subjects (`subject.retired`, Phase 3b)
   - [x] The end-of-shift summary includes the reconcile gap (below)
   - [x] A dry run never stands in for the real shift: dry-run `shift.ended` events, series slots and subject claims only count for other dry runs, so testing never uses up the day
   - [x] Printing happens **outside** the shift, at the moment of human approval, because the veto is async
-- [x] `silver shift [--dry-run] [--again] [--no-notify] [--json]`: dry-run uses the cheapest model and 2 variants. Superstars (Phase 6) and the Archivist (Phase 7) are recorded as skipped steps until they exist.
+- [x] `silver shift [--dry-run] [--again] [--no-notify] [--json]`: dry-run uses the cheapest model and 2 variants. The superstars (Phase 6) run after the scouts, and the Archivist (Phase 7) runs last; the record is committed after `shift.ended`.
 - [x] `silver cost --reconcile` (decision 2026-09-25, `src/reconcile.js`): compare the ledger's total with OpenRouter's `/api/v1/key` usage over the same period and report the gap (billed calls that never reached `cost.recorded`, such as timed-out replies)
 - [x] A macOS notification at the end of a shift (`osascript -e 'display notification …'`) saying "N series waiting for review"
 - [x] `launchd/com.silver.shift.plist`: `StartCalendarInterval` (e.g. 09:00), absolute paths to `node` and the repo, and logs to `archive/logs/`. The plist is generated with this machine's absolute paths by `src/schedule.js` (`silver install-schedule --print` shows it) rather than kept as a static file in the repo.
@@ -514,3 +514,15 @@ The open questions from Phase 5 and the day shift were answered on 2026-09-25. T
 1. **The Vercel token.** `.env` has `VERCEL_TOKEN=` with no value, so nothing is live yet. Fill it in and run `silver publish --redeploy`.
 2. **No. 017 carries the same invented number in the artwork itself.** "One Million Free Coffees (Dunkin)" prints "1,000,000 FREE COFFEES" in the sketch, from the same pre-rule Scout note. A retitle only fixes the label.
    - *Options:* (a) leave it, since the label can say what the image claims; (b) retitle the label only; (c) a way to withdraw an edition from the site (a `work.withdrawn` event), keeping its number as a gap in the record.
+
+## Open questions from Phases 6 and 7 (2026-09-25)
+
+1. **Create the private GitHub repo for the record?** The record exists locally in `.record/` (337 files, 18 MB, grows by roughly 5–10 MB a day, mostly PNGs) and is committed after every shift. Pushing it needs a private repo on your account: `npx silver init-record --github silver-record --yes`. I didn't run it, because it creates something on GitHub.
+   - *Questions:* is `silver-record` the name you want? Private is the decision; the repo holds page snapshots and quoted headlines, so it must stay private.
+2. **Qwen's provider rate limits (HTTP 429).** In the live dry-run shift, 2 of 3 superstars and both dry-run shortlists failed on 429s from Qwen's upstream provider, after 4 retries each. The shift carried on, but the chatter was thinner.
+   - *Options:* (a) leave it, since chatter is noise and a thin day is fine; (b) use OpenRouter's `models` fallback list, so a 429 moves to a second cheap model (e.g. Gemini 3.8 Flash); (c) space the superstar calls out.
+   - *Recommendation:* (b) for superstars and dry runs.
+3. **How often a superstar pushes a subject.** `superstars.proposeChance` is 0.34: on about one shift in three, one superstar sees the Scout's leftovers and may push one, and the pushed subject jumps the queue (after commissions). Nobody pushed on the first two runs.
+   - *Question:* keep the jump, or treat a pushed subject like any scouted one?
+4. **Superstar personas are after real people** (Brigid Berlin, Ondine, Viva). They are voices on the local floor only, never on the public site. Keep it that way, or rename them to invented personas if the chatter is ever published?
+5. **The studio brief now invites stealing from the chatter.** The A/B showed chatter only changes the work when the brief says so; now lines like "the surveillance is polite" end up printed on the image. That's the intended cross-contamination, but it means gossip can reach the canon through an approval. Your veto is the check; is that enough?
