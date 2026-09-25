@@ -302,7 +302,7 @@ Also added in Phase 3:
 
 ## Phase 4: Warhol and the contact sheet (veto)
 
-- [ ] `taste.md`: starts with a short hand-written header of what the human likes and dislikes. After that it is append-only: one entry per human decision, with date, variant, verdict, and note.
+- [x] `taste.md` (`src/lib/taste.js`): starts with a short hand-written header of what the human likes and dislikes. After that it is append-only: one entry per human decision, with date, variant, verdict, and note.
 - [ ] Write `roles/warhol.md`: terse, flat, deadpan; chooses the piece, never makes it; judges *seriality and surface*, not effort. Its `{{taste}}` placeholder receives the last N entries of `taste.md`. Output: 1–3 picks per series with a one-line note each, plus a note for the rejects.
 - [ ] `agents/warhol.js`: on `series.completed`, sends the screenshots (vision) and the sketch metadata (not the full code, which would bias it toward code quality) → `shortlist.proposed`
   - [ ] **One screenshot per variant** (seed 1), so about 12 images per review (decision 2026-09-25)
