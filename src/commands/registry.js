@@ -148,7 +148,16 @@ export const COMMANDS = [
     ],
     load: () => import('./shortlist.js'),
   },
-  { name: 'review', description: 'open the contact sheet to approve or veto Warhol\'s picks', phase: 4 },
+  {
+    name: 'review',
+    description: 'serve the contact sheet on localhost to approve or veto variants',
+    phase: 4,
+    options: [
+      ['--port <n>', 'port (default: review.port, 4747)'],
+      ['--no-open', 'don\'t open the browser'],
+    ],
+    load: () => import('./review.js'),
+  },
   { name: 'publish', description: 'rebuild the gallery site and redeploy it to Vercel', phase: 5 },
   {
     name: 'shift',
