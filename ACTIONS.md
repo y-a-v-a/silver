@@ -332,11 +332,11 @@ Also added in Phase 3:
   - [x] Emits `work.published`. The print check flags but never blocks: `printCheck.verdict` is `ok`, `concern` or `unchecked`, and an error or blank frame while running is always a concern, whatever the model says.
 - [x] Write `roles/fred-hughes.md`: the business side: a title (Warhol-flat: "Silver Car Crash (Double Disaster)"-style), short wall text, edition number. **Always in English**, also for Dutch subjects, and wall text quotes at most a headline, never article text.
 - [x] `agents/hughes.js`: assigns sequential edition numbers, writes the wall text, regenerates the site, emits `edition.released`. Numbering is gap-free in signing order; a failed call leaves the work unreleased for the next publish. Regenerating the site is the publish pipeline's job.
-- [ ] Static site generator `src/site.js` → `site/`:
-  - [ ] `index.html`: the canon as a grid of posters, newest first
-  - [ ] `works/<id>/`: the live sketch, full-bleed, with wall text below
-  - [ ] `feed.xml`: an Atom feed of the editions
-  - [ ] A CC BY 4.0 notice on every work page and in the feed (decision 2026-09-24)
+- [x] Static site generator `src/site.js` → `site/` (only released editions; rebuilt from scratch, keeping `site/.vercel`):
+  - [x] `index.html`: the canon as a grid of posters, newest first
+  - [x] `works/<id>/`: the live sketch, full-bleed, with wall text below (plus the edition number, technique, source headline link, signature excerpt, previous/next links, and OG tags once `deploy.siteUrl` is set)
+  - [x] `feed.xml`: an Atom feed of the editions (stable `tag:` ids; absolute links once `deploy.siteUrl` is set)
+  - [x] A CC BY 4.0 notice on every work page and in the feed (decision 2026-09-24)
 - [ ] Deploy with `vercel deploy site --prod --token $VERCEL_TOKEN --yes`. Record the URL in `work.published`.
 - [ ] `silver publish`: rebuilds and redeploys by hand
 
