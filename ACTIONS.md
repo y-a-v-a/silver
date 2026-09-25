@@ -540,3 +540,26 @@ The open questions from Phase 5 and the day shift were answered on 2026-09-25. T
    - *Question:* keep the jump, or treat a pushed subject like any scouted one?
 4. **Superstar personas are after real people** (Brigid Berlin, Ondine, Viva). They are voices on the local floor only, never on the public site. Keep it that way, or rename them to invented personas if the chatter is ever published?
 5. **The studio brief now invites stealing from the chatter.** The A/B showed chatter only changes the work when the brief says so; now lines like "the surveillance is polite" end up printed on the image. That's the intended cross-contamination, but it means gossip can reach the canon through an approval. Your veto is the check; is that enough?
+
+## Where things stand (2026-09-25, end of day)
+
+v1 is built (Phases 0–8). What is left, in order:
+
+**Tomorrow, after the 09:00 shift** (the first unattended run with superstars, the diary, the Qwen fallback and the record push):
+- [ ] Check the run: `npx silver floor` (the `shift.ended` steps), `npx silver diary`, `npx silver review`, and the latest commit on github.com/y-a-v-a/silver-record. Or ask Claude for the shift report.
+
+**Yours:**
+- [ ] **Go live on Vercel:** fill in `VERCEL_TOKEN` in `.env`, run `npx silver publish --redeploy`, then set `deploy.siteUrl` (see Phase 5b).
+- [ ] **Write your taste:** a few lines at the top of `taste.md` on what you like and don't. Warhol reads them before every shortlist; until then he has only your approve/veto log.
+- [ ] **Decide on No. 017** (see the open questions from Phase 5b): (a) leave it, (b) correct the label only, (c) a way to withdraw an edition from the site while its number stays in the record.
+
+**To build next (v1 remainder):**
+- [ ] **The print check on the review page, before the veto** (Phase 5b, "later"). Run it when a series is shortlisted and show the verdict on the contact sheet, so a concern can be vetoed before printing. About an hour.
+- [ ] **No. 017's option**, once decided.
+
+**Then v2**, from "Later (not v1)", roughly by how much it changes the output:
+1. **Image-model techniques** (photo-silkscreen) alongside p5: the biggest visual jump, closest to Warhol's screen prints. *Recommended first.*
+2. **The Technician goes live:** an agent that proposes and writes new techniques and templates, gated by `tool.released`.
+3. **More sources:** product catalogues (the soup cans), Wikipedia most-read.
+4. **Social channels for Fred Hughes** (Bluesky/Mastodon), after Vercel is live.
+5. **Continuous tempo:** floor subscribers instead of one sequential shift.
