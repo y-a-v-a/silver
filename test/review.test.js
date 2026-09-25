@@ -153,7 +153,7 @@ test('recordDecision and closeReview validate without the server', async () => {
   await seedSeries(g);
   const [view] = await listSeries(g.floor);
   await assert.rejects(recordDecision({ config: g.config, floor: g.floor }, view, { variant: 'v01', verdict: 'nope' }), ReviewError);
-  const e = await recordDecision({ config: g.config, floor: g.floor }, view, { variant: 'v01', verdict: 'vetoed' });
+  const { event: e } = await recordDecision({ config: g.config, floor: g.floor }, view, { variant: 'v01', verdict: 'vetoed' });
   assert.equal(e.payload.pickedByWarhol, false, 'no shortlist yet');
   await closeReview({ floor: g.floor }, view);
   const [closed] = await listSeries(g.floor);
@@ -168,4 +168,36 @@ test('page builders work on bare views (no subject, no shortlist)', async () => 
   views[0].subject = null;
   assert.match(indexPage(views), /\(unknown subject\)|campbell soup/);
   assert.match(seriesPage(views[0]), /Warhol hasn't looked at this series yet/);
+});
+
+test('the same decision twice (double click, resubmit) is recorded once; a changed note or verdict is new', async () => {
+  const g = await tmpFactory();
+  await seedSeries(g);
+  const deps = { config: g.config, floor: g.floor };
+  const view = async () => (await listSeries(g.floor))[0];
+  const first = await recordDecision(deps, await view(), { variant: 'v01', verdict: 'approved', note: 'yes' });
+  const again = await recordDecision(deps, await view(), { variant: 'v01', verdict: 'approved', note: ' yes ' });
+  assert.equal(again.duplicate, true);
+  assert.equal(again.event.id, first.event.id);
+  assert.equal((await g.floor.read({ type: 'review.decision' })).length, 1);
+  assert.equal((await readTaste(g.config.paths.taste)).entries.length, 1);
+  assert.equal((await recordDecision(deps, await view(), { variant: 'v01', verdict: 'approved', note: 'changed my mind, still yes' })).duplicate, false);
+  assert.equal((await recordDecision(deps, await view(), { variant: 'v01', verdict: 'vetoed', note: 'changed my mind, still yes' })).duplicate, false);
+  assert.equal((await g.floor.read({ type: 'review.decision' })).length, 3);
+});
+
+test('a double-clicked form says "already recorded"', async () => {
+  const g = await tmpFactory();
+  const { seriesId } = await seedSeries(g);
+  const srv = createReviewServer({ config: g.config, floor: g.floor });
+  const url = await srv.listen(0);
+  try {
+    const send = () => fetch(`${url}/series/${seriesId}/decide`, { method: 'POST', redirect: 'manual', headers: { 'Content-Type': 'application/x-www-form-urlencoded', Origin: url }, body: 'variant=v01&verdict=approved' });
+    await send();
+    const second = await send();
+    assert.match(decodeURIComponent(second.headers.get('location')), /v01 approved \(already recorded\)\./);
+    assert.equal((await g.floor.read({ type: 'review.decision' })).length, 1);
+  } finally {
+    await srv.close();
+  }
 });

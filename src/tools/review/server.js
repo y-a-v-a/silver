@@ -84,8 +84,9 @@ export function createReviewServer({ config, floor }) {
           await closeReview({ floor }, view, { note: form.note });
           return redirect(res, `/?done=${encodeURIComponent(`Closed the review of "${view.subject?.payload.title ?? view.seriesId}".`)}`);
         }
-        const event = await recordDecision({ config, floor }, view, { variant: form.variant, verdict: form.verdict, note: form.note });
-        return redirect(res, `${back}?done=${encodeURIComponent(`${event.payload.variant} ${event.payload.verdict}.`)}#${encodeURIComponent(event.payload.variant)}`);
+        const { event, duplicate } = await recordDecision({ config, floor }, view, { variant: form.variant, verdict: form.verdict, note: form.note });
+        const said = `${event.payload.variant} ${event.payload.verdict}${duplicate ? ' (already recorded)' : ''}.`;
+        return redirect(res, `${back}?done=${encodeURIComponent(said)}#${encodeURIComponent(event.payload.variant)}`);
       } catch (err) {
         if (!(err instanceof ReviewError)) throw err;
         if (err.status === 413) return send(res, 413, err.message, 'text/plain');

@@ -19,6 +19,7 @@ export class ReviewError extends Error {
  * @param {{config: object, floor: object}} deps
  * @param {import('./series-data.js').SeriesView} series
  * @param {{variant: string, verdict: string, note?: string}} decision
+ * @returns {Promise<{duplicate: boolean, event: object}>}
  */
 export async function recordDecision({ config, floor }, series, { variant, verdict, note = '' }) {
   if (!VERDICTS.includes(verdict)) throw new ReviewError(`verdict must be one of ${VERDICTS.join(', ')}`);
@@ -27,6 +28,11 @@ export async function recordDecision({ config, floor }, series, { variant, verdi
   if (!v.ok) throw new ReviewError(`${variant} failed (${v.reason}); there is nothing to ${verdict === 'approved' ? 'approve' : 'veto'}`);
   const text = String(note).trim();
   if (text.length > MAX_NOTE) throw new ReviewError(`a note is at most ${MAX_NOTE} characters`);
+
+  // The same decision twice (a double click, a resubmitted form) is a no-op: it must not
+  // add a second event or taste line, and later it must never print a work twice.
+  const current = series.decisions.get(variant)?.payload;
+  if (current && current.verdict === verdict && (current.note ?? '') === text) return { duplicate: true, event: series.decisions.get(variant) };
 
   const pick = series.shortlist?.payload.picks.find((p) => p.variant === variant) ?? null;
   const event = await floor.append({
@@ -56,7 +62,7 @@ export async function recordDecision({ config, floor }, series, { variant, verdi
     pickedByWarhol: Boolean(pick),
     note: text,
   });
-  return event;
+  return { duplicate: false, event };
 }
 
 /** Close a series' review: it leaves the pending list. Decisions stay as they are. */
