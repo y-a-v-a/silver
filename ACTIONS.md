@@ -39,6 +39,7 @@ The build plan for the Silver Factory in Node.js, derived from [ARCHITECTURE.md]
 | Subjects from before the exclusion rule | **Retire event** (2026-09-25): a new `subject.retired` event and `silver subjects --retire <id>`. Retired subjects are hidden from `latest`, `--open` and the shift. |
 | Technique adherence | **Drift, and Warhol notes it** (2026-09-25). Off-technique variants are kept, and Warhol's review mentions it; the human judges at the veto. |
 | Screenshots per variant for Warhol | **1 per variant** (2026-09-25): seed 1, about 12 images per review. |
+| What gets published | **Every approval** (2026-09-25). Each approved variant becomes a signed, numbered edition on the gallery; there is no separate signing step. "The more the merrier": mass and repetition are the point. |
 
 ## Stack
 

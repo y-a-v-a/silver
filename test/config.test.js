@@ -145,6 +145,9 @@ test('shift, sources, review, deploy and path errors', () => {
   rejects((c) => delete c.sources.repeatAfterDays, /repeatAfterDays/);
   rejects((c) => (c.review.port = 70000), /review\.port/);
   rejects((c) => (c.deploy.provider = 'netlify'), /deploy\.provider/);
+  rejects((c) => (c.deploy.project = 'Silver Factory'), /deploy\.project/);
+  rejects((c) => (c.deploy.siteUrl = 'not a url'), /deploy\.siteUrl/);
+  rejects((c) => (c.printer.holdSeconds = -1), /printer\.holdSeconds/);
   rejects((c) => (c.paths.floor = '/var/floor'), /paths\.floor must be relative/);
   rejects((c) => (c.paths.taste = ''), /paths\.taste/);
 });

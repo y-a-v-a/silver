@@ -89,6 +89,14 @@ export default {
 
   deploy: {
     provider: 'vercel', // deploys paths.site
+    project: 'silver-factory', // Vercel project name
+    siteUrl: null, // public URL once known, e.g. 'https://silver-factory.vercel.app' (absolute links in the feed)
+  },
+
+  printer: {
+    // The print check runs each work this long after its ready frame and looks again
+    // (plan: 60s; 10s keeps a 20-work print run at a few minutes).
+    holdSeconds: 10,
   },
 
   // Relative to the repository root.

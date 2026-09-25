@@ -11,7 +11,8 @@ import { pathToFileURL, fileURLToPath } from 'node:url';
  * @property {{at: string, subjectsPerShift: number, seriesPerShift: number, maxArchiveSubjectsPerShift: number}} shift
  * @property {{rss: string[], trending: {googleTrendsGeo: string, hackernews: boolean, reddit: boolean}, itemsPerSource: number, repeatAfterDays: number}} sources
  * @property {{port: number, tasteEntriesInPrompt: number}} review
- * @property {{provider: 'vercel'}} deploy
+ * @property {{provider: 'vercel', project: string, siteUrl: string|null}} deploy
+ * @property {{holdSeconds: number}} printer
  * @property {{roles: string, floor: string, archive: string, canon: string, site: string, taste: string}} paths
  */
 
@@ -21,7 +22,7 @@ export const DEFAULT_CONFIG_PATH = resolve(ROOT, 'silver.config.js');
 /** Roles that need a default model. Superstars share one entry. */
 export const ROLES = Object.freeze(['scout', 'superstar', 'warhol', 'printer', 'fred-hughes', 'archivist', 'technician']);
 
-const TOP_LEVEL = ['models', 'budget', 'series', 'techniques', 'shift', 'sources', 'review', 'deploy', 'paths'];
+const TOP_LEVEL = ['models', 'budget', 'series', 'techniques', 'shift', 'sources', 'review', 'deploy', 'printer', 'paths'];
 const PATH_KEYS = ['roles', 'floor', 'archive', 'canon', 'site', 'taste'];
 const SLUG = /^~?[a-z0-9][\w.-]*\/[\w.:-]+$/i;
 const KEBAB = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -61,7 +62,7 @@ export function validateConfig(c) {
   for (const key of TOP_LEVEL) if (!isObj(c[key])) err(`"${key}" must be an object`);
   if (errors.length) return errors;
 
-  const { models, budget, series, techniques, shift, sources, review, deploy, paths } = c;
+  const { models, budget, series, techniques, shift, sources, review, deploy, printer, paths } = c;
 
   // models
   if (!Array.isArray(models.studio) || models.studio.length === 0) err('models.studio must be a non-empty array');
@@ -126,6 +127,11 @@ export function validateConfig(c) {
 
   // deploy
   if (deploy.provider !== 'vercel') err('deploy.provider must be "vercel"');
+  if (typeof deploy.project !== 'string' || !/^[a-z0-9][a-z0-9-]{0,99}$/.test(deploy.project)) err('deploy.project must be a Vercel project name (lowercase letters, digits, dashes)');
+  if (deploy.siteUrl !== null && !isUrl(deploy.siteUrl ?? '')) err('deploy.siteUrl must be null or an http(s) URL');
+
+  // printer
+  if (!isInt(printer.holdSeconds, 0, 300)) err('printer.holdSeconds must be an integer between 0 and 300');
 
   // paths
   for (const key of PATH_KEYS) {
