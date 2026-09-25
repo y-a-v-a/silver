@@ -359,7 +359,7 @@ Also added in Phase 3:
 
 **Done when:** a diary entry exists for each shift, and an archive-origin subject appears within a week.
 
-## Phase 8: the daily shift and launchd ✅ (built; the schedule is waiting for you to install it)
+## Phase 8: the daily shift and launchd ✅ (installed 2026-09-25; first unattended run 2026-09-26 09:00)
 
 - [x] `src/shift.js`: `shift.started` → scouts → superstars → pick subjects (commissions first, then scouted) → assistants (N series) → Warhol shortlists → archivist → `shift.ended`
   - [x] Commissions fill the `seriesPerShift` slots first, oldest first. The rest wait for the next shift (decision 2026-09-24).
@@ -422,7 +422,7 @@ New open questions go here as they come up.
 
 ## Open questions from the 2026-09-25 day shift (Phases 3b, 4 and 8)
 
-1. **Install the daily schedule?** Everything is built. To start:
+1. **Install the daily schedule?** **Done 2026-09-25:** installed by the owner at 11:09 and loaded in launchd (`com.silver.shift`, daily at 09:00). `.env` holds the key, and a check with an empty environment (as launchd runs it) reached OpenRouter. The first unattended run is 2026-09-26 at 09:00. Everything is built. To start:
    - put `OPENROUTER_API_KEY=...` in `.env` (launchd doesn't see your shell's variables; today the key lives only in your shell),
    - then run `silver install-schedule`.
 
