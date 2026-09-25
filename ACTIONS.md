@@ -368,13 +368,14 @@ Also added in Phase 3:
   - [x] Stops cleanly on `BudgetExhausted` and records the reason
   - [x] Skips retired subjects (`subject.retired`, Phase 3b)
   - [x] The end-of-shift summary includes the reconcile gap (below)
+  - [x] A dry run never stands in for the real shift: dry-run `shift.ended` events, series slots and subject claims only count for other dry runs, so testing never uses up the day
   - [x] Printing happens **outside** the shift, at the moment of human approval, because the veto is async
 - [x] `silver shift [--dry-run] [--again] [--no-notify] [--json]`: dry-run uses the cheapest model and 2 variants. Superstars (Phase 6) and the Archivist (Phase 7) are recorded as skipped steps until they exist.
 - [x] `silver cost --reconcile` (decision 2026-09-25, `src/reconcile.js`): compare the ledger's total with OpenRouter's `/api/v1/key` usage over the same period and report the gap (billed calls that never reached `cost.recorded`, such as timed-out replies)
 - [x] A macOS notification at the end of a shift (`osascript -e 'display notification …'`) saying "N series waiting for review"
-- [ ] `launchd/com.silver.shift.plist`: `StartCalendarInterval` (e.g. 09:00), absolute paths to `node` and the repo, and logs to `archive/logs/`
-- [ ] `silver install-schedule`: copies the plist to `~/Library/LaunchAgents/` and runs `launchctl bootstrap`. `silver uninstall-schedule` reverses it.
-- [ ] Document that if the Mac is asleep at the scheduled time, launchd runs the job on wake
+- [x] `launchd/com.silver.shift.plist`: `StartCalendarInterval` (e.g. 09:00), absolute paths to `node` and the repo, and logs to `archive/logs/`. The plist is generated with this machine's absolute paths by `src/schedule.js` (`silver install-schedule --print` shows it) rather than kept as a static file in the repo.
+- [x] `silver install-schedule`: copies the plist to `~/Library/LaunchAgents/` and runs `launchctl bootstrap`. `silver uninstall-schedule` reverses it. Install refuses unless `.env` has `OPENROUTER_API_KEY` (launchd jobs don't inherit the shell's variables); `--force` overrides.
+- [x] Document that if the Mac is asleep at the scheduled time, launchd runs the job on wake (in `src/schedule.js`, the install output and the README; if the Mac is switched off, that day's shift is skipped)
 
 **Done when:** the Mac runs a shift unattended overnight, the notification appears, and the review → publish flow works the next morning.
 

@@ -162,3 +162,19 @@ test('notify uses osascript on macOS only, with quotes escaped', async () => {
   assert.equal(await notify('T', 'M', { platform: 'linux', run }), false);
   assert.equal(await notify('T', 'M', { platform: 'darwin', run: (c, a, cb) => cb(new Error('no')) }), false);
 });
+
+test('a dry run never stands in for the real shift: no ended day, no slots, no claims', async () => {
+  const s = await shiftSetup();
+  const { event: commission } = await postCommission({ floor: s.floor }, 'A commission for later');
+  const dry = await runShift(s.deps, { dryRun: true });
+  assert.equal(dry.status, 'done');
+  assert.equal(dry.series.length, 2);
+
+  const real = await runShift(s.deps);
+  assert.equal(real.status, 'done', 'the dry run did not end the real day');
+  const byStep = Object.fromEntries(real.steps.map((x) => [x.step, x]));
+  assert.equal(byStep.scouts.status, 'skipped', 'subjects scouted in the dry run are real subjects');
+  assert.equal(real.series.length, 2, "dry-run series don't use up the real slots");
+  assert.equal(real.series[0].subjectId, commission.id, 'a dry-run series does not consume a commission');
+  assert.equal(real.shortlisted.length, 2, 'only the real series are shortlisted');
+});

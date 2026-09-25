@@ -9,6 +9,15 @@ export class RetireError extends Error {
   }
 }
 
+/**
+ * Subject ids claimed by a real series. A dry-run series is a test print: it never claims
+ * its subject, so the subject can still get a real series.
+ * @param {import('../floor.js').FloorEvent[]} events  series.started events (others are ignored)
+ */
+export function claimedSubjects(events) {
+  return new Set(events.filter((e) => e.type === 'series.started' && !e.payload?.dryRun).map((e) => e.payload.subjectId));
+}
+
 /** Map of retired subject id -> the retiring event. */
 export async function retiredSubjects(floor) {
   const events = await floor.read({ shift: 'all', type: 'subject.retired' });

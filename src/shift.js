@@ -5,7 +5,7 @@
 import { runScouts } from './agents/scouts.js';
 import { runSeries } from './agents/assistants.js';
 import { pendingCommissions } from './agents/commissions.js';
-import { retiredSubjects } from './agents/retire.js';
+import { retiredSubjects, claimedSubjects } from './agents/retire.js';
 import { listSeries, isPendingReview } from './agents/series-data.js';
 import { shortlistSeries } from './agents/warhol.js';
 
@@ -27,7 +27,7 @@ const isBudget = (err) => err?.name === 'BudgetExhausted';
 export async function pickSubjects(floor, shift, slots) {
   if (slots <= 0) return [];
   const retired = await retiredSubjects(floor);
-  const claimed = new Set((await floor.read({ shift: 'all', type: 'series.started' })).map((e) => e.payload.subjectId));
+  const claimed = claimedSubjects(await floor.read({ shift: 'all', type: 'series.started' }));
   const commissions = (await pendingCommissions(floor)).filter((s) => !claimed.has(s.id));
   const scouted = (await floor.read({ shift, type: 'subject.posted' })).filter((s) => s.payload.origin !== 'commission' && !claimed.has(s.id) && !retired.has(s.id));
   return [...commissions, ...scouted].slice(0, slots);
@@ -49,9 +49,11 @@ export async function pickSubjects(floor, shift, slots) {
 export async function runShift({ config, floor, llm, budget, createRenderer, fetch, reconcile, notify }, { dryRun = false, again = false } = {}) {
   const shift = floor.today();
   const today = await floor.read({ shift });
-  const ended = today.filter((e) => e.type === 'shift.ended').at(-1);
+  // A dry run never stands in for the real shift, and vice versa.
+  const sameKind = (e) => Boolean(e.payload?.dryRun) === dryRun;
+  const ended = today.filter((e) => e.type === 'shift.ended' && sameKind(e)).at(-1);
   if (ended && !again) return { shift, status: 'already-done', ended };
-  const resumed = today.some((e) => e.type === 'shift.started') && !ended;
+  const resumed = today.some((e) => e.type === 'shift.started' && sameKind(e)) && !ended;
 
   const started = await floor.append({
     type: 'shift.started',
@@ -85,7 +87,7 @@ export async function runShift({ config, floor, llm, budget, createRenderer, fet
   // 3. Series: fill today's remaining slots.
   const seriesMade = [];
   if (!stoppedReason) {
-    const startedToday = (await floor.read({ shift, type: 'series.started' })).length;
+    const startedToday = (await floor.read({ shift, type: 'series.started' })).filter(sameKind).length;
     const picks = await pickSubjects(floor, shift, config.shift.seriesPerShift - startedToday);
     if (!picks.length) record('series', startedToday ? 'skipped' : 'empty', { reason: startedToday ? `${startedToday} series already started today` : 'no subjects to make' });
     else {
@@ -112,7 +114,7 @@ export async function runShift({ config, floor, llm, budget, createRenderer, fet
   // 4. Warhol: shortlist today's finished series that have none yet.
   const shortlisted = [];
   if (!stoppedReason) {
-    const todo = (await listSeries(floor)).filter((s) => s.started.shift === shift && s.completed && !s.shortlist);
+    const todo = (await listSeries(floor)).filter((s) => s.started.shift === shift && sameKind(s.started) && s.completed && !s.shortlist);
     for (const s of todo) {
       try {
         const r = await shortlistSeries({ config, floor, llm }, s.seriesId);

@@ -172,8 +172,22 @@ export const COMMANDS = [
     ],
     load: () => import('./shift.js'),
   },
-  { name: 'install-schedule', description: 'install the daily launchd job', phase: 8 },
-  { name: 'uninstall-schedule', description: 'remove the daily launchd job', phase: 8 },
+  {
+    name: 'install-schedule',
+    description: 'install the daily launchd job that runs `silver shift` at shift.at',
+    phase: 8,
+    options: [
+      ['--print', 'only print the plist; install nothing'],
+      ['--force', 'install even if .env has no OPENROUTER_API_KEY'],
+    ],
+    load: async () => ({ default: (await import('./schedule.js')).install }),
+  },
+  {
+    name: 'uninstall-schedule',
+    description: 'remove the daily launchd job',
+    phase: 8,
+    load: async () => ({ default: (await import('./schedule.js')).uninstall }),
+  },
 ];
 
 export const NOT_IMPLEMENTED_EXIT = 2;

@@ -6,7 +6,7 @@ import { join, relative } from 'node:path';
 import { buildMatrix, extractSketch, sketchVars } from './studio.js';
 import { buildSketchHtml } from '../tools/template.js';
 import { buildContactSheet } from '../tools/contact-sheet.js';
-import { retiredSubjects } from './retire.js';
+import { retiredSubjects, claimedSubjects } from './retire.js';
 
 export const ASSISTANT_PROMPT = 'Make your variant now. Reply with the JavaScript in one ```js block, nothing else.';
 
@@ -41,7 +41,7 @@ export async function findSubject(floor, ref) {
   const subjects = events.filter((e) => e.type === 'subject.posted');
   const retired = await retiredSubjects(floor);
   if (ref === 'latest') {
-    const claimed = new Set(events.filter((e) => e.type === 'series.started').map((e) => e.payload.subjectId));
+    const claimed = claimedSubjects(events);
     const open = subjects.filter((s) => !claimed.has(s.id) && !retired.has(s.id));
     if (!open.length) throw new SeriesError('no subject is waiting for a series');
     return open.at(-1);
