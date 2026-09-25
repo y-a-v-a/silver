@@ -74,6 +74,7 @@ export async function tmpFactory({ roles: roleFiles = {}, dailyUsd = 5, replies 
     budget: { dailyUsd, chatterShare: 0.1 },
     review: { port: 0, tasteEntriesInPrompt: 40 },
     printer: { holdSeconds: 1 },
+    superstars: { linesPerShift: 3, proposeChance: 0.34, pileSize: 8 },
     deploy: { provider: 'vercel', project: 'silver-test', siteUrl: null },
     paths: { roles: rolesDir, floor: join(root, 'floor'), archive: join(root, 'archive'), canon: join(root, 'canon'), site: join(root, 'site'), taste: join(root, 'taste.md') },
   };

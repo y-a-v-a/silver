@@ -141,7 +141,8 @@ export function seriesPage(s, msg = {}, { works = new Map() } = {}) {
   const chatter = s.chatter.length
     ? s.chatter.map((e) => `<p><strong>${esc(e.actor.replace(/^superstar\./, ''))}</strong>: ${esc(e.payload.text)}</p>`).join('')
     : '<p class="muted">The floor is quiet about this one.</p>';
-  const notes = [p.why && `<p>${esc(p.origin === 'commission' ? 'Your note' : 'Why')}: ${esc(p.why)}</p>`, p.scoutWhy && `<p>Scout: ${esc(p.scoutWhy)}</p>`].filter(Boolean).join('');
+  const whyLabel = p.origin === 'commission' ? 'Your note' : p.origin === 'superstar' ? `Pushed by ${p.proposedBy}` : 'Why';
+  const notes = [p.why && `<p>${esc(whyLabel)}: ${esc(p.why)}</p>`, p.scoutWhy && `<p>Scout: ${esc(p.scoutWhy)}</p>`, s.started?.payload.chatter === false && '<p>Made without the floor\'s chatter (A/B).</p>'].filter(Boolean).join('');
 
   return layout(
     `Review: ${title}`,

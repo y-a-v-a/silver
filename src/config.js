@@ -22,7 +22,7 @@ export const DEFAULT_CONFIG_PATH = resolve(ROOT, 'silver.config.js');
 /** Roles that need a default model. Superstars share one entry. */
 export const ROLES = Object.freeze(['scout', 'superstar', 'warhol', 'printer', 'fred-hughes', 'archivist', 'technician']);
 
-const TOP_LEVEL = ['models', 'budget', 'series', 'techniques', 'shift', 'sources', 'review', 'deploy', 'printer', 'paths'];
+const TOP_LEVEL = ['models', 'budget', 'series', 'techniques', 'shift', 'sources', 'review', 'deploy', 'printer', 'superstars', 'paths'];
 const PATH_KEYS = ['roles', 'floor', 'archive', 'canon', 'site', 'taste'];
 const SLUG = /^~?[a-z0-9][\w.-]*\/[\w.:-]+$/i;
 const KEBAB = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -62,7 +62,7 @@ export function validateConfig(c) {
   for (const key of TOP_LEVEL) if (!isObj(c[key])) err(`"${key}" must be an object`);
   if (errors.length) return errors;
 
-  const { models, budget, series, techniques, shift, sources, review, deploy, printer, paths } = c;
+  const { models, budget, series, techniques, shift, sources, review, deploy, printer, superstars, paths } = c;
 
   // models
   if (!Array.isArray(models.studio) || models.studio.length === 0) err('models.studio must be a non-empty array');
@@ -132,6 +132,11 @@ export function validateConfig(c) {
 
   // printer
   if (!isInt(printer.holdSeconds, 0, 300)) err('printer.holdSeconds must be an integer between 0 and 300');
+
+  // superstars
+  if (!isInt(superstars.linesPerShift, 0, 10)) err('superstars.linesPerShift must be an integer between 0 and 10');
+  if (!isNum(superstars.proposeChance, 0, 1)) err('superstars.proposeChance must be between 0 and 1');
+  if (!isInt(superstars.pileSize, 0, 30)) err('superstars.pileSize must be an integer between 0 and 30');
 
   // paths
   for (const key of PATH_KEYS) {

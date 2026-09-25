@@ -5,6 +5,7 @@ import { createFactory } from '../factory.js';
 import { runSeries } from '../agents/assistants.js';
 import { summarise } from '../budget.js';
 import { usd, plural } from '../lib/format.js';
+import { seededRng } from '../lib/rng.js';
 
 export default async function seriesCommand([subjectRef], opts, ctx) {
   const factory = await createFactory({ dryRun: Boolean(opts.dryRun) });
@@ -27,6 +28,8 @@ export default async function seriesCommand([subjectRef], opts, ctx) {
       variants: num(opts.variants, 'variants'),
       concurrency: num(opts.concurrency, 'concurrency'),
       dryRun: Boolean(opts.dryRun),
+      chatter: opts.chatter !== false,
+      rng: opts.matrixSeed === undefined ? undefined : seededRng(num(opts.matrixSeed, 'matrix-seed')),
     });
   } finally {
     await renderer?.close();

@@ -342,5 +342,5 @@ export function createLlm({
     }
   }
 
-  return { call };
+  return { call, roles };
 }

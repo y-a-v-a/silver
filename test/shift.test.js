@@ -203,3 +203,43 @@ test('dry-run subjects are marked; the real shift scouts anyway and never picks 
   assert.ok(real.series.length && real.series.every((x) => !dryIds.has(x.subjectId)));
   assert.deepEqual((await pickSubjects(s.floor, s.floor.today(), 5)).filter((e) => dryIds.has(e.id)), []);
 });
+
+test('with a cast, the superstars talk after the Scouts, once a day; their chatter reaches the assistants and a pushed subject jumps the queue', async () => {
+  const star = (id) => readFile(new URL(`../roles/superstars/${id}.md`, import.meta.url), 'utf8');
+  const f = await tmpFactory({ roles: { ...ROLES, 'superstars/brigid.md': await star('brigid'), 'superstars/viva.md': await star('viva') }, replies: [] });
+  let pushedOnce = false;
+  f.fetch.queue.push(
+    ...Array.from({ length: 200 }, () => (body) => {
+      const system = body.messages[0].content;
+      if (system.startsWith('You are Brigid')) {
+        const hasPile = /\[P1\]/.test(system);
+        const propose = hasPile && !pushedOnce ? ((pushedOnce = true), { pile: 1, why: 'Brigid wants it.' }) : null;
+        return completion(JSON.stringify({ lines: [{ subject: 1, text: 'I have it on tape.' }], propose }), { cost: 0.0005 });
+      }
+      if (system.startsWith('You are the Scout')) return completion(JSON.stringify({ picks: [{ n: 1, why: 'The can.' }] }), { cost: 0.001 });
+      if (system.startsWith('You are Viva')) return completion(JSON.stringify({ lines: [{ subject: 1, text: 'How dull.' }], propose: /\[P1\]/.test(system) ? { pile: 1, why: 'Viva wants it.' } : null }), { cost: 0.0005 });
+      return replyFor(body);
+    }),
+  );
+  const s = await shiftSetup();
+  const deps = { ...s.deps, floor: f.floor, llm: f.llm, budget: f.budget, config: { ...s.deps.config, superstars: { linesPerShift: 3, proposeChance: 1, pileSize: 8 }, paths: f.config.paths, root: f.config.root } };
+
+  const r = await runShift(deps);
+  const step = r.steps.find((x) => x.step === 'superstars');
+  assert.equal(step.status, 'done');
+  assert.equal(step.lines, 2);
+  const order = r.steps.map((x) => x.step);
+  assert.ok(order.indexOf('scouts') < order.indexOf('superstars') && order.indexOf('superstars') < order.indexOf('series'));
+
+  const posted = await f.floor.read({ type: 'subject.posted' });
+  const pushed = posted.find((e) => e.payload.origin === 'superstar');
+  assert.ok(pushed, 'whoever got the pile pushed a subject');
+  assert.equal(step.proposed.length, 1, 'only one superstar sees the pile');
+  assert.equal(r.series[0].subjectId, pushed.id, 'the pushed subject gets the first free slot');
+
+  const studio = f.fetch.requests.map((q) => q.body.messages[0].content).filter((c) => c.startsWith('You are a Studio assistant'));
+  assert.ok(studio.some((c) => /superstar\.brigid: I have it on tape\./.test(c)), 'chatter reaches the assistants');
+
+  const again = await runShift(deps, { again: true });
+  assert.equal(again.steps.find((x) => x.step === 'superstars').status, 'skipped');
+});

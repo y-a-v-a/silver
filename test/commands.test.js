@@ -153,6 +153,8 @@ test('commission --now annotates, then produces and renders a series right away'
       return completion(JSON.stringify({ why: 'A parking ticket everyone gets.', image: 'Twelve tickets.', sensitive: { flag: false } }), { cost: 0.001 });
     }
     if (system.startsWith('You are Andy Warhol')) return completion(JSON.stringify({ picks: [{ variant: 'v03', note: 'Yellow. Fine.' }], rejects: 'Same.' }), { cost: 0.01 });
+    const star = system.match(/^You are (Brigid|Ondine|Viva),/);
+    if (star) return completion(JSON.stringify({ lines: [{ subject: 1, text: `${star[1]} says: tickets!` }] }), { cost: 0.0003 });
     return completion('```js\nfunction setup(){ createCanvas(SILVER.width, SILVER.height); noLoop(); }\nfunction draw(){ background(250,220,0); fill(0); for (let i=0;i<4;i++) rect(90+i*240, 300, 180, 480); }\n```', { cost: 0.002 });
   };
   try {
@@ -160,7 +162,8 @@ test('commission --now annotates, then produces and renders a series right away'
     assert.equal(r.code, 0, r.stderr);
     assert.match(r.stdout, /scout: A parking ticket everyone gets\./);
     assert.match(r.stdout, /series [0-9A-Z]{26}: 12\/12 produced, 12 calls, \$0\.02\d*/);
-    assert.match(r.stderr, /--now: producing the series, then Warhol's shortlist/);
+    assert.match(r.stderr, /--now: the superstars talk, the assistants make the series, Warhol shortlists it/);
+    assert.match(r.stdout, /brigid: Brigid says: tickets!\n  ondine: Ondine says: tickets!\n  viva: Viva says: tickets!/);
     assert.match(r.stdout, /Warhol picked v03; review it with: silver review/);
     const [floorFile] = await readdir(join(root, 'floor'));
     const events = (await readFile(join(root, 'floor', floorFile), 'utf8')).trim().split('\n').map(JSON.parse);
@@ -168,6 +171,9 @@ test('commission --now annotates, then produces and renders a series right away'
     const started = events.find((e) => e.type === 'series.started');
     assert.equal(started.payload.subjectId, subject.id);
     assert.equal(events.filter((e) => e.type === 'variant.produced').length, 12);
+    assert.equal(started.payload.chatterLines, 3, 'the chatter came before the series');
+    const sketchCall = mock.requests.find((q) => q.body.messages[0].content.startsWith('You are a Studio assistant'));
+    assert.match(sketchCall.body.messages[0].content, /superstar\.viva: Viva says: tickets!/);
     const shortlist = events.find((e) => e.type === 'shortlist.proposed');
     assert.equal(shortlist.payload.seriesId, started.id);
     const warholCall = mock.requests.find((q) => q.body.messages[0].content.startsWith('You are Andy Warhol'));

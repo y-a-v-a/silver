@@ -3,6 +3,7 @@
 // never duplicates work. A spent budget ends the shift cleanly, with the reason recorded.
 // Printing happens outside the shift, when the human approves (the veto is async).
 import { runScouts } from './agents/scouts.js';
+import { runSuperstars } from './agents/superstars.js';
 import { runSeries } from './agents/assistants.js';
 import { pendingCommissions } from './agents/commissions.js';
 import { retiredSubjects, claimedSubjects } from './agents/retire.js';
@@ -19,8 +20,8 @@ export class ShiftError extends Error {
 const isBudget = (err) => err?.name === 'BudgetExhausted';
 
 /**
- * Choose the subjects for today's series: commissions first (oldest first), then today's
- * scouted subjects in the Scout's order. Retired subjects and subjects that already have
+ * Choose the subjects for today's series: commissions first (oldest first), then subjects a
+ * superstar pushed, then today's scouted subjects in the Scout's order. Retired subjects and subjects that already have
  * a series are never picked (decisions 2026-09-24 and 2026-09-25). A real shift never
  * picks a dry run's subjects; a dry run may use either.
  * @returns {Promise<import('./floor.js').FloorEvent[]>}
@@ -31,7 +32,9 @@ export async function pickSubjects(floor, shift, slots, { dryRun = false } = {})
   const claimed = claimedSubjects(await floor.read({ shift: 'all', type: 'series.started' }));
   const commissions = (await pendingCommissions(floor)).filter((s) => !claimed.has(s.id));
   const scouted = (await floor.read({ shift, type: 'subject.posted' })).filter((s) => s.payload.origin !== 'commission' && (dryRun || !s.payload.dryRun) && !claimed.has(s.id) && !retired.has(s.id));
-  return [...commissions, ...scouted].slice(0, slots);
+  // A subject a superstar pushed onto the floor jumps the Scout's queue: that's the point of it.
+  const pushed = scouted.filter((s) => s.payload.origin === 'superstar');
+  return [...commissions, ...pushed, ...scouted.filter((s) => s.payload.origin !== 'superstar')].slice(0, slots);
 }
 
 /**
@@ -70,11 +73,13 @@ export async function runShift({ config, floor, llm, budget, createRenderer, fet
   };
 
   // 1. Scouts: once per day, per kind (a dry run's subjects don't count for the real shift).
+  let pile = [];
   const scoutedToday = today.some((e) => e.type === 'subject.posted' && e.actor === 'scout' && sameKind(e));
   if (scoutedToday) record('scouts', 'skipped', { reason: 'already scouted today' });
   else {
     try {
       const r = await runScouts({ config, floor, llm, fetch }, { dryRun });
+      pile = r.leftovers ?? [];
       record('scouts', r.posted.length ? 'done' : 'empty', { posted: r.posted.length, problems: r.problems, failedSources: r.report.filter((x) => !x.ok).map((x) => x.source) });
     } catch (err) {
       if (isBudget(err)) stop(err);
@@ -82,8 +87,29 @@ export async function runShift({ config, floor, llm, budget, createRenderer, fet
     }
   }
 
-  // 2. Superstars: Phase 6.
-  record('superstars', 'skipped', { reason: 'not built yet (ACTIONS.md phase 6)' });
+  // 2. Superstars: once per day, per kind, about the subjects waiting for a series. They may
+  // stop on their own budget share (chatter), which never stops the shift.
+  if (!stoppedReason) {
+    const talkedToday = today.some((e) => e.type === 'chatter.posted' && e.actor.startsWith('superstar.') && sameKind(e));
+    const waiting = await pickSubjects(floor, shift, Infinity, { dryRun });
+    if (!(llm.roles?.superstars?.() ?? []).length) record('superstars', 'skipped', { reason: 'no superstars cast (roles/superstars/)' });
+    else if (talkedToday) record('superstars', 'skipped', { reason: 'already talked today' });
+    else if (!waiting.length) record('superstars', 'skipped', { reason: 'no subjects on the floor' });
+    else {
+      try {
+        const r = await runSuperstars({ config, floor, llm, fetch }, { subjects: waiting, pile, dryRun });
+        record('superstars', r.chatter.length ? 'done' : 'empty', {
+          lines: r.chatter.length,
+          proposed: r.proposed.map((e) => ({ id: e.id, by: e.payload.proposedBy, title: e.payload.title })),
+          problems: r.problems,
+          ...(r.stopped ? { stopped: r.stopped } : {}),
+        });
+      } catch (err) {
+        if (isBudget(err)) stop(err);
+        record('superstars', 'failed', { error: err.message });
+      }
+    }
+  }
 
   // 3. Series: fill today's remaining slots.
   const seriesMade = [];

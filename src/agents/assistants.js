@@ -69,11 +69,13 @@ async function pool(items, limit, fn, stop = () => false) {
  * @param {{call: Function}} deps.llm
  * @param {{render: Function}|null} deps.renderer   null: write sketches but don't render (variants stay unverified)
  * @param {string} subjectRef  id, unique id suffix, or "latest"
- * @param {{variants?: number, dryRun?: boolean, concurrency?: number, rng?: () => number}} [opts]
+ * @param {{variants?: number, dryRun?: boolean, concurrency?: number, rng?: () => number, chatter?: boolean}} [opts]
  */
-export async function runSeries({ config, floor, llm, renderer }, subjectRef, { variants, dryRun = false, concurrency = config.series.concurrency, rng } = {}) {
+export async function runSeries({ config, floor, llm, renderer }, subjectRef, { variants, dryRun = false, concurrency = config.series.concurrency, rng, chatter: withChatter = true } = {}) {
   const subject = await findSubject(floor, subjectRef);
-  const chatter = (await floor.read({ shift: 'all', type: 'chatter.posted', ref: subject.id })).slice(-20);
+  // The floor's chatter about this subject goes into every prompt; a real series ignores a
+  // dry run's chatter. `chatter: false` leaves it out (the Phase 6 A/B).
+  const chatter = withChatter ? (await floor.read({ shift: 'all', type: 'chatter.posted', ref: subject.id })).filter((e) => dryRun || !e.payload.dryRun).slice(-20) : [];
   const matrix = buildMatrix(config, { rng, dryRun, variants });
 
   const started = await floor.append({
@@ -88,6 +90,8 @@ export async function runSeries({ config, floor, llm, renderer }, subjectRef, { 
       temperatures: matrix.temperatures,
       variants: matrix.cells.length,
       dryRun,
+      chatter: withChatter,
+      chatterLines: chatter.length,
     },
   });
   const seriesId = started.id;

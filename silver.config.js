@@ -100,6 +100,14 @@ export default {
   },
 
   // Relative to the repository root.
+  // Phase 6: cast talent on the floor. Chatter runs on models.roles.superstar and is capped
+  // by budget.chatterShare.
+  superstars: {
+    linesPerShift: 3, // at most this many chatter lines per superstar per shift
+    proposeChance: 0.34, // chance that one superstar gets the Scout's leftovers and may propose a subject
+    pileSize: 8, // how many of the Scout's leftovers that superstar sees
+  },
+
   paths: {
     roles: 'roles',
     floor: 'floor',

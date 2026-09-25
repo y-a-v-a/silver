@@ -2,6 +2,7 @@
 import { createFactory } from '../factory.js';
 import { postCommission, pendingCommissions, CommissionError } from '../agents/commissions.js';
 import { clock, plural, usd } from '../lib/format.js';
+import { runSuperstars } from '../agents/superstars.js';
 import { runSeries } from '../agents/assistants.js';
 import { shortlistSeries } from '../agents/warhol.js';
 import { summarise } from '../budget.js';
@@ -45,10 +46,18 @@ export default async function commissionCommand([input], opts, ctx) {
     ctx.stderr.write('note: --now needs OPENROUTER_API_KEY; the commission is queued for the next shift instead\n');
     return;
   }
-  // --now (decision 2026-09-24): chatter + series + shortlist. Superstar chatter joins
-  // when phase 6 is built.
-  ctx.stderr.write('--now: producing the series, then Warhol\'s shortlist (chatter joins in phase 6)\n');
+  // --now (decision 2026-09-24): chatter + series + shortlist.
+  ctx.stderr.write('--now: the superstars talk, the assistants make the series, Warhol shortlists it\n');
   const studioLlm = await factory.llm();
+  try {
+    const talk = await runSuperstars({ config: factory.config, floor, llm: studioLlm }, { subjects: [event] });
+    for (const c of talk.chatter) ctx.stdout.write(`  ${c.payload.persona}: ${c.payload.text}\n`);
+    for (const p of talk.problems) ctx.stderr.write(`note: ${p}\n`);
+    if (talk.stopped) ctx.stderr.write(`note: chatter stopped (${talk.stopped})\n`);
+  } catch (err) {
+    if (err.name === 'BudgetExhausted') throw err;
+    ctx.stderr.write(`note: no chatter (${err.message})\n`);
+  }
   const { createRenderer } = await import('../tools/render.js');
   const renderer = await createRenderer();
   let series;

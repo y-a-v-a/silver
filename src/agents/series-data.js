@@ -75,7 +75,10 @@ export function buildSeriesViews(events) {
   }
   for (const v of views.values()) {
     v.subject = subjects.get(v.subjectId) ?? null;
-    v.chatter = chatter.get(v.subjectId) ?? [];
+    // A series hears the chatter of its own kind (dry runs are test prints), and none at all
+    // when it was made without chatter (the Phase 6 A/B).
+    const dry = Boolean(v.started?.payload.dryRun);
+    v.chatter = v.started?.payload.chatter === false ? [] : (chatter.get(v.subjectId) ?? []).filter((e) => dry || !e.payload.dryRun);
     v.variants.sort((a, b) => a.variant.localeCompare(b.variant));
   }
   return [...views.values()];
