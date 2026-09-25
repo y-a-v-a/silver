@@ -16,7 +16,7 @@ export default async function publishCommand(_args, opts, ctx) {
       createRenderer: async () => (await import('../tools/render.js')).createRenderer(),
       deploy: canDeploy ? (deps) => deployVercel(deps) : null,
     },
-    { limit },
+    { limit, redeploy: Boolean(opts.redeploy) },
   );
   if (opts.json) {
     ctx.stdout.write(JSON.stringify(result, null, 2) + '\n');

@@ -51,12 +51,26 @@ export function buildCanon(events) {
   for (const e of events) {
     if (e.type === 'work.published') works.set(e.payload.canonId, { ...e.payload, publishedAt: e.ts, workEventId: e.id, edition: null });
   }
+  // The first release gives the edition its number; a later one for the same work is a
+  // correction (`silver retitle`): same number, new title and wall text.
   for (const e of events) {
     if (e.type !== 'edition.released') continue;
     const w = works.get(e.payload.canonId);
-    if (w) Object.assign(w, { edition: e.payload.edition, title: e.payload.title, wallText: e.payload.wallText, releasedAt: e.ts });
+    if (!w) continue;
+    if (w.edition === null) Object.assign(w, { edition: e.payload.edition, releasedAt: e.ts, revisedAt: null });
+    else w.revisedAt = e.ts;
+    Object.assign(w, { title: e.payload.title, wallText: e.payload.wallText, editionEventId: e.id });
   }
   return [...works.values()].sort((a, b) => (a.edition ?? Infinity) - (b.edition ?? Infinity) || a.publishedAt.localeCompare(b.publishedAt));
+}
+
+/**
+ * The image that stands for a work on the gallery and in the feed: the frame after the
+ * Printer's hold, so pieces that build up look finished (decision 2026-09-25). If the hold
+ * went wrong (an error or a blank canvas), the first frame instead.
+ */
+export function posterOf(work) {
+  return work.later && work.printCheck?.hold?.ok !== false ? work.later : work.poster;
 }
 
 export async function readCanon(floor) {

@@ -167,9 +167,23 @@ export const COMMANDS = [
     options: [
       ['--no-deploy', 'build site/ but don\'t deploy'],
       ['--limit <n>', 'print at most n works this time'],
+      ['--redeploy', 'deploy even if the canon hasn\'t changed (e.g. after a site change)'],
       ['--json', 'print the result as JSON'],
     ],
     load: () => import('./publish.js'),
+  },
+  {
+    name: 'retitle',
+    description: 'correct a released edition\'s title or wall text (Fred Hughes rewrites it unless you give them)',
+    phase: 5,
+    args: '<edition>',
+    options: [
+      ['--title <text>', 'the new title'],
+      ['--wall <text>', 'the new wall text'],
+      ['--note <text>', 'what is wrong, for Fred Hughes when he rewrites it'],
+      ['--no-publish', 'don\'t rebuild and redeploy the gallery afterwards'],
+    ],
+    load: () => import('./retitle.js'),
   },
   {
     name: 'shift',

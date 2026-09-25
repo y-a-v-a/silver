@@ -28,6 +28,7 @@ const EXPECTED_ERRORS = new Set([
   'ScheduleError',
   'DeployError',
   'PublishBusy',
+  'RetitleError',
 ]);
 
 const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));

@@ -57,7 +57,7 @@ test('silver subjects --retire, and the R marker in listings', async () => {
   const r = await run('subjects', '--retire', s.id.slice(-8), '--reason', 'before the rule');
   assert.match(r.stdout, /^retired [0-9A-Z]{8}: A subject to retire \(before the rule\)/);
   const list = await run('subjects');
-  assert.match(list.stdout, /  R  --  A subject to retire/);
+  assert.match(list.stdout, /  R   --  A subject to retire/);
   const open = await run('subjects', '--open');
   assert.doesNotMatch(open.stdout, /A subject to retire/);
   assert.match(open.stdout, /A subject to keep/);

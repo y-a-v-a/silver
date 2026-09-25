@@ -2,7 +2,7 @@
 // site/ is rebuilt from scratch every time, except site/.vercel (the Vercel project link).
 import { copyFile, mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { readCanon } from './canon.js';
+import { posterOf, readCanon } from './canon.js';
 
 export const LICENCE_URL = 'https://creativecommons.org/licenses/by/4.0/';
 export const REPO_URL = 'https://github.com/y-a-v-a/silver';
@@ -81,7 +81,7 @@ function workPage(w, prev, next, siteUrl) {
   <div class="frame"><iframe src="sketch.html" title="${esc(w.title)} (live)" loading="eager"></iframe></div>
   <div class="label">
     <h2>${esc(w.title)}</h2>
-    <p class="meta">No. ${pad(w.edition)} · ${esc(w.technique)} · signed ${esc(w.publishedAt.slice(0, 10))}</p>
+    <p class="meta">No. ${pad(w.edition)} · ${esc(w.technique)} · signed ${esc(w.publishedAt.slice(0, 10))}${w.revisedAt ? ` · label revised ${esc(w.revisedAt.slice(0, 10))}` : ''}</p>
     <p class="wall">${esc(w.wallText)}</p>
     <p class="meta">After: ${source}</p>
     <p class="meta">Live: every visit prints it again. <a href="sketch.html">Full screen</a> · <a href="${LICENCE_URL}" rel="license">CC BY 4.0</a> · signature <code>${esc(w.signature.slice(0, 16))}…</code></p>
@@ -95,7 +95,8 @@ function workPage(w, prev, next, siteUrl) {
 export function atomFeed(works, siteUrl) {
   const base = siteUrl ? (siteUrl.endsWith('/') ? siteUrl : `${siteUrl}/`) : '/';
   const link = (p) => (siteUrl ? new URL(p, base).href : p);
-  const updated = works.reduce((max, w) => (w.releasedAt > max ? w.releasedAt : max), '1970-01-01T00:00:00Z');
+  const touched = (w) => w.revisedAt ?? w.releasedAt;
+  const updated = works.reduce((max, w) => (touched(w) > max ? touched(w) : max), '1970-01-01T00:00:00Z');
   const entries = [...works]
     .reverse()
     .map((w) => `  <entry>
@@ -103,7 +104,7 @@ export function atomFeed(works, siteUrl) {
     <title>${esc(`No. ${pad(w.edition)}: ${w.title}`)}</title>
     <link rel="alternate" type="text/html" href="${esc(link(`works/${w.canonId}/`))}"/>
     <published>${esc(w.releasedAt)}</published>
-    <updated>${esc(w.releasedAt)}</updated>
+    <updated>${esc(touched(w))}</updated>
     <summary>${esc(w.wallText)}</summary>
     <content type="html">${esc(`<p><img src="${link(`works/${w.canonId}/poster.png`)}" alt="${esc(w.title)}"></p><p>${esc(w.wallText)}</p>`)}</content>
     <rights>CC BY 4.0 (${LICENCE_URL})</rights>
@@ -143,7 +144,7 @@ export async function buildSite({ config, floor }) {
     const out = join(dir, 'works', w.canonId);
     await mkdir(out, { recursive: true });
     await copyFile(join(config.root, w.sketch), join(out, 'sketch.html'));
-    await copyFile(join(config.root, w.poster), join(out, 'poster.png'));
+    await copyFile(join(config.root, posterOf(w)), join(out, 'poster.png'));
     await writeFile(join(out, 'index.html'), workPage(w, works[i - 1], works[i + 1], siteUrl));
   }
   await writeFile(join(dir, 'index.html'), indexPage(works, siteUrl));

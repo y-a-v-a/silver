@@ -57,9 +57,9 @@ export async function withPublishLock(config, fn) {
  * @param {{call: Function}|null} deps.llm
  * @param {() => Promise<{render: Function, hold: Function, close: Function}>} deps.createRenderer
  * @param {((opts: object) => Promise<{url: string}>)|null} deps.deploy   null: don't deploy
- * @param {{limit?: number}} [opts]
+ * @param {{limit?: number, redeploy?: boolean}} [opts]  redeploy: even when the canon hasn't changed
  */
-export async function publish({ config, floor, llm, createRenderer, deploy }, { limit } = {}) {
+export async function publish({ config, floor, llm, createRenderer, deploy }, { limit, redeploy = false } = {}) {
   return withPublishLock(config, async () => {
     const result = { printed: [], released: [], failed: [], site: null, deployed: null, deployError: null };
 
@@ -79,7 +79,7 @@ export async function publish({ config, floor, llm, createRenderer, deploy }, { 
     }
     result.site = await buildSite({ config, floor });
 
-    if (deploy && (result.released.length || result.printed.length || !(await lastDeploy(floor)))) {
+    if (deploy && (redeploy || (await canonChangedSinceDeploy(floor)))) {
       try {
         const { url } = await deploy({ config });
         result.deployed = await floor.append({ type: 'site.deployed', actor: 'fred-hughes', payload: { url, works: result.site.works, provider: config.deploy.provider } });
@@ -91,8 +91,11 @@ export async function publish({ config, floor, llm, createRenderer, deploy }, { 
   });
 }
 
-async function lastDeploy(floor) {
-  return (await floor.read({ shift: 'all', type: 'site.deployed' })).at(-1) ?? null;
+/** True when a work or edition (including a correction) reached the floor after the last deploy. */
+async function canonChangedSinceDeploy(floor) {
+  const last = (await floor.read({ shift: 'all', type: 'site.deployed' })).at(-1);
+  if (!last) return true;
+  return (await floor.read({ shift: 'all', type: ['work.published', 'edition.released'] })).some((e) => e.id > last.id);
 }
 
 /**

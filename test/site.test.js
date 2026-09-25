@@ -79,3 +79,18 @@ test('an empty canon still builds a valid site', async () => {
   assert.match(await readFile(join(dir, 'index.html'), 'utf8'), /Nothing signed yet/);
   assert.equal((await new Parser().parseString(atomFeed([], null))).items.length, 0);
 });
+
+test('the gallery poster is the later frame, and a revised label shows on the page and in the feed', async () => {
+  const f = await gallery();
+  const { retitleEdition } = await import('../src/agents/hughes.js');
+  await retitleEdition({ config: f.config, floor: f.floor, llm: null }, { edition: 1, title: 'Soup (Corrected)' });
+  const { dir } = await buildSite({ config: f.config, floor: f.floor });
+  const [first] = (await readdir(join(dir, 'works'))).sort();
+  assert.deepEqual([...(await readFile(join(dir, 'works', first, 'poster.png')))], [0x89, 0x50, 0x4e, 0x47, 2], 'the hold frame (fake renderer writes 2 there)');
+  const page = await readFile(join(dir, 'works', first, 'index.html'), 'utf8');
+  assert.match(page, /<h2>Soup \(Corrected\)<\/h2>/);
+  assert.match(page, /label revised \d{4}-\d{2}-\d{2}/);
+  const feed = await new Parser().parseString(await readFile(join(dir, 'feed.xml'), 'utf8'));
+  assert.equal(feed.items.length, 2, 'a correction is not a new entry');
+  assert.equal(feed.items[1].title, 'No. 001: Soup (Corrected)');
+});

@@ -84,6 +84,14 @@ test('publish prints approvals, releases editions, builds the site and deploys o
   assert.deepEqual([again.printed.length, again.released.length, again.deployed], [0, 0, null], 'nothing new: no reprint, no redeploy');
   assert.equal(deploys.length, 1);
   assert.equal(s.renderers(), 1, 'no renderer when there is nothing to print');
+
+  const { retitleEdition } = await import('../src/agents/hughes.js');
+  await retitleEdition({ config: s.config, floor: s.floor, llm: null }, { edition: 1, title: 'Soup (Corrected)' });
+  const corrected = await publish({ config: s.config, floor: s.floor, llm: s.llm, createRenderer: s.createRenderer, deploy });
+  assert.equal(corrected.deployed?.type, 'site.deployed', 'a correction is deployed');
+  const forced = await publish({ config: s.config, floor: s.floor, llm: s.llm, createRenderer: s.createRenderer, deploy }, { redeploy: true });
+  assert.equal(forced.deployed?.type, 'site.deployed', '--redeploy deploys without changes');
+  assert.equal(deploys.length, 3);
 });
 
 test('a failed deploy is reported and nothing else is lost', async () => {
