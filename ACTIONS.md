@@ -40,6 +40,14 @@ The build plan for the Silver Factory in Node.js, derived from [ARCHITECTURE.md]
 | Technique adherence | **Drift, and Warhol notes it** (2026-09-25). Off-technique variants are kept, and Warhol's review mentions it; the human judges at the veto. |
 | Screenshots per variant for Warhol | **1 per variant** (2026-09-25): seed 1, about 12 images per review. |
 | What gets published | **Every approval** (2026-09-25). Each approved variant becomes a signed, numbered edition on the gallery; there is no separate signing step. "The more the merrier": mass and repetition are the point. |
+| Print-check concerns | **Flag only, for now** (2026-09-25). The work is signed and published, and the concern is recorded. Later: show the concern on the review page so the human can veto before printing. |
+| Repeated titles | **Vary or number them** (2026-09-25). Fred Hughes sees the titles already used in the series and varies them or numbers them deliberately ("… (Disaster) II"). |
+| Corrections to editions | **`silver retitle`** (2026-09-25). A correction is a new `edition.released` for the same edition number; the site shows the latest. First use: No. 016. |
+| Poster frame | **The later frame** (2026-09-25): the frame after the Printer's hold (`later.png`), so pieces that build up look finished. |
+| Vercel project | **`silver-factory`** (2026-09-25), at `silver-factory.vercel.app` if the name is free. No custom domain yet. |
+| OpenRouter key | **Shared with other agents** (2026-09-25), so a reconcile gap is expected. A Silver-only key would make `--reconcile` exact. |
+| Unshortlisted backlog | **Shortlist once, by hand** (2026-09-25): the three real pre-Phase-4 series, not the dry run. The shift stays today-only. |
+| Dry-run subjects | **Marked as dry run** (2026-09-25). The real shift scouts anyway, and real series ignore dry-run subjects. |
 
 ## Stack
 
@@ -345,6 +353,16 @@ Also added in Phase 3:
 - **Verified:** approving in `silver review` now triggers the background publish. On 2026-09-25, `silver publish --no-deploy` turned your 20 approvals into **19 editions** (one approval was a duplicate click): printed, print-checked (18 ok, 1 concern), titled by Fred Hughes, and built into `site/` with the feed. That took 6 minutes and cost $0.09. The gallery was checked in headless Chromium at desktop and phone widths.
 - **Open:** the live Vercel URL needs `VERCEL_TOKEN` in `.env` (see the open questions).
 
+## Phase 5b: follow-ups from the Phase 5 decisions (2026-09-25)
+
+- [ ] **Poster = later frame:** the Printer uses `later.png` as the poster (falling back to frame 30, then the review screenshot). Re-poster the 19 existing editions.
+- [ ] **Titles:** Fred Hughes's prompt lists the titles already released for the same series (and subject), and asks him to vary them or number them deliberately.
+- [ ] **`silver retitle <No.> [--title …] [--wall …]`:** appends a new `edition.released` for the same `canonId` and edition number (`correction: true`, `replaces: <event id>`). The canon and the site use the latest. Without `--title`/`--wall`, Fred Hughes rewrites it, with the facts-only rule. Then correct **No. 016**.
+- [ ] **Dry-run subjects:** `subject.posted` from a dry-run shift carries `dryRun: true`. The real shift's "scouted today?" check ignores them, and its subject picker skips them.
+- [ ] **Backlog:** `silver shortlist` the three real pre-Phase-4 series once (about $0.18).
+- [ ] **Go live:** add `VERCEL_TOKEN` to `.env`, run `silver publish`, then set `deploy.siteUrl`.
+- [ ] Later: the print check on the review page, before the veto.
+
 ## Phase 6: Superstars
 
 - [ ] Write 3 persona files in `roles/superstars/` (e.g. Brigid: tape-recorder gossip; Ondine: amphetamine monologue; Viva: withering commentary). Each is **cast talent**: a strong voice with opinions about the subjects.
@@ -424,7 +442,22 @@ The open points from the Phase 2b/3 night shift were answered on 2026-09-25. The
 
 New open questions go here as they come up.
 
+## Decisions taken on 2026-09-25 (Phase 5 and the day shift)
+
+The open questions from Phase 5 and the day shift were answered on 2026-09-25. They are summarised in the decisions table at the top, and the resulting work is in **Phase 5b**. For the record:
+
+1. **Print-check concerns.** *Chosen:* flag only for now; show the concern at review later. *Considered:* hold works with a concern back; run the print check before the veto now.
+2. **Repeated titles.** *Chosen:* show Fred Hughes the series' earlier titles, so he varies or numbers them. *Considered:* keep repeats.
+3. **The invented fact in No. 016.** *Chosen:* a `silver retitle` command that releases a correction; the site shows the latest. *Considered:* leave it; build it and fix No. 016 in one go (No. 016 is fixed as the first use anyway).
+4. **Poster frame.** *Chosen:* the later frame. *Considered:* keep frame 30; the Printer picks per work.
+5. **Vercel project.** *Chosen:* `silver-factory`. *Considered:* `silver` (likely taken); a custom domain later.
+6. **The $0.38 reconcile gap.** The key is shared with other agents, so the gap is expected. *Considered:* a Silver-only key now.
+7. **Unshortlisted backlog.** *Chosen:* shortlist the three real series once by hand. *Considered:* leave them; have the shift catch up on the last N days.
+8. **Dry-run subjects.** *Chosen:* mark them, so the real shift scouts anyway. *Considered:* keep them as real subjects.
+
 ## Open questions from Phase 5 (2026-09-25)
+
+**All answered on 2026-09-25**: see the decisions above and Phase 5b.
 
 1. **Go live on Vercel.** Everything up to the deploy works. To publish:
    - add `VERCEL_TOKEN=...` to `.env` (from vercel.com/account/tokens),
@@ -446,6 +479,8 @@ New open questions go here as they come up.
    - *Question:* is a later frame better for pieces that build up over time (for example the "later" look the Printer already takes)?
 
 ## Open questions from the 2026-09-25 day shift (Phases 3b, 4 and 8)
+
+**Answered on 2026-09-25**: 3 (shared key), 4 (shortlist once) and 5 (mark dry runs); see the decisions above and Phase 5b. Still yours: 2 (write `taste.md`).
 
 1. **Install the daily schedule?** **Done 2026-09-25:** installed by the owner at 11:09 and loaded in launchd (`com.silver.shift`, daily at 09:00). `.env` holds the key, and a check with an empty environment (as launchd runs it) reached OpenRouter. The first unattended run is 2026-09-26 at 09:00. Everything is built. To start:
    - put `OPENROUTER_API_KEY=...` in `.env` (launchd doesn't see your shell's variables; today the key lives only in your shell),
