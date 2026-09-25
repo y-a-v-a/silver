@@ -11,7 +11,7 @@ export default {
       'anthropic/claude-sonnet-5',
       'google/gemini-3.8-flash',
       'openai/gpt-6-luna-pro',
-      'deepseek/deepseek-v4.1-flash',
+      'qwen/qwen3.8-flash', // replaced deepseek-v4.1-flash (2/12 produced), decision 2026-09-25
     ],
     // Default model per role.
     roles: {

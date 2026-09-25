@@ -48,6 +48,7 @@ Write a **p5.js 1.x sketch in global mode**. It runs inside a fixed HTML templat
 - The image must be complete by **frame 30**, when the screenshot is taken. Animation is welcome but should be slow and subtle; if it's a still, call `noLoop()`.
 - Keep each frame fast: no per-pixel loops over the full canvas every frame. Draw heavy work once, into a `createGraphics` buffer if needed.
 - No DOM elements (`createButton`, `createP`, ...), no `alert`, no `console.log`.
+- p5 1.x pitfall: `fill('#hex', alpha)` and `stroke('#hex', alpha)` throw an error. For a transparent hex colour, write `const c = color('#hex'); c.setAlpha(alpha); fill(c);`, or pass numbers: `fill(r, g, b, alpha)`.
 - About 60–250 lines. Plain, readable code; comments only where they help.
 
 Reply with the JavaScript only, in a single ```js code block. Nothing before or after it.

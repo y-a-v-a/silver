@@ -297,7 +297,7 @@ Also added in Phase 3:
 
 ## Phase 3b: follow-ups from the 2026-09-25 decisions
 
-- [ ] **Replace DeepSeek with Qwen 3.8 Flash** in `models.studio`: check it with `silver models`, run one dry-run series on it, and record the result here.
+- [x] **Replace DeepSeek with Qwen 3.8 Flash** in `models.studio`: check it with `silver models`, run one dry-run series on it, and record the result here. **Result (2026-09-25):** `silver models` OK. The dry-run series `01M3BTRDR1GHPGNZX56FZJ6DXP` (4 variants, Qwen only) produced **3/4** for $0.0069 ($0.0017/call) in 49s. The one failure was `fill('#hex', alpha)`, which p5 1.x rejects and which GPT-6 Luna Pro had also hit, so the Studio assistant's brief now shows the correct pattern.
 - [ ] **Retire subjects:** add a `subject.retired` event type (payload `subjectId`, `reason`, actor `human`) and `silver subjects --retire <id> [--reason ...]`. `findSubject('latest')`, `subjects --open` and `pendingCommissions` skip retired subjects. `silver subjects` marks them. Then retire the two subjects from before the exclusion rule (the US Navy suicide attempts and the UN photos of slain children).
 
 ## Phase 4: Warhol and the contact sheet (veto)
