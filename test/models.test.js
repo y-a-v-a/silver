@@ -36,7 +36,9 @@ test('warhol and printer are the roles that always need images', () => {
 test('a complete catalogue passes, with prices per million tokens', async () => {
   const { rows, problems } = await auditModels(shipped, [], lookupFrom(allShipped()));
   assert.deepEqual(problems, []);
-  assert.equal(rows.length, shipped.models.studio.length + Object.keys(shipped.models.roles).length + 1);
+  const fallbacks = Object.values(shipped.models.fallbacks ?? {}).flat().length;
+  assert.equal(rows.length, shipped.models.studio.length + Object.keys(shipped.models.roles).length + 1 + fallbacks);
+  if (fallbacks) assert.match(rows.at(-1).use, /^fallback for /);
   assert.equal(rows[0].promptPerM, 1);
   assert.equal(rows[0].completionPerM, 2);
 });

@@ -28,6 +28,7 @@ export async function auditModels(config, roleList, lookup) {
     ...config.models.studio.map((model) => ({ use: 'studio', model, needsVision: false })),
     ...Object.entries(config.models.roles).map(([role, model]) => ({ use: `role ${role}`, model, needsVision: VISION_ROLES.includes(role) })),
     { use: 'dry-run', model: config.models.dryRun, needsVision: false },
+    ...Object.entries(config.models.fallbacks ?? {}).flatMap(([m, list]) => list.map((model) => ({ use: `fallback for ${m}`, model, needsVision: false }))),
   ];
   for (const role of roleList) {
     // A role file matters here only when it sets its own model or needs vision.

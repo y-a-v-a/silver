@@ -25,6 +25,11 @@ export default {
     },
     // Used by `silver shift --dry-run` for every role.
     dryRun: 'qwen/qwen3.8-flash',
+    // Fallbacks per model (decision 2026-09-25): OpenRouter moves down the list when a
+    // provider fails or rate-limits (Qwen's upstream returned HTTP 429s on the superstars).
+    fallbacks: {
+      'qwen/qwen3.8-flash': ['google/gemini-3.8-flash'],
+    },
   },
 
   budget: {

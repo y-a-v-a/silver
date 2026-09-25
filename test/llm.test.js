@@ -237,3 +237,22 @@ test('a body that cannot be read (slow generation, cut connection) is reported a
   const g = await tmpFactory({ roles: TECH, replies: [hang, hang], llm: { maxRetries: 1 } });
   await assert.rejects(g.llm.call('technician', { vars: { who: 'x' }, prompt: 'p' }), /response body unreadable \(timed out/);
 });
+
+test('model fallbacks: the request carries OpenRouter\'s models list, and the cost follows the model that answered', async () => {
+  const f = await tmpFactory({
+    roles: { 'technician.md': roleFile('technician') },
+    replies: [completion('hi', { model: 'test/other', cost: 0.003 }), completion('plain')],
+  });
+  f.config.models.fallbacks = { 'test/text': ['test/other'] };
+  const r = await f.llm.call('technician', { vars: { who: 'x' }, prompt: 'go' });
+  const body = f.fetch.requests[0].body;
+  assert.equal(body.model, 'test/text');
+  assert.deepEqual(body.models, ['test/text', 'test/other']);
+  assert.equal(r.model, 'test/other');
+  const [cost] = await f.floor.read({ type: 'cost.recorded' });
+  assert.deepEqual([cost.payload.model, cost.payload.requestedModel, cost.payload.usd], ['test/other', 'test/text', 0.003]);
+
+  delete f.config.models.fallbacks;
+  await f.llm.call('technician', { vars: { who: 'x' }, prompt: 'go' });
+  assert.equal(f.fetch.requests[1].body.models, undefined, 'no list without fallbacks');
+});

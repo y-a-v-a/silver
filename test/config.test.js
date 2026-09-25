@@ -151,3 +151,13 @@ test('shift, sources, review, deploy and path errors', () => {
   rejects((c) => (c.paths.floor = '/var/floor'), /paths\.floor must be relative/);
   rejects((c) => (c.paths.taste = ''), /paths\.taste/);
 });
+
+test('models.fallbacks must map slugs to lists of other slugs', async () => {
+  const { validateConfig } = await import('../src/config.js');
+  const base = (await import('../silver.config.js')).default;
+  const withFallbacks = (fallbacks) => validateConfig({ ...base, models: { ...base.models, fallbacks } });
+  assert.deepEqual(withFallbacks({ 'qwen/qwen3.8-flash': ['google/gemini-3.8-flash'] }), []);
+  assert.match(withFallbacks({ 'qwen/qwen3.8-flash': [] }).join(), /non-empty list/);
+  assert.match(withFallbacks({ 'qwen/qwen3.8-flash': ['qwen/qwen3.8-flash'] }).join(), /other OpenRouter slugs/);
+  assert.match(withFallbacks([]).join(), /must be an object/);
+});

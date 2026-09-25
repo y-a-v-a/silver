@@ -76,6 +76,14 @@ export function validateConfig(c) {
     for (const role of Object.keys(models.roles)) if (!ROLES.includes(role)) err(`models.roles has unknown role "${role}"`);
   }
   if (!SLUG.test(models.dryRun ?? '')) err('models.dryRun must be an OpenRouter slug');
+  if (models.fallbacks !== undefined) {
+    if (!isObj(models.fallbacks)) err('models.fallbacks must be an object: {model: [fallback, ...]}');
+    else
+      for (const [m, list] of Object.entries(models.fallbacks)) {
+        if (!SLUG.test(m)) err(`models.fallbacks key "${m}" is not an OpenRouter slug`);
+        if (!Array.isArray(list) || !list.length || !list.every((x) => SLUG.test(x) && x !== m)) err(`models.fallbacks["${m}"] must be a non-empty list of other OpenRouter slugs`);
+      }
+  }
 
   // budget
   if (!isNum(budget.dailyUsd, Number.MIN_VALUE)) err('budget.dailyUsd must be a positive number');

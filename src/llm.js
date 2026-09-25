@@ -209,10 +209,12 @@ export function createLlm({
   /**
    * One completion round: reserve budget, POST, archive, cost. Returns the raw reply.
    */
-  async function round({ role, model, body, ref, imageCount, imageSources }) {
+  async function round({ role, model, fallbacks = [], body, ref, imageCount, imageSources }) {
     // Measure text only: images are priced per image, not by their base64 length.
     const promptChars = JSON.stringify(redactImages(body.messages)).length;
-    const estimate = await pricing.estimate(model, { promptChars, maxTokens: body.max_tokens, images: imageCount });
+    // Reserve for the dearest model the request may end up on.
+    const estimates = await Promise.all([model, ...fallbacks].map((m) => pricing.estimate(m, { promptChars, maxTokens: body.max_tokens, images: imageCount })));
+    const estimate = Math.max(...estimates);
     const release = await budget.reserve(estimate, { chatter: role.group === 'superstar' });
     try {
       const startedAt = now().toISOString();
@@ -230,7 +232,7 @@ export function createLlm({
       const completionTokens = usage.completion_tokens ?? 0;
       let usd = typeof usage.cost === 'number' ? usage.cost : null;
       const estimated = usd === null;
-      if (estimated) usd = (await pricing.costOf(model, { promptTokens, completionTokens, images: imageCount })) ?? estimate;
+      if (estimated) usd = (await pricing.costOf(data.model ?? model, { promptTokens, completionTokens, images: imageCount })) ?? estimate;
       const choice = data.choices?.[0] ?? {};
       const content = typeof choice.message?.content === 'string' ? choice.message.content : '';
 
@@ -310,8 +312,11 @@ export function createLlm({
     };
     const reasoning = reasoningParam(role.reasoning);
     if (reasoning) body.reasoning = reasoning;
+    // OpenRouter tries `models` in order when a provider errors or rate-limits.
+    const fallbacks = config.models.fallbacks?.[chosenModel] ?? [];
+    if (fallbacks.length) body.models = [chosenModel, ...fallbacks];
 
-    const ctx = { role, model: chosenModel, imageCount: loaded.length, imageSources };
+    const ctx = { role, model: chosenModel, fallbacks, imageCount: loaded.length, imageSources };
     const first = await round({ ...ctx, body, ref });
     const rounds = [first];
 
