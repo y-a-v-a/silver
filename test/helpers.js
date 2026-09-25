@@ -72,7 +72,8 @@ export async function tmpFactory({ roles: roleFiles = {}, dailyUsd = 5, replies 
     root,
     models: { studio: ['test/text'], roles: { technician: 'test/text', scout: 'test/text', warhol: 'test/vision', superstar: 'test/cheap' }, dryRun: 'test/cheap' },
     budget: { dailyUsd, chatterShare: 0.1 },
-    paths: { roles: rolesDir, floor: join(root, 'floor'), archive: join(root, 'archive'), canon: join(root, 'canon') },
+    review: { port: 0, tasteEntriesInPrompt: 40 },
+    paths: { roles: rolesDir, floor: join(root, 'floor'), archive: join(root, 'archive'), canon: join(root, 'canon'), taste: join(root, 'taste.md') },
   };
   const fetch = fakeFetch(replies);
   const floor = createFloor({ dir: config.paths.floor });
@@ -139,4 +140,38 @@ export function routeFetch(routes) {
   };
   fn.seen = seen;
   return fn;
+}
+
+/**
+ * Put a finished series on the floor, with stub PNGs for the produced variants.
+ * @param {{floor: object, root: string}} f
+ * @param {{produced?: string[], failed?: string[], subject?: object}} [opts]
+ */
+export async function seedSeries(f, { produced = ['v01', 'v02', 'v03'], failed = ['v04'], subject: subjectPayload = {} } = {}) {
+  const { writeFile: write, mkdir: mk } = await import('node:fs/promises');
+  const subject = await f.floor.append({
+    type: 'subject.posted',
+    actor: 'scout',
+    payload: { origin: 'scouted', title: 'campbell soup', why: 'The can.', sensitive: { flag: false, reason: null }, ...subjectPayload },
+  });
+  const started = await f.floor.append({ type: 'series.started', actor: 'studio-assistant', ref: subject.id, payload: { subjectId: subject.id, subjectTitle: 'campbell soup' } });
+  const seriesId = started.id;
+  const dir = join(f.root, 'archive', 'variants', seriesId);
+  await mk(dir, { recursive: true });
+  const techniques = ['halftone', 'grid-repeat'];
+  for (const [i, v] of produced.entries()) {
+    await write(join(dir, `${v}.png`), Buffer.from([0x89, 0x50, 0x4e, 0x47, i]));
+    await write(join(dir, `${v}.html`), `<html>${v}</html>`);
+    await f.floor.append({
+      type: 'variant.produced',
+      actor: 'studio-assistant',
+      ref: seriesId,
+      payload: { seriesId, variant: v, technique: techniques[i % 2], temperature: 0.7, model: 'test/text', path: `archive/variants/${seriesId}/${v}.html`, png: `archive/variants/${seriesId}/${v}.png`, rendered: true },
+    });
+  }
+  for (const v of failed) {
+    await f.floor.append({ type: 'variant.failed', actor: 'renderer', ref: seriesId, payload: { seriesId, variant: v, technique: 'halftone', temperature: 1.1, requestedModel: 'test/text', stage: 'blank', error: 'uniform' } });
+  }
+  await f.floor.append({ type: 'series.completed', actor: 'studio-assistant', ref: seriesId, payload: { seriesId, subjectId: subject.id, produced, failed: failed.map((v) => ({ variant: v, stage: 'blank' })), contactSheet: `archive/variants/${seriesId}/index.html` } });
+  return { subject, seriesId, dir };
 }

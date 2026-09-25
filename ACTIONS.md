@@ -303,10 +303,11 @@ Also added in Phase 3:
 ## Phase 4: Warhol and the contact sheet (veto)
 
 - [x] `taste.md` (`src/lib/taste.js`): starts with a short hand-written header of what the human likes and dislikes. After that it is append-only: one entry per human decision, with date, variant, verdict, and note.
-- [ ] Write `roles/warhol.md`: terse, flat, deadpan; chooses the piece, never makes it; judges *seriality and surface*, not effort. Its `{{taste}}` placeholder receives the last N entries of `taste.md`. Output: 1–3 picks per series with a one-line note each, plus a note for the rejects.
-- [ ] `agents/warhol.js`: on `series.completed`, sends the screenshots (vision) and the sketch metadata (not the full code, which would bias it toward code quality) → `shortlist.proposed`
-  - [ ] **One screenshot per variant** (seed 1), so about 12 images per review (decision 2026-09-25)
-  - [ ] Warhol's notes say when a variant ignored its assigned technique. Such variants are kept as drift and judged at the veto (decision 2026-09-25).
+- [x] Write `roles/warhol.md`: terse, flat, deadpan; chooses the piece, never makes it; judges *seriality and surface*, not effort. Its `{{taste}}` placeholder receives the last N entries of `taste.md`. Output: 1–3 picks per series with a one-line note each, plus a note for the rejects.
+- [x] `agents/warhol.js`: on `series.completed`, sends the screenshots (vision) and the sketch metadata (not the full code, which would bias it toward code quality) → `shortlist.proposed`
+  - [x] **One screenshot per variant** (seed 1), so about 12 images per review (decision 2026-09-25)
+  - [x] Warhol's notes say when a variant ignored its assigned technique (`offTechnique` per pick). Such variants are kept as drift and judged at the veto (decision 2026-09-25).
+  - [x] `silver shortlist [series|latest|unlisted]`. Warhol sees images, techniques and temperatures, never code or model names. Series views come from `agents/series-data.js`, shared with the review server and the shift. First live shortlist (NGV series, 2026-09-25): $0.06 for 9 images on Opus 5.5, in voice ("Gee, it's a mugshot of a product.").
 - [ ] `tools/contact-sheet/`: a small `node:http` server, with no framework
   - [ ] `silver review` starts it on `localhost:4747` and opens the browser
   - [ ] One page per series: a grid of **live** sketches in iframes, with Warhol's picks highlighted and his notes shown

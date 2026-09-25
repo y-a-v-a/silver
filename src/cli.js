@@ -20,6 +20,8 @@ const EXPECTED_ERRORS = new Set([
   'ExtractError',
   'ReleaseError',
   'RetireError',
+  'ShortlistError',
+  'SeriesNotFound',
 ]);
 
 const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));

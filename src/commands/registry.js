@@ -136,6 +136,18 @@ export const COMMANDS = [
     ],
     load: () => import('./release.js'),
   },
+  {
+    name: 'shortlist',
+    args: '[series]',
+    description: 'Warhol shortlists a finished series (id, suffix, "latest", or "unlisted" = newest without a shortlist)',
+    phase: 4,
+    options: [
+      ['--force', 'shortlist again even if the series already has one'],
+      ['--dry-run', 'use the dry-run model'],
+      ['--json', 'print the shortlist event as JSON'],
+    ],
+    load: () => import('./shortlist.js'),
+  },
   { name: 'review', description: 'open the contact sheet to approve or veto Warhol\'s picks', phase: 4 },
   { name: 'publish', description: 'rebuild the gallery site and redeploy it to Vercel', phase: 5 },
   {
