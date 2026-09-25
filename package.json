@@ -23,6 +23,7 @@
     "test": "node --test",
     "test:fast": "SILVER_SKIP_BROWSER=1 node --test",
     "test:watch": "node --test --watch",
+    "preview": "node src/cli.js publish --no-deploy && npx --yes serve site",
     "log": "node bin/log-progress.js",
     "log:list": "node bin/log-progress.js --list"
   },

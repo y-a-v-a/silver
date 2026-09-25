@@ -50,6 +50,7 @@ npx silver review                # the review page on http://127.0.0.1:4747: app
 npx silver shift [--dry-run]     # the whole day: scouts, series (commissions first), shortlists
 npx silver publish [--no-deploy] # print approvals, release editions, rebuild site/, deploy to Vercel
 npx silver publish --redeploy    # deploy even when the canon hasn't changed
+npm run preview                  # build site/ exactly as it would deploy, and serve it on localhost:3000
 npx silver retitle 16 --note "…" # correct an edition's label (or --title/--wall by hand); same number
 npx silver cost --reconcile      # the ledger against what OpenRouter actually billed
 npx silver subjects --retire <id> --reason "..."   # take a subject off the table
