@@ -20,8 +20,10 @@ export default async function initRecordCommand(_args, opts, ctx) {
     }
     const { stdout } = await run('gh', ['repo', 'create', name, '--private', '--description', 'The Silver Factory record: floor, archive, canon, taste (private).']);
     const url = String(stdout).trim().split('\n').at(-1);
-    await setRecordRemote(config, url.endsWith('.git') ? url : `${url}.git`);
-    ctx.stdout.write(`created ${url}\n`);
+    // SSH, not HTTPS: the scheduled shift runs without a credential helper, and a key works there.
+    const { stdout: ssh } = await run('gh', ['repo', 'view', name, '--json', 'sshUrl', '-q', '.sshUrl']);
+    await setRecordRemote(config, String(ssh).trim());
+    ctx.stdout.write(`created ${url} (private); pushing over SSH\n`);
   } else if (opts.remote) {
     await setRecordRemote(config, opts.remote);
     ctx.stdout.write(`remote set: ${opts.remote}\n`);

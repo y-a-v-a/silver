@@ -48,6 +48,10 @@ The build plan for the Silver Factory in Node.js, derived from [ARCHITECTURE.md]
 | OpenRouter key | **Shared with other agents** (2026-09-25), so a reconcile gap is expected. A Silver-only key would make `--reconcile` exact. |
 | Unshortlisted backlog | **Shortlist once, by hand** (2026-09-25): the three real pre-Phase-4 series, not the dry run. The shift stays today-only. |
 | Dry-run subjects | **Marked as dry run** (2026-09-25). The real shift scouts anyway, and real series ignore dry-run subjects. |
+| Record backup remote | **Private GitHub repo `y-a-v-a/silver-record`** (2026-09-25), pushed over SSH after every shift. |
+| Model fallbacks | **Qwen 3.8 Flash falls back to Gemini 3.8 Flash** (2026-09-25) via OpenRouter's `models` list (`models.fallbacks`). |
+| Superstar-pushed subjects | **Ahead of the Scout's picks** (2026-09-25), after commissions. |
+| Gossip on the work | **The human veto is enough** (2026-09-25): chatter printed on a work goes public only through an approval. |
 
 ## Stack
 
@@ -377,11 +381,11 @@ Also added in Phase 3:
 - with chatter, original brief (`…14RVN5`): no line of chatter visible. The brief listed the chatter without saying what to do with it;
 - with chatter, new brief (`…BX8542`): the chatter is printed on the work: "they can see your name. the surveillance is polite." (Viva) and "YOU ARE THE ACCUSER AND THE ACCUSED." (Ondine). Cost of the A/B: $0.018.
 
-## Phase 7: Archivist ✅ (the GitHub remote waits for your go)
+## Phase 7: Archivist ✅
 
 - [x] `agents/archivist.js` (code): after each shift, checks that every event's artifacts exist (any payload path: `transcript`, `path`, `png`, `contactSheet`, `sketch`, `poster`, `later`, `manifest`), writes `archive/manifests/<day>.json` (events by type and actor, spend by role, subjects, series, decisions, editions, missing artifacts) and a `shift.archived` event. It does not commit to the code repo. `silver archive [date]` runs the check by hand. **Live 2026-09-25:** 344 artifacts checked over both days, none missing.
 - [x] Write `roles/archivist.md` (Pat Hackett typing up Andy's morning call; money like cab fares; only what's in the notes): the code builds plain notes from the floor since the previous entry (so the morning's reviews land in the next entry, dry runs left out), and the Archivist (Sonnet 5) writes `archive/diary/YYYY-MM-DD.md` → `diary.written`. The shift writes it for real shifts only; `silver diary [date] [--write] [--force]`. **Live:** the first entry (both days, 343 words) cost $0.02.
-- [x] **Backup** (decision 2026-09-24): the record is its own git repository with its git dir in `.record/` (ignored by the code repo) and the repo root as work tree. It force-adds exactly `floor/`, `archive/`, `canon/` and `taste.md` (never the publish lock), because the code repo's `.gitignore` outranks the record's own excludes. After `shift.ended` the shift commits it with a summary and pushes if a remote is set; the result goes into a `record.pushed` event, and a failed push is simply retried next shift. `silver init-record` created the local record on 2026-09-25 (337 files, 18 MB). **Not done:** creating the private GitHub repo. `silver init-record --github silver-record --yes` does it (via `gh repo create --private`), but that creates something on your GitHub account, so it waits for your go (see the open questions).
+- [x] **Backup** (decision 2026-09-24): the record is its own git repository with its git dir in `.record/` (ignored by the code repo) and the repo root as work tree. It force-adds exactly `floor/`, `archive/`, `canon/` and `taste.md` (never the publish lock), because the code repo's `.gitignore` outranks the record's own excludes. After `shift.ended` the shift commits it with a summary and pushes if a remote is set; the result goes into a `record.pushed` event, and a failed push is simply retried next shift. `silver init-record` created the local record on 2026-09-25 (337 files, 18 MB). **Done 2026-09-25:** the private repo `y-a-v-a/silver-record` exists and holds the record (pushed over SSH; `silver init-record --github <name> --yes` sets it up with the SSH URL).
 - [x] **Feedback loop** (principle 3): `src/sources/archive.js` offers the Scout the reject pile (variants the human vetoed or Warhol passed over, from earlier days) and lines from recent diary entries, each until used once. At most `shift.maxArchiveSubjectsPerShift` (1) become subjects, with `origin: archive` and a pointer to the reject or the line. The Scout role exempts them from the "already on the floor" rule. `silver scout --source archive` runs only this source.
 
 **Done when:** a diary entry exists for each shift, and an archive-origin subject appears within a week. ✅ The shift writes the diary for every real shift from 2026-09-26. An archive subject appeared on the first try, once the Scout role said revisiting is the point: "The reject pile: 'dunkin free coffee code', v09 (grid-repeat)", which Warhol had passed over as "too gray". The full chain ran as a live dry-run shift: scouts → superstars → Archivist (manifest, diary skipped for dry runs) → record commit `6785e0c`.
@@ -515,7 +519,17 @@ The open questions from Phase 5 and the day shift were answered on 2026-09-25. T
 2. **No. 017 carries the same invented number in the artwork itself.** "One Million Free Coffees (Dunkin)" prints "1,000,000 FREE COFFEES" in the sketch, from the same pre-rule Scout note. A retitle only fixes the label.
    - *Options:* (a) leave it, since the label can say what the image claims; (b) retitle the label only; (c) a way to withdraw an edition from the site (a `work.withdrawn` event), keeping its number as a gap in the record.
 
+## Decisions taken on 2026-09-25 (Phases 6 and 7)
+
+1. **The record's GitHub repo.** *Chosen:* private, created as `y-a-v-a/silver-record` (pushed over SSH, which also works under launchd without an agent). The first push holds 343 files.
+2. **Qwen's 429s.** *Chosen:* a fallback. `models.fallbacks` maps `qwen/qwen3.8-flash` to `google/gemini-3.8-flash`; the request carries OpenRouter's `models` list, the budget reserves for the dearer model, and the cost follows the model that answered. Verified live.
+3. **Pushed subjects.** *Chosen:* a subject a superstar pushes keeps jumping ahead of the Scout's picks (after commissions).
+4. **Personas after real people.** No preference; they stay as they are, local chatter only.
+5. **Gossip reaching the canon.** *Chosen:* the human veto is enough.
+
 ## Open questions from Phases 6 and 7 (2026-09-25)
+
+**All answered on 2026-09-25**: see the decisions above.
 
 1. **Create the private GitHub repo for the record?** The record exists locally in `.record/` (337 files, 18 MB, grows by roughly 5–10 MB a day, mostly PNGs) and is committed after every shift. Pushing it needs a private repo on your account: `npx silver init-record --github silver-record --yes`. I didn't run it, because it creates something on GitHub.
    - *Questions:* is `silver-record` the name you want? Private is the decision; the repo holds page snapshots and quoted headlines, so it must stay private.
