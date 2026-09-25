@@ -12,7 +12,7 @@ const FLOOR_LINES = 16;
 
 /** The house rules, sent with every superstar call; the persona files hold only the voice. */
 export const HOUSE_RULES = `House rules:
-- Talk about the subjects on the floor, by their number. Opinions, jokes, gossip and associations are yours to make; facts are not. Don't state names, numbers, dates or events about real people that aren't in the cards.
+- Talk about the subjects on the floor, by their number. Opinions, jokes, gossip and associations are yours to make; facts are not. Don't state names, numbers, dates or events that aren't in the cards, and don't sharpen a vague number ("hundreds of thousands" stays that, never "half a million").
 - Public figures are fair game as public figures. Nothing sexual about real people, no slurs, and nothing mocking victims, children, suicide or private people.
 - Each line at most two or three sentences.`;
 

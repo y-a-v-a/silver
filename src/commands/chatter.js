@@ -6,7 +6,7 @@ import { findSubject } from '../agents/assistants.js';
 import { pickSubjects } from '../shift.js';
 import { shortId } from './subjects.js';
 
-export default async function chatterCommand(refs, opts, ctx) {
+export default async function chatterCommand([refs = []], opts, ctx) {
   const factory = await createFactory({ dryRun: Boolean(opts.dryRun) });
   const { config, floor } = factory;
 

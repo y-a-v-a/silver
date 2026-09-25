@@ -23,8 +23,10 @@ The image the Scout proposed: {{subject_image}}
 Context from the source:
 {{subject_context}}
 
-What the floor is saying about it:
+Overheard on the floor (the Superstars, gossiping about it):
 {{floor_excerpt}}
+
+The Factory works by cross-contamination. If a line of that chatter gives you an angle, steal it: an attitude, a joke, a word to print on the image, a thing to repeat. You don't have to be fair to it, or to use it at all.
 
 ## Your technique: {{technique}}
 

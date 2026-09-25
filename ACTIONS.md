@@ -363,14 +363,17 @@ Also added in Phase 3:
 - [ ] **Go live:** blocked. `.env` has a `VERCEL_TOKEN=` line with an empty value. Fill it in, then run `silver publish --redeploy` and set `deploy.siteUrl` to the URL it prints (then `--redeploy` once more for absolute feed/OG links). `silver publish` now deploys whenever the canon changed since the last deploy, corrections included.
 - [ ] Later: the print check on the review page, before the veto.
 
-## Phase 6: Superstars
+## Phase 6: Superstars ✅
 
-- [ ] Write 3 persona files in `roles/superstars/` (e.g. Brigid: tape-recorder gossip; Ondine: amphetamine monologue; Viva: withering commentary). Each is **cast talent**: a strong voice with opinions about the subjects.
-- [ ] `agents/superstars.js`: after the Scouts, each superstar reads the shift's subjects and recent chatter → 1–3 `chatter.posted` events, and occasionally a `subject.posted` (blurry roles)
-- [ ] Run chatter on the cheap model and cap it per shift in the budget
-- [ ] The chatter goes into the assistants' prompts (`{{floor_excerpt}}`) and appears on the contact sheet
+- [x] Write 3 persona files in `roles/superstars/`: **Brigid** (tape-recorder gossip, the phone, what things cost), **Ondine** (speed monologue, opera, theatrical insult) and **Viva** (languid, withering, notices the hypocrisy). Each file holds only the voice; the house rules (facts only from the cards, no sharpening vague numbers, nothing sexual about real people, never mocking victims, children or private people) are sent by the code with every call, so all three share them.
+- [x] `agents/superstars.js`: after the Scouts, each superstar in turn reads the day's waiting subjects and what the others already said → up to `superstars.linesPerShift` (3) `chatter.posted` events (`ref` = the subject, `payload.persona`). Blurry roles: with `superstars.proposeChance` (0.34), **one** superstar per shift is shown the Scout's leftovers (the candidates it passed over) and may push one onto the floor as a `subject.posted` with `origin: superstar`, `proposedBy`. A pushed subject gets the first free series slot after commissions. `silver chatter [subject...] [--only brigid viva] [--list]` runs them by hand.
+- [x] Chatter runs on `models.roles.superstar` (Qwen 3.8 Flash, reasoning off) and is capped by `budget.chatterShare` (10% of the day, $0.50). Hitting the chatter cap stops the superstars, never the shift. First live run: 3 personas, 8 lines, $0.0007.
+- [x] The chatter goes into the assistants' prompts (`{{floor_excerpt}}`, now framed as "overheard on the floor… steal it"), into Warhol's review and onto the contact sheet (which also says who pushed a subject). Dry-run chatter is marked and never reaches a real series. `commission --now` runs the chatter first.
 
-**Done when:** series visibly change when the chatter changes (A/B the same subject with and without chatter once).
+**Done when:** series visibly change when the chatter changes. ✅ **A/B on 2026-09-25** (Norway tax list, `Y4S02W00`, same matrix via `--matrix-seed 7`, dry runs, 4 variants each):
+- without chatter (`…XH08C5H`): tax-list grids, only the subject's own words;
+- with chatter, original brief (`…14RVN5`): no line of chatter visible. The brief listed the chatter without saying what to do with it;
+- with chatter, new brief (`…BX8542`): the chatter is printed on the work: "they can see your name. the surveillance is polite." (Viva) and "YOU ARE THE ACCUSER AND THE ACCUSED." (Ondine). Cost of the A/B: $0.018.
 
 ## Phase 7: Archivist
 

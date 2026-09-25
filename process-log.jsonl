@@ -65,3 +65,4 @@
 {"ts":"2026-09-25T15:14:35Z","phase":"5b","event":"done","task":"later-frame poster, taken titles for Fred Hughes, silver retitle corrections, deploy on any canon change, publish --redeploy"}
 {"ts":"2026-09-25T15:16:25Z","phase":"5b","event":"live","task":"backlog shortlisted (2 series), No. 016 retitled, site rebuilt with later-frame posters; deploy blocked: VERCEL_TOKEN empty"}
 {"ts":"2026-09-25T17:02:59Z","phase":"6","event":"built","task":"superstars: brigid/ondine/viva personas, agents/superstars.js, shift step 2, commission --now chatter, silver chatter, series --no-chatter/--matrix-seed, dry-run chatter isolation; 286 tests"}
+{"ts":"2026-09-25T17:07:20Z","phase":"6","event":"done","task":"live chatter ($0.0007) and A/B: chatter printed on the work after the studio brief invites stealing from it"}
