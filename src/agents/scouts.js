@@ -1,6 +1,7 @@
 // The Scouts: pull ready-made subjects from mass media and post them as subject cards.
 // Gather -> dedupe against the floor -> the Scout picks -> snapshot -> subject.posted.
 import { gatherCandidates } from '../sources/index.js';
+import { archiveCandidates } from '../sources/archive.js';
 import { dedupe, subjectKeys } from '../lib/dedupe.js';
 import { snapshotPage } from '../lib/snapshot.js';
 import { clip } from '../sources/http.js';
@@ -95,14 +96,19 @@ export function validatePicks(json, candidateCount, count) {
  * @param {Date} [opts.now]                      for the repeat window (default: now)
  * @param {boolean} [opts.dryRun]                picked by the cheap model: marked, and ignored by real shifts
  */
-export async function runScouts({ config, floor, llm, fetch = globalThis.fetch }, { count = config.shift.subjectsPerShift, only, snapshot = true, now = new Date(), dryRun = false } = {}) {
-  const { candidates, report } = await gatherCandidates(config, { fetch, only });
+export async function runScouts({ config, floor, llm, fetch = globalThis.fetch }, { count = config.shift.subjectsPerShift, only, snapshot = true, now = new Date(), dryRun = false, rng = Math.random } = {}) {
+  const archiveOnly = only?.length === 1 && only[0] === 'archive';
+  const { candidates, report } = archiveOnly ? { candidates: [], report: [] } : await gatherCandidates(config, { fetch, only });
+  // The Factory's own record as a source (Phase 7): rejects and diary lines, offered once each.
+  const archiveMax = config.shift.maxArchiveSubjectsPerShift;
+  const archive = archiveMax > 0 && (!only?.length || only.includes('archive')) ? await archiveCandidates({ config, floor }, { now, rng }) : [];
+  if (archiveMax > 0) report.push({ source: 'archive', ok: true, count: archive.length });
   // Only subjects inside the repeat window count: older ones may come back. A real Scout
   // ignores what a dry run posted, so a test run never takes a headline away from it.
   const posted = (await floor.read({ shift: 'all', type: 'subject.posted' })).filter((e) => dryRun || !e.payload.dryRun);
   const history = withinWindow(posted, config.sources.repeatAfterDays, now);
   const { fresh, duplicates } = dedupe(candidates, subjectKeys(history));
-  const shown = fresh.slice(0, MAX_CANDIDATES);
+  const shown = [...fresh.slice(0, MAX_CANDIDATES - archive.length), ...archive];
   const result = { report, candidates: candidates.length, duplicates: duplicates.length, shown: shown.length, posted: [], problems: [], note: null, callId: null, leftovers: [] };
   if (!shown.length) {
     result.problems.push('no fresh candidates: every source failed or everything was already on the floor');
@@ -111,12 +117,21 @@ export async function runScouts({ config, floor, llm, fetch = globalThis.fetch }
 
   const recent = history.slice(-RECENT_SUBJECTS).map((e) => `- ${e.payload.title}`).join('\n') || '(none yet)';
   const res = await llm.call('scout', {
-    vars: { today: shiftOf(), count: String(count), recent, candidates: formatCandidates(shown) },
+    vars: { today: shiftOf(), count: String(count), recent, candidates: formatCandidates(shown), archive_max: String(archiveMax) },
     prompt: `Choose up to ${count} ready-mades from the candidates. Reply with JSON only.`,
   });
   result.callId = res.id;
-  const { picks, note, problems } = validatePicks(res.json, shown.length, count);
+  const valid = validatePicks(res.json, shown.length, count);
+  const { note, problems } = valid;
   result.problems.push(...problems);
+  // At most archiveMax subjects from the archive; the rest of the Scout's archive picks are dropped.
+  let fromArchive = 0;
+  const picks = valid.picks.filter((p) => {
+    if (shown[p.index].source !== 'archive') return true;
+    if (++fromArchive <= archiveMax) return true;
+    result.problems.push(`candidate ${p.index + 1}: more than ${archiveMax} from the archive, dropped`);
+    return false;
+  });
   result.note = note;
   // What the Scout passed over: the pile a superstar may rummage through (Phase 6).
   const picked = new Set(picks.map((p) => p.index));
@@ -124,13 +139,14 @@ export async function runScouts({ config, floor, llm, fetch = globalThis.fetch }
 
   for (const pick of picks) {
     const c = shown[pick.index];
-    const page = snapshot && c.url ? await snapshotPage(c.url, { fetch }) : null;
+    const page = snapshot && c.url && c.source !== 'archive' ? await snapshotPage(c.url, { fetch }) : null;
     const event = await floor.append({
       type: 'subject.posted',
       actor: 'scout',
       ref: res.id, // the Scout call that chose it; its transcript holds the full candidate list
       payload: {
-        origin: 'scouted',
+        origin: c.source === 'archive' ? 'archive' : 'scouted',
+        ...(c.source === 'archive' ? { archive: c.meta } : {}),
         title: c.title,
         url: c.url,
         source: c.source,

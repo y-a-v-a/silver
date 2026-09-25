@@ -67,3 +67,4 @@
 {"ts":"2026-09-25T17:02:59Z","phase":"6","event":"built","task":"superstars: brigid/ondine/viva personas, agents/superstars.js, shift step 2, commission --now chatter, silver chatter, series --no-chatter/--matrix-seed, dry-run chatter isolation; 286 tests"}
 {"ts":"2026-09-25T17:07:20Z","phase":"6","event":"done","task":"live chatter ($0.0007) and A/B: chatter printed on the work after the studio brief invites stealing from it"}
 {"ts":"2026-09-25T17:12:01Z","phase":"7","event":"built","task":"archivist: artifact check, manifests, Pat Hackett diary (roles/archivist.md), private record in .record/ with init-record/commit/push, shift step 5 + backup after shift.ended; 296 tests"}
+{"ts":"2026-09-25T17:14:12Z","phase":"7","event":"built","task":"archive as a Scout source: reject pile + diary lines, offered once, capped by maxArchiveSubjectsPerShift"}
