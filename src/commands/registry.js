@@ -156,10 +156,21 @@ export const COMMANDS = [
     options: [
       ['--port <n>', 'port (default: review.port, 4747)'],
       ['--no-open', 'don\'t open the browser'],
+      ['--no-publish', 'don\'t print and publish approvals in the background'],
     ],
     load: () => import('./review.js'),
   },
-  { name: 'publish', description: 'rebuild the gallery site and redeploy it to Vercel', phase: 5 },
+  {
+    name: 'publish',
+    description: 'print approved variants, release editions, rebuild the gallery and deploy it to Vercel',
+    phase: 5,
+    options: [
+      ['--no-deploy', 'build site/ but don\'t deploy'],
+      ['--limit <n>', 'print at most n works this time'],
+      ['--json', 'print the result as JSON'],
+    ],
+    load: () => import('./publish.js'),
+  },
   {
     name: 'shift',
     description: 'run (or resume) today\'s shift: scouts, series, Warhol\'s shortlists',

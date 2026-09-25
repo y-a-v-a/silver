@@ -97,7 +97,7 @@ ${closed.length ? table(closed.map(row)) : '<p class="muted">None yet.</p>'}`,
 }
 
 /** One series: Warhol's shortlist, the floor's chatter, and every variant with its decision form. */
-export function seriesPage(s, msg = {}) {
+export function seriesPage(s, msg = {}, { works = new Map() } = {}) {
   const p = s.subject?.payload ?? {};
   const title = p.title ?? s.started.payload.subjectTitle ?? '(unknown subject)';
   const picks = new Map((s.shortlist?.payload.picks ?? []).map((pick, i) => [pick.variant, { ...pick, rank: i + 1 }]));
@@ -114,6 +114,7 @@ export function seriesPage(s, msg = {}) {
       pick && `<span class="badge pick">Warhol #${pick.rank}</span>`,
       pick?.offTechnique && '<span class="badge off">off technique</span>',
       decision && `<span class="badge ${decision.verdict === 'approved' ? 'ok' : 'bad'}">${esc(decision.verdict)}</span>`,
+      works.get(v.variant) && `<span class="badge ok">${works.get(v.variant).edition ? `No. ${String(works.get(v.variant).edition).padStart(3, '0')}` : 'printed'}</span>`,
     ].filter(Boolean).join('');
     const live = v.html ? fileUrl(v.html) : null;
     return `<article class="${cls}" id="${esc(v.variant)}">

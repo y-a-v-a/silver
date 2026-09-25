@@ -26,15 +26,17 @@ const EXPECTED_ERRORS = new Set([
   'ReconcileError',
   'ShiftError',
   'ScheduleError',
+  'DeployError',
+  'PublishBusy',
 ]);
 
 const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
 
 /**
  * Build the commander program. Exported so tests can inspect it without spawning.
- * @param {{stdout?: NodeJS.WritableStream, stderr?: NodeJS.WritableStream}} [io]
+ * @param {{stdout?: NodeJS.WritableStream, stderr?: NodeJS.WritableStream, commands?: import('./commands/registry.js').CommandSpec[]}} [io]
  */
-export function buildProgram({ stdout = process.stdout, stderr = process.stderr } = {}) {
+export function buildProgram({ stdout = process.stdout, stderr = process.stderr, commands = COMMANDS } = {}) {
   const ctx = { stdout, stderr, root: ROOT };
   const program = new Command()
     .name('silver')
@@ -43,7 +45,7 @@ export function buildProgram({ stdout = process.stdout, stderr = process.stderr 
     .showHelpAfterError()
     .configureOutput({ writeOut: (s) => stdout.write(s), writeErr: (s) => stderr.write(s) });
 
-  for (const spec of COMMANDS) {
+  for (const spec of commands) {
     const cmd = program.command(spec.args ? `${spec.name} ${spec.args}` : spec.name);
     cmd.description(spec.load ? spec.description : `${spec.description} [phase ${spec.phase}]`);
     for (const [flags, desc, def] of spec.options ?? []) cmd.option(flags, desc, def);

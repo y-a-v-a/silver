@@ -52,9 +52,15 @@ test('silver --version prints the package version', async () => {
 });
 
 test('an unbuilt command names its phase and exits with the not-implemented code', async () => {
-  const { code, stderr } = await silver('publish');
+  // Every shipped command is built now, so a stub command stands in for a future one.
+  const err = [];
+  const program = buildProgram({ stderr: { write: (s) => err.push(s) }, commands: [{ name: 'superstars', description: 'x', phase: 6 }] });
+  const before = process.exitCode;
+  await program.parseAsync(['node', 'silver', 'superstars']);
+  const code = process.exitCode;
+  process.exitCode = before;
   assert.equal(code, NOT_IMPLEMENTED_EXIT);
-  assert.match(stderr, /not built yet \(ACTIONS\.md phase 5\)/);
+  assert.match(err.join(''), /not built yet \(ACTIONS\.md phase 6\)/);
 });
 
 test('an unknown command fails with help', async () => {

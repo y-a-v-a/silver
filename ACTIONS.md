@@ -185,6 +185,7 @@ Event types, extending the draft list in ARCHITECTURE.md:
 | `cost.recorded` | llm client | model, tokens, USD, ref |
 | `llm.failed` | llm client | role, model, error, attempts, reason (`empty`, `invalid-json`) |
 | `diary.written` | archivist | path |
+| `site.deployed` | fred-hughes | url, number of works, provider (Phase 5) |
 | `subject.retired` | **human** | `subjectId`, reason. Hides the subject from `latest`, `subjects --open` and the shift; the subject itself stays on the floor (Phase 3b). |
 
 ---
@@ -337,8 +338,8 @@ Also added in Phase 3:
   - [x] `works/<id>/`: the live sketch, full-bleed, with wall text below (plus the edition number, technique, source headline link, signature excerpt, previous/next links, and OG tags once `deploy.siteUrl` is set)
   - [x] `feed.xml`: an Atom feed of the editions (stable `tag:` ids; absolute links once `deploy.siteUrl` is set)
   - [x] A CC BY 4.0 notice on every work page and in the feed (decision 2026-09-24)
-- [ ] Deploy with `vercel deploy site --prod --token $VERCEL_TOKEN --yes`. Record the URL in `work.published`.
-- [ ] `silver publish`: rebuilds and redeploys by hand
+- [x] Deploy with `vercel deploy site --prod --token $VERCEL_TOKEN --yes`. Record the URL in `work.published`. **Changed:** `src/deploy.js` links `site/` to `deploy.project` once (`vercel link`), then runs `vercel deploy --prod`. The work is already signed by then, so the URL goes into a new `site.deployed` event; each work's URL is `<site>/works/<canon-id>/`. With no `VERCEL_TOKEN`, deploying is skipped and says so.
+- [x] `silver publish`: rebuilds and redeploys by hand (print → editions → site → deploy, under a lock file in `canon/`; `--no-deploy`, `--limit`). The review server runs the same pipeline in the background after each new approval, one run at a time (`--no-publish` turns that off), and marks published variants with their edition number.
 
 **Done when:** approving a variant in the contact sheet results in a live Vercel URL and a new feed entry.
 

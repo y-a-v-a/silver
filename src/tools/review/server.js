@@ -10,6 +10,7 @@ import { extname, resolve, sep } from 'node:path';
 import { listSeries } from '../../agents/series-data.js';
 import { recordDecision, closeReview, ReviewError } from '../../agents/review.js';
 import { indexPage, seriesPage, notFoundPage } from './pages.js';
+import { readCanon } from '../../canon.js';
 
 const TYPES = { '.png': 'image/png', '.html': 'text/html; charset=utf-8', '.txt': 'text/plain; charset=utf-8', '.json': 'application/json' };
 const MAX_BODY = 16 * 1024;
@@ -26,9 +27,10 @@ async function readForm(req) {
 }
 
 /**
- * @param {{config: object, floor: object}} deps
+ * @param {{config: object, floor: object, onApproved?: () => void}} deps
+ *   onApproved: called after each new approval (the publish pipeline runs from here)
  */
-export function createReviewServer({ config, floor }) {
+export function createReviewServer({ config, floor, onApproved }) {
   const variantsDir = resolve(config.paths.archive, 'variants');
   let port = null;
 
@@ -58,7 +60,9 @@ export function createReviewServer({ config, floor }) {
 
     if (req.method === 'GET' && parts[0] === 'series' && parts.length === 2) {
       const view = await findView(parts[1]);
-      return view ? send(res, 200, seriesPage(view, msg)) : send(res, 404, notFoundPage(`no series ${parts[1]}`));
+      if (!view) return send(res, 404, notFoundPage(`no series ${parts[1]}`));
+      const works = new Map((await readCanon(floor)).filter((w) => w.seriesId === view.seriesId).map((w) => [w.variant, w]));
+      return send(res, 200, seriesPage(view, msg, { works }));
     }
 
     if (req.method === 'GET' && parts[0] === 'files') {
@@ -85,7 +89,9 @@ export function createReviewServer({ config, floor }) {
           return redirect(res, `/?done=${encodeURIComponent(`Closed the review of "${view.subject?.payload.title ?? view.seriesId}".`)}`);
         }
         const { event, duplicate } = await recordDecision({ config, floor }, view, { variant: form.variant, verdict: form.verdict, note: form.note });
-        const said = `${event.payload.variant} ${event.payload.verdict}${duplicate ? ' (already recorded)' : ''}.`;
+        const printing = !duplicate && event.payload.verdict === 'approved' && onApproved;
+        if (printing) onApproved();
+        const said = `${event.payload.variant} ${event.payload.verdict}${duplicate ? ' (already recorded)' : ''}.${printing ? ' Printing and publishing in the background.' : ''}`;
         return redirect(res, `${back}?done=${encodeURIComponent(said)}#${encodeURIComponent(event.payload.variant)}`);
       } catch (err) {
         if (!(err instanceof ReviewError)) throw err;
