@@ -18,7 +18,7 @@ Everything is recorded, including drafts, chatter and rejects, and the record fe
 
 ## Status
 
-Early construction. **Phases 0–4 and 8 are done**:
+Early construction. **Phases 0–5 and 8 are done**:
 - The floor (the event log) records everything.
 - The OpenRouter client runs as any role, archives transcripts and costs every call.
 - The daily budget cap is enforced.
@@ -26,8 +26,9 @@ Early construction. **Phases 0–4 and 8 are done**:
 - The Studio assistants turn a subject into a series of 12 p5.js sketches across models, temperatures and techniques. Each sketch is rendered headless and checked for errors and blank canvases, and every series gets a contact sheet.
 - Warhol shortlists each series from its screenshots, and you approve or veto on a local review page. Every decision goes into `taste.md`, which Warhol reads next time.
 - `silver shift` runs the whole day (scouts → series → shortlists) and can be scheduled with launchd.
+- Every approval is printed into the canon (signed, print-checked), given an edition number, an English title and wall text by Fred Hughes, and published to a static gallery with an Atom feed, deployed to Vercel.
 
-Nothing is signed or published yet (Phase 5), the superstars (Phase 6) and the Archivist (Phase 7) don't exist yet, and the schedule is built but not installed. `silver --help` lists every planned command, each tagged with the ACTIONS.md phase that builds it, and a command that isn't built yet exits with code 2.
+The superstars (Phase 6) and the Archivist, with its backup, (Phase 7) don't exist yet. `silver --help` lists every planned command, each tagged with the ACTIONS.md phase that builds it, and a command that isn't built yet exits with code 2.
 
 See [`process-log.jsonl`](process-log.jsonl) for a task-by-task log of the build (`npm run log:list`).
 
@@ -47,6 +48,7 @@ npx silver release <tool>        # the Technician announces a changed tool
 npx silver shortlist [series]    # Warhol picks from a finished series (default: the newest without a shortlist)
 npx silver review                # the review page on http://127.0.0.1:4747: approve, veto, close
 npx silver shift [--dry-run]     # the whole day: scouts, series (commissions first), shortlists
+npx silver publish [--no-deploy] # print approvals, release editions, rebuild site/, deploy to Vercel
 npx silver cost --reconcile      # the ledger against what OpenRouter actually billed
 npx silver subjects --retire <id> --reason "..."   # take a subject off the table
 ```
@@ -132,10 +134,14 @@ src/budget.js      daily ledger and caps
 src/pricing.js     model prices and capabilities from OpenRouter
 src/factory.js     wires the parts together for commands
 src/sources/       scout sources: Google Trends, Hacker News, Reddit, RSS
-src/agents/        scouts, commissions, studio assistants, technician, Warhol, review, retire
+src/agents/        scouts, commissions, studio assistants, technician, Warhol, review, retire, printer, Fred Hughes
 src/shift.js       the daily shift
 src/schedule.js    the launchd job
 src/reconcile.js   ledger vs OpenRouter billing
+src/canon.js       the canon (signed works), derived from the floor
+src/publish.js     print → editions → site → deploy
+src/site.js        the static gallery and feed
+src/deploy.js      Vercel
 src/tools/         the Technician's workbench: p5 template, headless renderer, contact sheet, review server
 src/lib/           shared helpers (append-only JSONL, process log, .env, formatting, dedupe, page snapshots)
 bin/               project scripts (setup, process log)

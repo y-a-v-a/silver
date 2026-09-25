@@ -323,7 +323,7 @@ Also added in Phase 3:
 
 **Done when:** after a shift, `silver review` shows Warhol's shortlist, and approving one emits the decision and grows `taste.md`. ✅ The first live shortlist (NGV series) shows on `silver review` with Warhol's notes, checked in headless Chromium at desktop and phone widths. Approve, veto and close are covered by tests against the real server. **The first real approval is left to you**, since that veto is yours.
 
-## Phase 5: Printer, Fred Hughes, Vercel
+## Phase 5: Printer, Fred Hughes, Vercel ✅ (built; deploying waits for a Vercel token)
 
 - [x] Write `roles/printer.md`. The Printer is mostly code; the LLM is used only for a final "print check" (does the sketch hold up at full size, and does it run for more than 60s without degrading?). It may send the piece back as a floor event, but it cannot un-sign it.
 - [x] `agents/printer.js`, run on `review.decision: approved` (the latest decision per variant counts; nothing is printed twice):
@@ -341,7 +341,9 @@ Also added in Phase 3:
 - [x] Deploy with `vercel deploy site --prod --token $VERCEL_TOKEN --yes`. Record the URL in `work.published`. **Changed:** `src/deploy.js` links `site/` to `deploy.project` once (`vercel link`), then runs `vercel deploy --prod`. The work is already signed by then, so the URL goes into a new `site.deployed` event; each work's URL is `<site>/works/<canon-id>/`. With no `VERCEL_TOKEN`, deploying is skipped and says so.
 - [x] `silver publish`: rebuilds and redeploys by hand (print → editions → site → deploy, under a lock file in `canon/`; `--no-deploy`, `--limit`). The review server runs the same pipeline in the background after each new approval, one run at a time (`--no-publish` turns that off), and marks published variants with their edition number.
 
-**Done when:** approving a variant in the contact sheet results in a live Vercel URL and a new feed entry.
+**Done when:** approving a variant in the contact sheet results in a live Vercel URL and a new feed entry. **Partly verified:**
+- **Verified:** approving in `silver review` now triggers the background publish. On 2026-09-25, `silver publish --no-deploy` turned your 20 approvals into **19 editions** (one approval was a duplicate click): printed, print-checked (18 ok, 1 concern), titled by Fred Hughes, and built into `site/` with the feed. That took 6 minutes and cost $0.09. The gallery was checked in headless Chromium at desktop and phone widths.
+- **Open:** the live Vercel URL needs `VERCEL_TOKEN` in `.env` (see the open questions).
 
 ## Phase 6: Superstars
 
@@ -421,6 +423,27 @@ The open points from the Phase 2b/3 night shift were answered on 2026-09-25. The
 7. **Screenshots per variant for Warhol.** *Chosen:* 1 (seed 1). *Considered:* 3 seeds per variant; 1, plus 3 for his picks.
 
 New open questions go here as they come up.
+
+## Open questions from Phase 5 (2026-09-25)
+
+1. **Go live on Vercel.** Everything up to the deploy works. To publish:
+   - add `VERCEL_TOKEN=...` to `.env` (from vercel.com/account/tokens),
+   - then run `silver publish`. The first deploy creates and links the Vercel project `deploy.project` (`silver-factory`).
+   - *Questions:* is `silver-factory` the project name you want? A custom domain? Once the URL is known, set `deploy.siteUrl` so the feed and share images get absolute links.
+
+2. **What the print check does with a concern.** I defaulted to **flag, never block**: the work is signed and published, and the concern is recorded (`printCheck.verdict: concern`). The first run flagged No. 003 ("Mamdani/Met" v11: the portrait layer never develops).
+   - *Options:* (a) keep flag-only; (b) hold works with a concern back from the site until you look; (c) show the concern on the review page, so you can veto before printing.
+   - *Recommendation:* (c) later, (a) for now.
+
+3. **Repeated titles.** Fred Hughes gave three sushi works the same title, "Seventy-Eight Dollar Sushi (Disaster)", and two Met works "70,000 Opera Seats (Lottery)". That's Warholian, but it may confuse visitors.
+   - *Options:* (a) keep it; (b) show Fred Hughes the titles already used in the same series, so he varies them or numbers them deliberately ("… (Disaster) II").
+   - *Recommendation:* (b).
+
+4. **An invented fact reached a wall label.** No. 016, "One Million Coffees (Free Refill)", comes from a subject posted before the Scout's facts-only rule: its note invented "one million paper cups", and Fred Hughes used it. Editions are append-only.
+   - *Options:* (a) leave it, since it's the record; (b) a `silver retitle <No.> --title … --wall …` command that releases a correction (a new `edition.released` for the same work), and the site shows the latest.
+
+5. **The poster.** It's frame 30 at seed 1, which isn't always the best frame of a live piece.
+   - *Question:* is a later frame better for pieces that build up over time (for example the "later" look the Printer already takes)?
 
 ## Open questions from the 2026-09-25 day shift (Phases 3b, 4 and 8)
 
