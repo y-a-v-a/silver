@@ -31,7 +31,7 @@ const STYLE = `
   .label .meta { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
   .label .wall { font-size: 16px; }
   .label code { font-size: 11px; overflow-wrap: anywhere; }
-  nav.pager { display: flex; justify-content: space-between; max-width: 640px; margin: 0 auto; }
+  nav.pager { display: flex; justify-content: space-between; gap: 16px; width: 100%; max-width: 640px; margin: 0 auto; }
   footer { border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
   a:focus-visible { outline: 2px solid var(--fg); outline-offset: 3px; }
 `;
