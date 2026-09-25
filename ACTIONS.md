@@ -247,7 +247,7 @@ Also added along the way:
 - [x] `agents/scouts.js`: fetch all sources → dedupe against subjects already on the floor → the Scout LLM picks `subjectsPerShift` → emit `subject.posted` with a text snapshot, so the subject survives link rot
   - Dedupe: normalised URL (tracking params stripped), normalised title, or titles sharing ≥ 75% of their words (Jaccard)
   - Snapshot (`src/lib/snapshot.js`): og title, description and image, plus up to 2,000 characters of article text. It never throws, and failures such as paywall 403s are recorded on the card.
-- [x] `silver commission "<text | URL>" [--now]`: emits `subject.posted` with `origin: commission`. Commissions **always get a series** in the next shift, ahead of scouted subjects. `--now` runs a mini-shift for just that subject. **Partly done:** since Phase 3, `--now` produces and renders the series right away. Superstar chatter (Phase 6) and Warhol's shortlist (Phase 4) join it when those phases are built. Without an API key it queues and says so. Also added `--why <note>` and `--list` (commissions still waiting for a series).
+- [x] `silver commission "<text | URL>" [--now]`: emits `subject.posted` with `origin: commission`. Commissions **always get a series** in the next shift, ahead of scouted subjects. `--now` runs a mini-shift for just that subject. **Partly done:** since Phase 4, `--now` produces and renders the series and has Warhol shortlist it right away. Superstar chatter joins when Phase 6 is built. Without an API key it queues and says so. Also added `--why <note>` and `--list` (commissions still waiting for a series).
 - [x] `silver scout`: runs the scouts on their own (useful for tuning). Options: `--count`, `--source`, `--list` (no model call), `--no-snapshot`, `--dry-run`, `--json`.
 
 **Done when:** `silver scout` posts ~6 subject cards to the floor, each showing a "why it's a ready-made" line that makes sense. ✅ The first live run on 2026-09-24 posted 6 cards for $0.0086. Its notes embellished facts, which led to the facts-only rule; the rerun stayed factual.
@@ -363,7 +363,7 @@ Also added in Phase 3:
 
 - [x] `src/shift.js`: `shift.started` → scouts → superstars → pick subjects (commissions first, then scouted) → assistants (N series) → Warhol shortlists → archivist → `shift.ended`
   - [x] Commissions fill the `seriesPerShift` slots first, oldest first. The rest wait for the next shift (decision 2026-09-24).
-  - [ ] `silver commission --now` runs a mini-shift for one subject: superstar chatter → series → Warhol shortlist (decision 2026-09-24)
+  - [x] `silver commission --now` runs a mini-shift for one subject: superstar chatter → series → Warhol shortlist (decision 2026-09-24). Chatter is still pending Phase 6.
   - [x] Idempotent per date: running it twice on one day continues the shift without duplicating it
   - [x] Stops cleanly on `BudgetExhausted` and records the reason
   - [x] Skips retired subjects (`subject.retired`, Phase 3b)

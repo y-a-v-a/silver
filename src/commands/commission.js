@@ -3,6 +3,7 @@ import { createFactory } from '../factory.js';
 import { postCommission, pendingCommissions, CommissionError } from '../agents/commissions.js';
 import { clock, plural, usd } from '../lib/format.js';
 import { runSeries } from '../agents/assistants.js';
+import { shortlistSeries } from '../agents/warhol.js';
 import { summarise } from '../budget.js';
 
 export default async function commissionCommand([input], opts, ctx) {
@@ -44,19 +45,26 @@ export default async function commissionCommand([input], opts, ctx) {
     ctx.stderr.write('note: --now needs OPENROUTER_API_KEY; the commission is queued for the next shift instead\n');
     return;
   }
-  // --now (decision 2026-09-24): chatter + series + shortlist. The series exists now;
-  // superstar chatter (phase 6) and Warhol's shortlist (phase 4) join when they are built.
-  ctx.stderr.write('--now: producing the series (chatter and shortlist join in phases 6 and 4)\n');
+  // --now (decision 2026-09-24): chatter + series + shortlist. Superstar chatter joins
+  // when phase 6 is built.
+  ctx.stderr.write('--now: producing the series, then Warhol\'s shortlist (chatter joins in phase 6)\n');
+  const studioLlm = await factory.llm();
   const { createRenderer } = await import('../tools/render.js');
   const renderer = await createRenderer();
   let series;
   try {
-    series = await runSeries({ config: factory.config, floor, llm: await factory.llm(), renderer }, event.id);
+    series = await runSeries({ config: factory.config, floor, llm: studioLlm, renderer }, event.id);
   } finally {
     await renderer.close();
   }
   const produced = series.results.filter((r) => r.ok).length;
   const costs = summarise((await floor.read({ shift: 'all', type: 'cost.recorded' })).filter((e) => e.ref === series.seriesId));
   ctx.stdout.write(`series ${series.seriesId}: ${produced}/${series.results.length} produced, ${plural(costs.calls, 'call')}, ${usd(costs.total)}\n`);
-  ctx.stdout.write(`contact sheet: ${factory.config.root}/${series.completed.payload.contactSheet}\n`);
+  try {
+    const { event: list } = await shortlistSeries({ config: factory.config, floor, llm: studioLlm }, series.seriesId);
+    const picks = list.payload.picks.map((p) => p.variant);
+    ctx.stdout.write(`Warhol picked ${picks.length ? picks.join(', ') : 'nothing'}; review it with: silver review\n`);
+  } catch (err) {
+    ctx.stderr.write(`note: no shortlist (${err.message}); review it with: silver review\n`);
+  }
 }
