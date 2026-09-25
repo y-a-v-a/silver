@@ -361,17 +361,17 @@ Also added in Phase 3:
 
 ## Phase 8: the daily shift and launchd
 
-- [ ] `src/shift.js`: `shift.started` → scouts → superstars → pick subjects (commissions first, then scouted) → assistants (N series) → Warhol shortlists → archivist → `shift.ended`
-  - [ ] Commissions fill the `seriesPerShift` slots first, oldest first. The rest wait for the next shift (decision 2026-09-24).
+- [x] `src/shift.js`: `shift.started` → scouts → superstars → pick subjects (commissions first, then scouted) → assistants (N series) → Warhol shortlists → archivist → `shift.ended`
+  - [x] Commissions fill the `seriesPerShift` slots first, oldest first. The rest wait for the next shift (decision 2026-09-24).
   - [ ] `silver commission --now` runs a mini-shift for one subject: superstar chatter → series → Warhol shortlist (decision 2026-09-24)
-  - [ ] Idempotent per date: running it twice on one day continues the shift without duplicating it
-  - [ ] Stops cleanly on `BudgetExhausted` and records the reason
-  - [ ] Skips retired subjects (`subject.retired`, Phase 3b)
-  - [ ] The end-of-shift summary includes the reconcile gap (below)
-  - [ ] Printing happens **outside** the shift, at the moment of human approval, because the veto is async
-- [ ] `silver shift [--dry-run]`: dry-run uses the cheapest model and 2 variants
+  - [x] Idempotent per date: running it twice on one day continues the shift without duplicating it
+  - [x] Stops cleanly on `BudgetExhausted` and records the reason
+  - [x] Skips retired subjects (`subject.retired`, Phase 3b)
+  - [x] The end-of-shift summary includes the reconcile gap (below)
+  - [x] Printing happens **outside** the shift, at the moment of human approval, because the veto is async
+- [x] `silver shift [--dry-run] [--again] [--no-notify] [--json]`: dry-run uses the cheapest model and 2 variants. Superstars (Phase 6) and the Archivist (Phase 7) are recorded as skipped steps until they exist.
 - [x] `silver cost --reconcile` (decision 2026-09-25, `src/reconcile.js`): compare the ledger's total with OpenRouter's `/api/v1/key` usage over the same period and report the gap (billed calls that never reached `cost.recorded`, such as timed-out replies)
-- [ ] A macOS notification at the end of a shift (`osascript -e 'display notification …'`) saying "N series waiting for review"
+- [x] A macOS notification at the end of a shift (`osascript -e 'display notification …'`) saying "N series waiting for review"
 - [ ] `launchd/com.silver.shift.plist`: `StartCalendarInterval` (e.g. 09:00), absolute paths to `node` and the repo, and logs to `archive/logs/`
 - [ ] `silver install-schedule`: copies the plist to `~/Library/LaunchAgents/` and runs `launchctl bootstrap`. `silver uninstall-schedule` reverses it.
 - [ ] Document that if the Mac is asleep at the scheduled time, launchd runs the job on wake

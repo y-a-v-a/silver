@@ -162,9 +162,15 @@ export const COMMANDS = [
   { name: 'publish', description: 'rebuild the gallery site and redeploy it to Vercel', phase: 5 },
   {
     name: 'shift',
-    description: 'run (or resume) today\'s shift',
+    description: 'run (or resume) today\'s shift: scouts, series, Warhol\'s shortlists',
     phase: 8,
-    options: [['--dry-run', 'cheapest model, 2 variants per series']],
+    options: [
+      ['--dry-run', 'cheapest model, 2 variants per series'],
+      ['--again', 'run another round after today\'s shift has ended'],
+      ['--no-notify', 'no macOS notification at the end'],
+      ['--json', 'print the result as JSON'],
+    ],
+    load: () => import('./shift.js'),
   },
   { name: 'install-schedule', description: 'install the daily launchd job', phase: 8 },
   { name: 'uninstall-schedule', description: 'remove the daily launchd job', phase: 8 },

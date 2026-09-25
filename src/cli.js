@@ -24,6 +24,7 @@ const EXPECTED_ERRORS = new Set([
   'SeriesNotFound',
   'ReviewError',
   'ReconcileError',
+  'ShiftError',
 ]);
 
 const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
