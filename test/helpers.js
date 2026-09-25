@@ -70,7 +70,7 @@ export async function tmpFactory({ roles: roleFiles = {}, dailyUsd = 5, replies 
   }
   const config = {
     root,
-    models: { studio: ['test/text'], roles: { technician: 'test/text', scout: 'test/text', warhol: 'test/vision', printer: 'test/vision', 'fred-hughes': 'test/text', superstar: 'test/cheap' }, dryRun: 'test/cheap' },
+    models: { studio: ['test/text'], roles: { technician: 'test/text', scout: 'test/text', warhol: 'test/vision', printer: 'test/vision', 'fred-hughes': 'test/text', archivist: 'test/text', superstar: 'test/cheap' }, dryRun: 'test/cheap' },
     budget: { dailyUsd, chatterShare: 0.1 },
     review: { port: 0, tasteEntriesInPrompt: 40 },
     printer: { holdSeconds: 1 },

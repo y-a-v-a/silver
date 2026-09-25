@@ -4,6 +4,7 @@ import { runShift } from '../shift.js';
 import { fetchKeyUsage, reconcile } from '../reconcile.js';
 import { notify } from '../lib/notify.js';
 import { usd } from '../lib/format.js';
+import { hasRecord, commitRecord } from '../record.js';
 
 export default async function shiftCommand(_args, opts, ctx) {
   const factory = await createFactory({ dryRun: Boolean(opts.dryRun) });
@@ -20,6 +21,7 @@ export default async function shiftCommand(_args, opts, ctx) {
         return reconcile(await floor.read({ shift: 'all', type: 'cost.recorded' }), billed);
       },
       notify: opts.notify ? (title, message) => notify(title, message) : undefined,
+      backup: (await hasRecord(config)) ? (message) => commitRecord(config, { message }) : undefined,
     },
     { dryRun: Boolean(opts.dryRun), again: Boolean(opts.again) },
   );
@@ -35,7 +37,20 @@ export default async function shiftCommand(_args, opts, ctx) {
   const p = result.ended.payload;
   ctx.stdout.write(`shift ${result.shift}${p.dryRun ? ' (dry run)' : ''}: ${result.status}\n`);
   for (const s of p.steps) {
-    const detail = s.reason ?? s.error ?? (s.posted !== undefined ? `${s.posted} subjects` : s.series ? `${s.series.length} series` : s.shortlisted ? `${s.shortlisted.length} shortlisted` : '');
+    const detail =
+      s.reason ??
+      s.error ??
+      (s.posted !== undefined
+        ? `${s.posted} subjects`
+        : s.lines !== undefined
+          ? `${s.lines} lines${s.proposed?.length ? `, ${s.proposed[0].by} pushed "${s.proposed[0].title}"` : ''}`
+          : s.series
+            ? `${s.series.length} series`
+            : s.shortlisted
+              ? `${s.shortlisted.length} shortlisted`
+              : s.manifest
+                ? `${s.diary?.path && !s.diary.skipped ? `diary ${s.diary.path}` : `diary ${s.diary?.skipped ?? 'none'}`}${s.missing ? `, ${s.missing} artifacts missing` : ''}`
+                : '');
     ctx.stdout.write(`  ${s.step.padEnd(11)} ${s.status.padEnd(8)} ${detail}\n`);
   }
   for (const s of p.series) ctx.stdout.write(`    series ${s.seriesId}: ${s.produced}/${s.of} produced (${s.origin})\n`);
@@ -46,5 +61,6 @@ export default async function shiftCommand(_args, opts, ctx) {
     ctx.stdout.write(`reconcile (UTC day): ${usd(p.reconcile.day.ledger)} recorded vs ${usd(p.reconcile.day.billed)} billed (${gap})\n`);
   }
   if (p.reconcile?.error) ctx.stderr.write(`reconcile unavailable: ${p.reconcile.error}\n`);
+  if (result.backup) ctx.stdout.write(`record: ${result.backup.committed ? `committed ${String(result.backup.commit).slice(0, 7)}` : 'nothing new'}${result.backup.pushed ? `, pushed to ${result.backup.remote}` : result.backup.error ? ` (not pushed: ${result.backup.error})` : result.backup.remote ? '' : ' (local only: no remote)'}\n`);
   if (p.stoppedReason) ctx.stderr.write(`stopped early: ${p.stoppedReason}\n`);
 }

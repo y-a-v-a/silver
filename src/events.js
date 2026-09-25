@@ -19,6 +19,8 @@ export const EVENT_TYPES = Object.freeze([
   'cost.recorded',
   'llm.failed',
   'diary.written',
+  'shift.archived',
+  'record.pushed',
 ]);
 
 const ULID = /^[0-9A-HJKMNP-TV-Z]{26}$/;

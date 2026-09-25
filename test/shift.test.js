@@ -9,7 +9,7 @@ import { trendsUrl } from '../src/sources/google-trends.js';
 import { notify, appleString } from '../src/lib/notify.js';
 
 const role = (name) => readFile(new URL(`../roles/${name}.md`, import.meta.url), 'utf8');
-const ROLES = { 'scout.md': await role('scout'), 'studio-assistant.md': await role('studio-assistant'), 'warhol.md': await role('warhol') };
+const ROLES = { 'scout.md': await role('scout'), 'studio-assistant.md': await role('studio-assistant'), 'warhol.md': await role('warhol'), 'archivist.md': await role('archivist') };
 const fixture = (name) => readFile(new URL(`./fixtures/${name}`, import.meta.url), 'utf8');
 
 /** Answers by role: the Scout picks, assistants sketch, Warhol shortlists. */
@@ -17,6 +17,7 @@ function replyFor(body) {
   const system = body.messages[0].content;
   if (system.startsWith('You are the Scout')) return completion(JSON.stringify({ picks: [{ n: 1, why: 'The can.' }, { n: 2, why: 'Glasses.' }] }), { cost: 0.001 });
   if (system.startsWith('You are a Studio assistant')) return completion('```js\nfunction setup(){ createCanvas(SILVER.width, SILVER.height); }\n```', { cost: 0.002 });
+  if (system.startsWith('You are the Archivist')) return completion('# The day\n\nIt was a big day. Gee.', { cost: 0.02 });
   if (system.startsWith('You are Andy Warhol')) return completion(JSON.stringify({ picks: [{ variant: 'v01', note: 'Flat.' }], rejects: 'Busy.' }), { cost: 0.01, model: 'test/vision' });
   throw new Error(`unexpected role: ${system.slice(0, 40)}`);
 }
@@ -71,7 +72,13 @@ test('a full shift: scouts, series (commissions first), shortlists, shift.ended 
 
   const r = await runShift(s.deps);
   assert.equal(r.status, 'done');
-  assert.deepEqual(r.steps.map((x) => [x.step, x.status]), [['scouts', 'done'], ['superstars', 'skipped'], ['series', 'done'], ['shortlist', 'done'], ['archivist', 'skipped']]);
+  assert.deepEqual(r.steps.map((x) => [x.step, x.status]), [['scouts', 'done'], ['superstars', 'skipped'], ['series', 'done'], ['shortlist', 'done'], ['archivist', 'done']]);
+  const archivist = r.steps.find((x) => x.step === 'archivist');
+  assert.deepEqual(archivist.problems, []);
+  assert.equal(archivist.missing, 0);
+  assert.match(archivist.diary.path, /archive\/diary\/\d{4}-\d{2}-\d{2}\.md$/);
+  assert.equal((await s.floor.read({ type: 'diary.written' })).length, 1);
+  assert.equal((await s.floor.read({ type: 'shift.archived' })).length, 1);
   assert.equal(r.series.length, 2);
   assert.equal(r.series[0].subjectId, commission.id, 'the commission gets the first slot');
   assert.equal(r.series[0].origin, 'commission');
@@ -242,4 +249,25 @@ test('with a cast, the superstars talk after the Scouts, once a day; their chatt
 
   const again = await runShift(deps, { again: true });
   assert.equal(again.steps.find((x) => x.step === 'superstars').status, 'skipped');
+});
+
+test('the record is committed after the shift has ended, and a failed backup never fails the shift', async () => {
+  const s = await shiftSetup();
+  const seen = [];
+  const backup = async (message) => {
+    seen.push({ message, ended: (await s.floor.read({ type: 'shift.ended' })).length });
+    return { commit: 'abc1234', committed: true, pushed: false, remote: 'origin', error: 'network down' };
+  };
+  const r = await runShift({ ...s.deps, backup });
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0].ended, 1, 'shift.ended is on the floor before the commit');
+  assert.match(seen[0].message, /^Shift \d{4}-\d{2}-\d{2}: 2 series, 2 waiting for review, \$\d+\.\d{2}$/);
+  assert.equal(r.backup.error, 'network down');
+  const [pushed] = await s.floor.read({ type: 'record.pushed' });
+  assert.deepEqual([pushed.payload.pushed, pushed.payload.error, pushed.ref], [false, 'network down', r.ended.id]);
+
+  const t = await shiftSetup();
+  const r2 = await runShift({ ...t.deps, backup: async () => { throw new Error('git missing'); } });
+  assert.equal(r2.status, 'done');
+  assert.equal(r2.backup.error, 'git missing');
 });

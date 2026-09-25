@@ -27,3 +27,5 @@ floor/
 archive/
 canon/
 taste.md
+# the record's own git directory (silver init-record)
+.record/

@@ -201,6 +201,36 @@ export const COMMANDS = [
     load: () => import('./retitle.js'),
   },
   {
+    name: 'diary',
+    args: '[date]',
+    description: 'read the Archivist\'s diary entry for a day (default: today)',
+    phase: 7,
+    options: [
+      ['--write', 'have the entry written now, from everything since the last one'],
+      ['--force', 'with --write: rewrite an existing entry'],
+    ],
+    load: () => import('./diary.js'),
+  },
+  {
+    name: 'archive',
+    args: '[date]',
+    description: 'check that every event\'s artifacts are on disk and write the day\'s manifest',
+    phase: 7,
+    options: [['--json', 'print the manifest as JSON']],
+    load: () => import('./archive.js'),
+  },
+  {
+    name: 'init-record',
+    description: 'set up the private backup of floor/, archive/, canon/ and taste.md (a git repo in .record/)',
+    phase: 7,
+    options: [
+      ['--github <name>', 'also create a PRIVATE GitHub repo with gh and push to it (needs --yes)'],
+      ['--remote <url>', 'push to an existing remote instead'],
+      ['--yes', 'confirm creating the GitHub repository'],
+    ],
+    load: () => import('./init-record.js'),
+  },
+  {
     name: 'shift',
     description: 'run (or resume) today\'s shift: scouts, series, Warhol\'s shortlists',
     phase: 8,

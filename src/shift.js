@@ -9,6 +9,7 @@ import { pendingCommissions } from './agents/commissions.js';
 import { retiredSubjects, claimedSubjects } from './agents/retire.js';
 import { listSeries, isPendingReview } from './agents/series-data.js';
 import { shortlistSeries } from './agents/warhol.js';
+import { archiveShift } from './agents/archivist.js';
 
 export class ShiftError extends Error {
   constructor(message) {
@@ -48,9 +49,10 @@ export async function pickSubjects(floor, shift, slots, { dryRun = false } = {})
  * @param {typeof globalThis.fetch} [deps.fetch]           for the scouts' sources
  * @param {() => Promise<object>} [deps.reconcile]          best-effort ledger check
  * @param {(title: string, message: string) => Promise<boolean>} [deps.notify]
+ * @param {(message: string) => Promise<object>} [deps.backup]  commit (and push) the record
  * @param {{dryRun?: boolean, again?: boolean}} [opts]
  */
-export async function runShift({ config, floor, llm, budget, createRenderer, fetch, reconcile, notify }, { dryRun = false, again = false } = {}) {
+export async function runShift({ config, floor, llm, budget, createRenderer, fetch, reconcile, notify, backup }, { dryRun = false, again = false } = {}) {
   const shift = floor.today();
   const today = await floor.read({ shift });
   // A dry run never stands in for the real shift, and vice versa.
@@ -160,8 +162,14 @@ export async function runShift({ config, floor, llm, budget, createRenderer, fet
   }
   if (stoppedReason) record('stopped', 'budget', { reason: stoppedReason });
 
-  // 5. Archivist: Phase 7.
-  record('archivist', 'skipped', { reason: 'not built yet (ACTIONS.md phase 7)' });
+  // 5. Archivist: the artifact check and manifest, then the diary (not for dry runs). It runs
+  // even after a budget stop: the day still happened. Its own failures never fail the shift.
+  try {
+    const a = await archiveShift({ config, floor, llm }, { shift, dryRun });
+    record('archivist', 'done', { manifest: a.manifest, missing: a.missing, diary: a.diary, problems: a.problems });
+  } catch (err) {
+    record('archivist', 'failed', { error: err.message });
+  }
 
   let ledger = null;
   if (reconcile) {
@@ -181,11 +189,23 @@ export async function runShift({ config, floor, llm, budget, createRenderer, fet
     payload: { dryRun, steps, series: seriesMade, shortlisted, waitingForReview: waiting, spentUsd: spent, budgetRemaining: await budget.remaining(), stoppedReason, reconcile: ledger },
   });
 
+  // The record (floor, archive, canon, taste) is committed and pushed after the shift has
+  // ended, so the commit includes it. A failed push is recorded and retried next shift.
+  let backedUp = null;
+  if (backup) {
+    try {
+      backedUp = await backup(`Shift ${shift}${dryRun ? ' (dry run)' : ''}: ${seriesMade.length} series, ${waiting} waiting for review, $${spent.toFixed(2)}`);
+    } catch (err) {
+      backedUp = { committed: false, pushed: false, error: err.message };
+    }
+    await floor.append({ type: 'record.pushed', actor: 'archivist', ref: endedEvent.id, payload: { shift, ...backedUp } });
+  }
+
   if (notify) {
     const message = stoppedReason
       ? `Stopped early: budget. ${waiting} series waiting for review.`
       : `${seriesMade.length} new series, ${waiting} waiting for review.`;
     await notify('Silver Factory', message).catch(() => false);
   }
-  return { shift, status: stoppedReason ? 'stopped' : 'done', started, ended: endedEvent, steps, series: seriesMade, shortlisted, waiting };
+  return { shift, status: stoppedReason ? 'stopped' : 'done', started, ended: endedEvent, steps, series: seriesMade, shortlisted, waiting, backup: backedUp };
 }

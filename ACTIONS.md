@@ -192,7 +192,9 @@ Event types, extending the draft list in ARCHITECTURE.md:
 | `edition.released` | Fred Hughes | work id, channel (`site`, `rss`), edition number |
 | `cost.recorded` | llm client | model, tokens, USD, ref |
 | `llm.failed` | llm client | role, model, error, attempts, reason (`empty`, `invalid-json`) |
-| `diary.written` | archivist | path |
+| `diary.written` | archivist | `shift`, `path`, words, how many events it covers (`since` the previous entry) |
+| `shift.archived` | archivist | `manifest` path, events, artifacts checked, `missing` artifacts, diary result |
+| `record.pushed` | archivist | the private record's commit, whether it was pushed, and the error if not (retried next shift) |
 | `site.deployed` | fred-hughes | url, number of works, provider (Phase 5) |
 | `subject.retired` | **human** | `subjectId`, reason. Hides the subject from `latest`, `subjects --open` and the shift; the subject itself stays on the floor (Phase 3b). |
 
