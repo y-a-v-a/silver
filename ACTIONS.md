@@ -330,8 +330,8 @@ Also added in Phase 3:
   - [x] Renders a poster PNG (fixed seed) for thumbnails and OG images, falling back to the review screenshot. It also holds the piece `printer.holdSeconds` (10s rather than the planned 60s) and looks again (`later.png`).
   - [x] **Signature:** sha256 of the sketch source + Warhol's note + the human approval event id, stored in `canon.json` (`src/canon.js`; `canon.json` is a cache rebuilt from the floor)
   - [x] Emits `work.published`. The print check flags but never blocks: `printCheck.verdict` is `ok`, `concern` or `unchecked`, and an error or blank frame while running is always a concern, whatever the model says.
-- [ ] Write `roles/fred-hughes.md`: the business side: a title (Warhol-flat: "Silver Car Crash (Double Disaster)"-style), short wall text, edition number. **Always in English**, also for Dutch subjects, and wall text quotes at most a headline, never article text.
-- [ ] `agents/hughes.js`: assigns sequential edition numbers, writes the wall text, regenerates the site, emits `edition.released`
+- [x] Write `roles/fred-hughes.md`: the business side: a title (Warhol-flat: "Silver Car Crash (Double Disaster)"-style), short wall text, edition number. **Always in English**, also for Dutch subjects, and wall text quotes at most a headline, never article text.
+- [x] `agents/hughes.js`: assigns sequential edition numbers, writes the wall text, regenerates the site, emits `edition.released`. Numbering is gap-free in signing order; a failed call leaves the work unreleased for the next publish. Regenerating the site is the publish pipeline's job.
 - [ ] Static site generator `src/site.js` → `site/`:
   - [ ] `index.html`: the canon as a grid of posters, newest first
   - [ ] `works/<id>/`: the live sketch, full-bleed, with wall text below
