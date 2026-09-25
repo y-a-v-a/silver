@@ -136,3 +136,23 @@ test('a sketch without draw() still renders', { skip, timeout: 30_000 }, async (
   const res = await renderer.render(await variant('nodraw', sketch));
   assert.equal(res.ok, true, JSON.stringify(res));
 });
+
+test('hold runs a work past its ready frame and catches later errors and fading', { skip, timeout: 60_000 }, async () => {
+  const fine = await variant('holds', GRID);
+  const ok = await renderer.hold(fine, { holdMs: 300, pngPath: join(dir, 'holds.later.png') });
+  assert.equal(ok.ok, true, JSON.stringify(ok));
+  assert.equal(png(await readFile(ok.png)), 'PNG');
+
+  const late = await variant('crashes-late', `function setup(){ createCanvas(SILVER.width, SILVER.height); }
+    function draw(){ background(200, 0, 0); if (frameCount > 40) undefinedLater(); }`);
+  const crashed = await renderer.hold(late, { holdMs: 1500, pngPath: join(dir, 'late.png') });
+  assert.equal(crashed.reason, 'error');
+  assert.match(crashed.errors.join(), /undefinedLater is not defined/);
+
+  const fades = await variant('fades', `function setup(){ createCanvas(SILVER.width, SILVER.height); }
+    function draw(){ background(frameCount > 40 ? 0 : 255); if (frameCount <= 40) { fill(255,0,0); circle(540,540,500); } }`);
+  const faded = await renderer.hold(fades, { holdMs: 1500, pngPath: join(dir, 'fades.png') });
+  assert.equal(faded.reason, 'blank');
+});
+
+const png = (buf) => buf.subarray(1, 4).toString();

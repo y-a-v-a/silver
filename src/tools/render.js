@@ -121,5 +121,40 @@ export async function createRenderer({ timeoutMs = 15_000, launch = {} } = {}) {
     return { ok: reason === null, reason, shots, errors, blocked, readySignal, ms: Date.now() - started };
   }
 
-  return { render, close: () => browser.close() };
+  /**
+   * Run a work for a while and look again: the Printer's check that a piece holds up
+   * after its first frames. Errors thrown at any point during the run count.
+   * @param {string} htmlPath
+   * @param {{seed?: number, holdMs?: number, pngPath: string}} opts
+   * @returns {Promise<{ok: boolean, reason: string|null, png: string|null, errors: string[], blank: boolean|null, colors: number|null, ms: number}>}
+   */
+  async function hold(htmlPath, { seed = 1, holdMs = 10_000, pngPath }) {
+    const started = Date.now();
+    const errors = [];
+    const context = await browser.newContext({ viewport: { width: CANVAS.width, height: CANVAS.height }, deviceScaleFactor: 1 });
+    try {
+      await context.route('**/*', (route) => {
+        const url = route.request().url();
+        if (url === P5_URL) return route.fulfill({ status: 200, contentType: 'application/javascript', body: p5Source });
+        if (url.startsWith('file:') || url.startsWith('data:') || url.startsWith('blob:')) return route.continue();
+        return route.abort();
+      });
+      const page = await context.newPage();
+      page.on('pageerror', (err) => errors.push(`${err.name}: ${err.message}`));
+      await page.goto(`${pathToFileURL(htmlPath).href}?seed=${seed}`, { waitUntil: 'load', timeout: timeoutMs });
+      await page.waitForFunction(() => window.__silverReady === true, null, { timeout: timeoutMs }).catch(() => {});
+      await page.waitForTimeout(holdMs);
+      const canvas = page.locator('canvas').first();
+      if ((await canvas.count()) === 0) return { ok: false, reason: 'no-canvas', png: null, errors, blank: null, colors: null, ms: Date.now() - started };
+      const png = await canvas.screenshot({ path: pngPath });
+      const stats = await analyse(png);
+      const blank = stats.dominantShare >= BLANK_SHARE;
+      const reason = errors.length ? 'error' : blank ? 'blank' : null;
+      return { ok: reason === null, reason, png: pngPath, errors, blank, colors: stats.colors, ms: Date.now() - started };
+    } finally {
+      await context.close();
+    }
+  }
+
+  return { render, hold, close: () => browser.close() };
 }
