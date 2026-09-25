@@ -93,11 +93,14 @@ export function validatePicks(json, candidateCount, count) {
  * @param {string[]} [opts.only]                 run only these sources
  * @param {boolean} [opts.snapshot]              fetch page snapshots (default true)
  * @param {Date} [opts.now]                      for the repeat window (default: now)
+ * @param {boolean} [opts.dryRun]                picked by the cheap model: marked, and ignored by real shifts
  */
-export async function runScouts({ config, floor, llm, fetch = globalThis.fetch }, { count = config.shift.subjectsPerShift, only, snapshot = true, now = new Date() } = {}) {
+export async function runScouts({ config, floor, llm, fetch = globalThis.fetch }, { count = config.shift.subjectsPerShift, only, snapshot = true, now = new Date(), dryRun = false } = {}) {
   const { candidates, report } = await gatherCandidates(config, { fetch, only });
-  // Only subjects inside the repeat window count: older ones may come back.
-  const history = withinWindow(await floor.read({ shift: 'all', type: 'subject.posted' }), config.sources.repeatAfterDays, now);
+  // Only subjects inside the repeat window count: older ones may come back. A real Scout
+  // ignores what a dry run posted, so a test run never takes a headline away from it.
+  const posted = (await floor.read({ shift: 'all', type: 'subject.posted' })).filter((e) => dryRun || !e.payload.dryRun);
+  const history = withinWindow(posted, config.sources.repeatAfterDays, now);
   const { fresh, duplicates } = dedupe(candidates, subjectKeys(history));
   const shown = fresh.slice(0, MAX_CANDIDATES);
   const result = { report, candidates: candidates.length, duplicates: duplicates.length, shown: shown.length, posted: [], problems: [], note: null, callId: null };
@@ -132,6 +135,7 @@ export async function runScouts({ config, floor, llm, fetch = globalThis.fetch }
         image: pick.image,
         sensitive: pick.sensitive,
         snapshot: { snippet: c.snippet, fetchedAt: c.fetchedAt, meta: c.meta, page },
+        ...(dryRun ? { dryRun: true } : {}),
       },
     });
     result.posted.push(event);

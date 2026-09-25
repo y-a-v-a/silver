@@ -21,15 +21,16 @@ const isBudget = (err) => err?.name === 'BudgetExhausted';
 /**
  * Choose the subjects for today's series: commissions first (oldest first), then today's
  * scouted subjects in the Scout's order. Retired subjects and subjects that already have
- * a series are never picked (decisions 2026-09-24 and 2026-09-25).
+ * a series are never picked (decisions 2026-09-24 and 2026-09-25). A real shift never
+ * picks a dry run's subjects; a dry run may use either.
  * @returns {Promise<import('./floor.js').FloorEvent[]>}
  */
-export async function pickSubjects(floor, shift, slots) {
+export async function pickSubjects(floor, shift, slots, { dryRun = false } = {}) {
   if (slots <= 0) return [];
   const retired = await retiredSubjects(floor);
   const claimed = claimedSubjects(await floor.read({ shift: 'all', type: 'series.started' }));
   const commissions = (await pendingCommissions(floor)).filter((s) => !claimed.has(s.id));
-  const scouted = (await floor.read({ shift, type: 'subject.posted' })).filter((s) => s.payload.origin !== 'commission' && !claimed.has(s.id) && !retired.has(s.id));
+  const scouted = (await floor.read({ shift, type: 'subject.posted' })).filter((s) => s.payload.origin !== 'commission' && (dryRun || !s.payload.dryRun) && !claimed.has(s.id) && !retired.has(s.id));
   return [...commissions, ...scouted].slice(0, slots);
 }
 
@@ -68,12 +69,12 @@ export async function runShift({ config, floor, llm, budget, createRenderer, fet
     stoppedReason = err.message;
   };
 
-  // 1. Scouts: once per day.
-  const scoutedToday = today.some((e) => e.type === 'subject.posted' && e.actor === 'scout');
+  // 1. Scouts: once per day, per kind (a dry run's subjects don't count for the real shift).
+  const scoutedToday = today.some((e) => e.type === 'subject.posted' && e.actor === 'scout' && sameKind(e));
   if (scoutedToday) record('scouts', 'skipped', { reason: 'already scouted today' });
   else {
     try {
-      const r = await runScouts({ config, floor, llm, fetch });
+      const r = await runScouts({ config, floor, llm, fetch }, { dryRun });
       record('scouts', r.posted.length ? 'done' : 'empty', { posted: r.posted.length, problems: r.problems, failedSources: r.report.filter((x) => !x.ok).map((x) => x.source) });
     } catch (err) {
       if (isBudget(err)) stop(err);
@@ -89,7 +90,7 @@ export async function runShift({ config, floor, llm, budget, createRenderer, fet
   if (!stoppedReason) {
     const startedToday = (await floor.read({ shift, type: 'series.started' })).filter(sameKind).length;
     const slots = config.shift.seriesPerShift - startedToday;
-    const picks = await pickSubjects(floor, shift, slots);
+    const picks = await pickSubjects(floor, shift, slots, { dryRun });
     if (slots <= 0) record('series', 'skipped', { reason: `${startedToday} series already started today` });
     else if (!picks.length) record('series', 'empty', { reason: `no subjects waiting (${slots} slot${slots === 1 ? '' : 's'} free)` });
     else {

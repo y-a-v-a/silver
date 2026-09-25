@@ -173,7 +173,7 @@ test('a dry run never stands in for the real shift: no ended day, no slots, no c
   const real = await runShift(s.deps);
   assert.equal(real.status, 'done', 'the dry run did not end the real day');
   const byStep = Object.fromEntries(real.steps.map((x) => [x.step, x]));
-  assert.equal(byStep.scouts.status, 'skipped', 'subjects scouted in the dry run are real subjects');
+  assert.equal(byStep.scouts.status, 'done', 'a dry run\'s scouting does not count for the real shift (decision 2026-09-25)');
   assert.equal(real.series.length, 2, "dry-run series don't use up the real slots");
   assert.equal(real.series[0].subjectId, commission.id, 'a dry-run series does not consume a commission');
   assert.equal(real.shortlisted.length, 2, 'only the real series are shortlisted');
@@ -186,4 +186,20 @@ test('the series step says when slots are free but no subject is waiting', async
   const series = r.steps.find((x) => x.step === 'series');
   assert.equal(series.status, 'empty');
   assert.equal(series.reason, 'no subjects waiting (2 slots free)');
+});
+
+test('dry-run subjects are marked; the real shift scouts anyway and never picks them', async () => {
+  const s = await shiftSetup();
+  const dry = await runShift({ ...s.deps, notify: null }, { dryRun: true });
+  assert.equal(dry.steps.find((x) => x.step === 'scouts').status, 'done');
+  const dryPosted = await s.floor.read({ type: 'subject.posted' });
+  assert.ok(dryPosted.length && dryPosted.every((e) => e.payload.dryRun === true));
+
+  const real = await runShift(s.deps);
+  assert.equal(real.steps.find((x) => x.step === 'scouts').status, 'done', 'a dry run does not count as scouting today');
+  const realPosted = (await s.floor.read({ type: 'subject.posted' })).filter((e) => !e.payload.dryRun);
+  assert.ok(realPosted.length, 'the real Scout may pick the same headlines again');
+  const dryIds = new Set(dryPosted.map((e) => e.id));
+  assert.ok(real.series.length && real.series.every((x) => !dryIds.has(x.subjectId)));
+  assert.deepEqual((await pickSubjects(s.floor, s.floor.today(), 5)).filter((e) => dryIds.has(e.id)), []);
 });

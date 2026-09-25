@@ -34,8 +34,8 @@ export default async function subjectsCommand(_args, opts, ctx) {
   for (const s of subjects) {
     const p = s.payload;
     const series = seriesCount.get(s.id) ?? 0;
-    const flags = `${p.origin === 'commission' ? 'C' : ' '}${p.sensitive?.flag ? '!' : ' '}${retired.has(s.id) ? 'R' : ' '}`;
+    const flags = `${p.origin === 'commission' ? 'C' : ' '}${p.sensitive?.flag ? '!' : ' '}${retired.has(s.id) ? 'R' : ' '}${p.dryRun ? 'D' : ' '}`;
     ctx.stdout.write(`${shortId(s.id)}  ${s.shift}  ${flags}  ${series ? `${series}x` : '--'}  ${p.title}\n`);
   }
-  ctx.stderr.write('\nC = commission, ! = sensitive, R = retired, Nx = series made. Use: silver series <id>\n');
+  ctx.stderr.write('\nC = commission, ! = sensitive, R = retired, D = dry-run scout, Nx = series made. Use: silver series <id>\n');
 }

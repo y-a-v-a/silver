@@ -23,7 +23,7 @@ export default async function scoutCommand(_args, opts, ctx) {
   const count = opts.count === undefined ? undefined : Number(opts.count);
   if (count !== undefined && !(Number.isInteger(count) && count > 0)) throw new Error('--count must be a positive integer');
 
-  const result = await runScouts({ config: factory.config, floor: factory.floor, llm: await factory.llm() }, { count, only, snapshot: opts.snapshot });
+  const result = await runScouts({ config: factory.config, floor: factory.floor, llm: await factory.llm() }, { count, only, snapshot: opts.snapshot, dryRun: Boolean(opts.dryRun) });
   if (opts.json) {
     ctx.stdout.write(JSON.stringify(result, null, 2) + '\n');
     return;
