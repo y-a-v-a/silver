@@ -370,7 +370,7 @@ Also added in Phase 3:
   - [ ] The end-of-shift summary includes the reconcile gap (below)
   - [ ] Printing happens **outside** the shift, at the moment of human approval, because the veto is async
 - [ ] `silver shift [--dry-run]`: dry-run uses the cheapest model and 2 variants
-- [ ] `silver cost --reconcile` (decision 2026-09-25): compare the ledger's total with OpenRouter's `/api/v1/key` usage over the same period and report the gap (billed calls that never reached `cost.recorded`, such as timed-out replies)
+- [x] `silver cost --reconcile` (decision 2026-09-25, `src/reconcile.js`): compare the ledger's total with OpenRouter's `/api/v1/key` usage over the same period and report the gap (billed calls that never reached `cost.recorded`, such as timed-out replies)
 - [ ] A macOS notification at the end of a shift (`osascript -e 'display notification …'`) saying "N series waiting for review"
 - [ ] `launchd/com.silver.shift.plist`: `StartCalendarInterval` (e.g. 09:00), absolute paths to `node` and the repo, and logs to `archive/logs/`
 - [ ] `silver install-schedule`: copies the plist to `~/Library/LaunchAgents/` and runs `launchctl bootstrap`. `silver uninstall-schedule` reverses it.

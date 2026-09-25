@@ -57,6 +57,7 @@ export const COMMANDS = [
     phase: 1,
     options: [
       ['--shift <date>', 'shift date (YYYY-MM-DD) or "all", default today'],
+      ['--reconcile', 'compare the ledger with what OpenRouter billed this key'],
       ['--json', 'print the ledger as JSON'],
     ],
     load: () => import('./cost.js'),

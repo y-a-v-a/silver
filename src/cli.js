@@ -23,6 +23,7 @@ const EXPECTED_ERRORS = new Set([
   'ShortlistError',
   'SeriesNotFound',
   'ReviewError',
+  'ReconcileError',
 ]);
 
 const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));

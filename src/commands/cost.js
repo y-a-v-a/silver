@@ -2,9 +2,26 @@
 import { createFactory } from '../factory.js';
 import { summarise } from '../budget.js';
 import { usd, int, plural, table } from '../lib/format.js';
+import { fetchKeyUsage, reconcile } from '../reconcile.js';
+import { OPENROUTER_BASE_URL } from '../llm.js';
+
+/** Print ledger vs billed usage (`--reconcile`). */
+async function printReconcile(floor, ctx, opts) {
+  const billed = await fetchKeyUsage({ apiKey: process.env.OPENROUTER_API_KEY, baseUrl: process.env.OPENROUTER_BASE_URL || OPENROUTER_BASE_URL });
+  const r = reconcile(await floor.read({ shift: 'all', type: 'cost.recorded' }), billed);
+  if (opts.json) {
+    ctx.stdout.write(JSON.stringify(r, null, 2) + '\n');
+    return;
+  }
+  const line = (label, x) => [label, usd(x.ledger), usd(x.billed), usd(x.gap)];
+  ctx.stdout.write(`${table([['', 'ledger', 'billed', 'gap'], line(`UTC day ${r.utcDay}`, r.day), line('all time', r.total)], { indent: '' })}\n`);
+  ctx.stdout.write('\nThe gap is billed spend that never reached the ledger: replies that timed out after\n' +
+    'generation, calls made outside Silver with the same key, or requests made before the ledger existed.\n');
+}
 
 export default async function costCommand(_args, opts, ctx) {
   const { floor, budget } = await createFactory();
+  if (opts.reconcile) return printReconcile(floor, ctx, opts);
   const shift = opts.shift ?? floor.today();
   const ledger = summarise(await floor.read({ shift, type: 'cost.recorded' }));
 
