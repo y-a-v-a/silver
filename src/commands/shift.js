@@ -40,7 +40,11 @@ export default async function shiftCommand(_args, opts, ctx) {
   }
   for (const s of p.series) ctx.stdout.write(`    series ${s.seriesId}: ${s.produced}/${s.of} produced (${s.origin})\n`);
   ctx.stdout.write(`spent ${usd(p.spentUsd)} today, ${usd(p.budgetRemaining)} left; ${p.waitingForReview} series waiting for review\n`);
-  if (p.reconcile?.day) ctx.stdout.write(`reconcile: today ${usd(p.reconcile.day.ledger)} recorded vs ${usd(p.reconcile.day.billed)} billed (gap ${usd(p.reconcile.day.gap)})\n`);
+  if (p.reconcile?.day) {
+    // OpenRouter's usage lags by a few minutes, so a small negative gap just means "not billed yet".
+    const gap = p.reconcile.day.gap < 0 ? 'billing still catching up' : `gap ${usd(p.reconcile.day.gap)}`;
+    ctx.stdout.write(`reconcile (UTC day): ${usd(p.reconcile.day.ledger)} recorded vs ${usd(p.reconcile.day.billed)} billed (${gap})\n`);
+  }
   if (p.reconcile?.error) ctx.stderr.write(`reconcile unavailable: ${p.reconcile.error}\n`);
   if (p.stoppedReason) ctx.stderr.write(`stopped early: ${p.stoppedReason}\n`);
 }

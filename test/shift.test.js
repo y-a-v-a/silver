@@ -178,3 +178,12 @@ test('a dry run never stands in for the real shift: no ended day, no slots, no c
   assert.equal(real.series[0].subjectId, commission.id, 'a dry-run series does not consume a commission');
   assert.equal(real.shortlisted.length, 2, 'only the real series are shortlisted');
 });
+
+test('the series step says when slots are free but no subject is waiting', async () => {
+  const s = await shiftSetup({});
+  s.deps.fetch = routeFetch({}); // every source fails: nothing scouted
+  const r = await runShift(s.deps);
+  const series = r.steps.find((x) => x.step === 'series');
+  assert.equal(series.status, 'empty');
+  assert.equal(series.reason, 'no subjects waiting (2 slots free)');
+});

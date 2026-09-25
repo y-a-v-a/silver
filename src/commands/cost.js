@@ -16,7 +16,8 @@ async function printReconcile(floor, ctx, opts) {
   const line = (label, x) => [label, usd(x.ledger), usd(x.billed), usd(x.gap)];
   ctx.stdout.write(`${table([['', 'ledger', 'billed', 'gap'], line(`UTC day ${r.utcDay}`, r.day), line('all time', r.total)], { indent: '' })}\n`);
   ctx.stdout.write('\nThe gap is billed spend that never reached the ledger: replies that timed out after\n' +
-    'generation, calls made outside Silver with the same key, or requests made before the ledger existed.\n');
+    'generation, calls made outside Silver with the same key, or requests made before the ledger existed.\n' +
+    'A small negative gap means OpenRouter has not billed the latest calls yet (it lags a few minutes).\n');
 }
 
 export default async function costCommand(_args, opts, ctx) {

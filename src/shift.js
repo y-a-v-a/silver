@@ -88,8 +88,10 @@ export async function runShift({ config, floor, llm, budget, createRenderer, fet
   const seriesMade = [];
   if (!stoppedReason) {
     const startedToday = (await floor.read({ shift, type: 'series.started' })).filter(sameKind).length;
-    const picks = await pickSubjects(floor, shift, config.shift.seriesPerShift - startedToday);
-    if (!picks.length) record('series', startedToday ? 'skipped' : 'empty', { reason: startedToday ? `${startedToday} series already started today` : 'no subjects to make' });
+    const slots = config.shift.seriesPerShift - startedToday;
+    const picks = await pickSubjects(floor, shift, slots);
+    if (slots <= 0) record('series', 'skipped', { reason: `${startedToday} series already started today` });
+    else if (!picks.length) record('series', 'empty', { reason: `no subjects waiting (${slots} slot${slots === 1 ? '' : 's'} free)` });
     else {
       const renderer = await createRenderer();
       try {
