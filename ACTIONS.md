@@ -32,6 +32,13 @@ The build plan for the Silver Factory in Node.js, derived from [ARCHITECTURE.md]
 | Scout annotates commissions | **Yes, never overwriting the human's `--why`** (2026-09-24). One cheap Scout call adds its own `why` and `image`, marked as the Scout's. |
 | Repeat subjects | **7-day window** (2026-09-24). A scouted subject may return after 7 days (configurable); commissions may always repeat. |
 | Reddit | **Keep r/all for now** (2026-09-24). Switch to curated subreddits if NSFW shows up. |
+| Studio pool: DeepSeek | **Replace with Qwen 3.8 Flash** (2026-09-25). DeepSeek v4.1 Flash produced 2/12; its providers ignore every thinking limit. Verify Qwen with `silver models` and a dry-run series first. |
+| Studio pool: Sonnet | **Keep in rotation** (2026-09-25), despite ~$0.056 per variant (6–13× the others). |
+| p5 version | **Stay on p5 1.11.13** for v1 (2026-09-25). Revisit 2.x after v1. |
+| Spend missing from the ledger | **`silver cost --reconcile`** (2026-09-25): compare the ledger with OpenRouter's `/api/v1/key` usage and report the gap, also in the end-of-shift summary. |
+| Subjects from before the exclusion rule | **Retire event** (2026-09-25): a new `subject.retired` event and `silver subjects --retire <id>`. Retired subjects are hidden from `latest`, `--open` and the shift. |
+| Technique adherence | **Drift, and Warhol notes it** (2026-09-25). Off-technique variants are kept, and Warhol's review mentions it; the human judges at the veto. |
+| Screenshots per variant for Warhol | **1 per variant** (2026-09-25): seed 1, about 12 images per review. |
 
 ## Stack
 
@@ -177,6 +184,7 @@ Event types, extending the draft list in ARCHITECTURE.md:
 | `cost.recorded` | llm client | model, tokens, USD, ref |
 | `llm.failed` | llm client | role, model, error, attempts, reason (`empty`, `invalid-json`) |
 | `diary.written` | archivist | path |
+| `subject.retired` | **human** | `subjectId`, reason. Hides the subject from `latest`, `subjects --open` and the shift; the subject itself stays on the floor (Phase 3b). |
 
 ---
 
@@ -255,7 +263,7 @@ Also added along the way:
 
 - [x] Write `roles/technician.md` (done in Phase 1). It is used in v1 only for its voice: when a template changes, the human runs `silver release <tool>` and the Technician writes the release note as a `tool.released` event.
 - [x] `silver release <tool>` (`agents/technician.js`): tools are `p5-template`, `renderer` and `contact-sheet`. The version is the file's content hash, and releasing the same version twice needs `--force`. Changes come from `--changes` or the file's git log.
-- [x] `tools/p5-template.html` (in `src/tools/`, built by `src/tools/template.js`): a single file that loads p5 from a pinned CDN version (**p5 1.11.13**, see the open points) with an injected `// SKETCH` block
+- [x] `tools/p5-template.html` (in `src/tools/`, built by `src/tools/template.js`): a single file that loads p5 from a pinned CDN version (**p5 1.11.13**, kept for v1 by decision 2026-09-25) with an injected `// SKETCH` block
   - [x] Seeds from `?seed=` (`randomSeed` + `noiseSeed`), so screenshots are reproducible while a normal load still drifts. `Math.random` is seeded too (mulberry32).
   - [x] Fixed canvas size (e.g. 1080×1080), with a `window.__silverReady` flag set after N frames (30), or right after `setup()` for sketches without `draw()`. `?freeze=1` stops the loop at that frame.
   - [x] Embeds the title and subject as a comment/metadata, with no visible UI chrome (a `silver-meta` JSON script tag, escaped against `</script>`)
@@ -279,19 +287,26 @@ Also added along the way:
 | `01M3AG01ZPYAXJ8ECDMSYHKTYA` | 78$ sushi arrived like this | 9/12 | $0.27 | DeepSeek again returned empty at 8k; led to `max_tokens: 16000` |
 | `01M3AGEEMAFBXZ7K9P0YYN2PSY` | NGV employee stole $8m for phones | 9/12 | $0.11 | Every cell replied; failures were 2 DeepSeek truncations and 1 runtime error |
 
-Per model across all three: Gemini 3.8 Flash 8/8 ($0.010/call), GPT-6 Luna Pro 11/12 ($0.004/call), Claude Sonnet 5 4/4 ($0.056/call), DeepSeek v4.1 Flash 2/12 ($0.009/call). See the open points below.
+Per model across all three: Gemini 3.8 Flash 8/8 ($0.010/call), GPT-6 Luna Pro 11/12 ($0.004/call), Claude Sonnet 5 4/4 ($0.056/call), DeepSeek v4.1 Flash 2/12 ($0.009/call). DeepSeek is being replaced by Qwen 3.8 Flash (decision 2026-09-25, Phase 3b).
 
 Also added in Phase 3:
 
 - `silver commission --now` produces the series immediately (chatter and shortlist to follow in Phases 6 and 4)
-- `reasoning` in role frontmatter may be a number: a thinking-token budget (advisory in practice, see the open points)
+- `reasoning` in role frontmatter may be a number: a thinking-token budget (advisory in practice: several providers ignore it)
 - The Technician's release notes use the tool's own header and a facts-only rule (the first live notes invented features)
+
+## Phase 3b: follow-ups from the 2026-09-25 decisions
+
+- [ ] **Replace DeepSeek with Qwen 3.8 Flash** in `models.studio`: check it with `silver models`, run one dry-run series on it, and record the result here.
+- [ ] **Retire subjects:** add a `subject.retired` event type (payload `subjectId`, `reason`, actor `human`) and `silver subjects --retire <id> [--reason ...]`. `findSubject('latest')`, `subjects --open` and `pendingCommissions` skip retired subjects. `silver subjects` marks them. Then retire the two subjects from before the exclusion rule (the US Navy suicide attempts and the UN photos of slain children).
 
 ## Phase 4: Warhol and the contact sheet (veto)
 
 - [ ] `taste.md`: starts with a short hand-written header of what the human likes and dislikes. After that it is append-only: one entry per human decision, with date, variant, verdict, and note.
 - [ ] Write `roles/warhol.md`: terse, flat, deadpan; chooses the piece, never makes it; judges *seriality and surface*, not effort. Its `{{taste}}` placeholder receives the last N entries of `taste.md`. Output: 1–3 picks per series with a one-line note each, plus a note for the rejects.
 - [ ] `agents/warhol.js`: on `series.completed`, sends the screenshots (vision) and the sketch metadata (not the full code, which would bias it toward code quality) → `shortlist.proposed`
+  - [ ] **One screenshot per variant** (seed 1), so about 12 images per review (decision 2026-09-25)
+  - [ ] Warhol's notes say when a variant ignored its assigned technique. Such variants are kept as drift and judged at the veto (decision 2026-09-25).
 - [ ] `tools/contact-sheet/`: a small `node:http` server, with no framework
   - [ ] `silver review` starts it on `localhost:4747` and opens the browser
   - [ ] One page per series: a grid of **live** sketches in iframes, with Warhol's picks highlighted and his notes shown
@@ -350,8 +365,11 @@ Also added in Phase 3:
   - [ ] `silver commission --now` runs a mini-shift for one subject: superstar chatter → series → Warhol shortlist (decision 2026-09-24)
   - [ ] Idempotent per date: running it twice on one day continues the shift without duplicating it
   - [ ] Stops cleanly on `BudgetExhausted` and records the reason
+  - [ ] Skips retired subjects (`subject.retired`, Phase 3b)
+  - [ ] The end-of-shift summary includes the reconcile gap (below)
   - [ ] Printing happens **outside** the shift, at the moment of human approval, because the veto is async
 - [ ] `silver shift [--dry-run]`: dry-run uses the cheapest model and 2 variants
+- [ ] `silver cost --reconcile` (decision 2026-09-25): compare the ledger's total with OpenRouter's `/api/v1/key` usage over the same period and report the gap (billed calls that never reached `cost.recorded`, such as timed-out replies)
 - [ ] A macOS notification at the end of a shift (`osascript -e 'display notification …'`) saying "N series waiting for review"
 - [ ] `launchd/com.silver.shift.plist`: `StartCalendarInterval` (e.g. 09:00), absolute paths to `node` and the repo, and logs to `archive/logs/`
 - [ ] `silver install-schedule`: copies the plist to `~/Library/LaunchAgents/` and runs `launchctl bootstrap`. `silver uninstall-schedule` reverses it.
@@ -383,33 +401,16 @@ The open decisions from Phases 0–2 were answered on 2026-09-24. They are summa
 10. **Licence:** *Chosen:* MIT for code, CC BY 4.0 for artworks. *Considered:* CC BY-NC for works; all rights reserved for works; stay UNLICENSED.
 11. **Backup of the local record:** *Chosen:* a private data repo pushed by the Archivist. *Considered:* Time Machine only, a sync folder or rsync, tarballs.
 
+## Decisions taken on 2026-09-25
+
+The open points from the Phase 2b/3 night shift were answered on 2026-09-25. They are summarised in the decisions table at the top, and the resulting work is in **Phase 3b**, Phase 4 and Phase 8. For the record:
+
+1. **DeepSeek in the studio pool.** It produced 2/12 across three live series (Gemini 8/8, GPT-6 Luna Pro 11/12, Sonnet 4/4). It thinks for 8k–15k tokens on the studio brief, and its providers (Alibaba, AtlasCloud, Relace, NextBit) ignore `reasoning.effort` and `reasoning.max_tokens`, even with `provider.require_parameters`. *Chosen:* replace it with Qwen 3.8 Flash, keeping four different houses for drift. *Considered:* Kimi K3 (strong, but priced like Sonnet), a 3-model pool, keeping DeepSeek.
+2. **Sonnet's cost share.** About $0.056 per variant, 6–13× the others; ~$0.27 for a series with Sonnet against ~$0.05–0.11 without. *Chosen:* keep it in rotation. *Considered:* writing roles only; at most one slot per series (which is already the case).
+3. **p5 1.x vs 2.x.** *Chosen:* stay on 1.11.13 for v1. *Considered:* move to 2.x now.
+4. **Subjects from before the exclusion rule.** *Chosen:* a `subject.retired` event with `silver subjects --retire`. *Considered:* skip subjects posted before a date; leave it to the veto.
+5. **Technique adherence.** *Chosen:* keep off-technique variants as drift, with Warhol noting it. *Considered:* pure drift; re-prompting after a vision check.
+6. **Spend that never reaches the ledger.** *Chosen:* `silver cost --reconcile` against OpenRouter's key usage. *Considered:* the budget reading real usage before each call; ignoring it.
+7. **Screenshots per variant for Warhol.** *Chosen:* 1 (seed 1). *Considered:* 3 seeds per variant; 1, plus 3 for his picks.
+
 New open questions go here as they come up.
-
-## Open points from the 2026-09-24 night shift (Phases 2b and 3)
-
-1. **DeepSeek in the studio pool.** Across three live series, DeepSeek v4.1 Flash produced **2 of 12** variants. The others: Gemini 8/8, GPT-6 Luna Pro 11/12, Sonnet 4/4. It thinks for 8k–15k tokens on the studio brief. Its upstream providers (Alibaba, AtlasCloud, Relace, NextBit) ignore both `reasoning.effort` and `reasoning.max_tokens`, even with `provider.require_parameters`. So it times out, returns empty, or gets cut off mid-code.
-   - *Today:* it stays in `models.studio`. Its failures are recorded, and the other models carry the series.
-   - *Options:* (a) keep it, since failures are material and it's cheap; (b) replace it with another provider's model, chosen with `silver models`; (c) pin a better-behaved upstream provider through OpenRouter's `provider.order` (NextBit stopped at ~11k tokens); (d) drop to a 3-model pool.
-   - *Recommendation:* (b). A 1-in-6 success rate wastes a quarter of every series.
-
-2. **Sonnet's cost share.** Claude Sonnet 5 costs about $0.056 per variant, 6–13× the others, and ignores the thinking budget (up to ~5k reasoning tokens). A series with Sonnet in it costs ~$0.27, and ~$0.05–0.11 without. Both fit $5/day easily at 2 series per shift.
-   - *Question:* keep Sonnet in the rotation for quality, or reserve it for Warhol and the writing roles?
-
-3. **p5 1.x vs 2.x.** Variants pin **p5 1.11.13** (the maintained `r1` line) rather than 2.3.3: models write 1.x reliably, and 2.x broke `preload()` and other APIs. Published works will load 1.11.13 from jsDelivr forever.
-   - *Options:* (a) stay on 1.x; (b) move to 2.x later and re-brief the assistants.
-   - *Recommendation:* (a) for v1.
-
-4. **Subjects from before the exclusion rule.** The floor is append-only, so two subjects posted before the 2026-09-24 sensitive-subjects rule are still selectable: the US Navy suicide attempts, and the UN photos of slain children. `silver series latest` or the Phase 8 shift could still pick them.
-   - *Options:* (a) leave it to the veto; (b) add a `subject.retired` event and `silver subjects --retire <id>`, which hides a subject from `latest`, `--open` and the shift; (c) have Phase 8 skip any subject posted before a given date.
-   - *Recommendation:* (b). A new event type keeps the floor append-only, and it's a reusable way to take a subject off the table.
-
-5. **Technique adherence.** Assistants don't always follow their technique. One `screen-test-portrait` variant came back as a Warholian invoice grid of nine smartphones. It's good work, but it isn't the technique.
-   - *Options:* (a) keep it as drift and let Warhol judge (Phase 4); (b) add an adherence note to Warhol's review; (c) re-prompt when the technique is ignored.
-   - *Recommendation:* (a), possibly (b).
-
-6. **Spend that never reaches the ledger.** When a reply times out or the connection drops, OpenRouter may still bill the generation, and it never reaches `cost.recorded`. In the first series, three DeepSeek calls may have been billed like that, costing at most about $0.03. My direct `curl` tests tonight (about 8 calls, well under $0.10) are outside the ledger too.
-   - *Options:* (a) ignore it at this scale; (b) `silver cost --reconcile`, which compares the ledger with OpenRouter's `/api/v1/key` usage and reports the gap; (c) let the budget check read the real usage, which is slower.
-   - *Recommendation:* (b), in Phase 8.
-
-7. **Screenshots per variant, for Phase 4.** The renderer can shoot seeds 1–3 of each variant (a small grid showing the drift *within* a variant). Today it shoots seed 1 only.
-   - *Question:* should Warhol see 1 or 3 screenshots per variant? Three triples the images in his vision call (about 12 → 36 per review).
