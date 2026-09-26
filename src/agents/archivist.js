@@ -107,7 +107,7 @@ export function digest(events, { since = null, maxChars = 24_000 } = {}) {
       add(`\n## ${e.shift}`);
       lastShift = e.shift;
     }
-    const time = e.ts.slice(11, 16);
+    const time = new Date(e.ts).toTimeString().slice(0, 5); // local time: the diary is the Factory's day, not UTC's
     switch (e.type) {
       case 'shift.started':
         add(`${time} the shift starts${p.again ? ' (another round)' : ''}.`);
