@@ -547,7 +547,7 @@ The open questions from Phase 5 and the day shift were answered on 2026-09-25. T
 v1 is built (Phases 0–8). What is left, in order:
 
 **Tomorrow, after the 09:00 shift** (the first unattended run with superstars, the diary, the Qwen fallback and the record push):
-- [ ] Check the run: `npx silver floor` (the `shift.ended` steps), `npx silver diary`, `npx silver review`, and the latest commit on github.com/y-a-v-a/silver-record. Or ask Claude for the shift report.
+- [x] Check the run. **2026-09-26 09:00, unattended:** 6 subjects scouted, 2 series (Excel multi-value cells, Dolly Parton Day) at 12/12 each, Warhol shortlisted both, the diary was written (331 words), and the record was pushed (`fbff1b9`). $0.72. **Found and fixed:** Brigid and Ondine failed because Qwen was rate-limited and its Gemini fallback rejects `reasoning: off` (the superstars now use `reasoning: 256`; verified live on both models). The diary gave UTC times ("started at 7"); the notes now use local time. The Qwen studio variants fell back to Gemini without trouble.
 
 **Yours:**
 - [ ] **Go live on Vercel:** fill in `VERCEL_TOKEN` in `.env`, run `npx silver publish --redeploy`, then set `deploy.siteUrl` (see Phase 5b).
