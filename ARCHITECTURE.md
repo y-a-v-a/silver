@@ -81,6 +81,7 @@ sequenceDiagram
 4. **One narrow gate.** Only the Warhol role writes to the canon. Everything upstream is cheap and disposable.
 5. **Source from mass media, not imagination.** The ready-made subject is the point. Scouts find; they do not invent.
 6. **Blurry roles.** Any agent may occasionally step outside its role (a superstar proposes a subject, an assistant argues with Warhol). Role boundaries are defaults, not walls.
+7. **Warhol's method, not Warhol's look.** The Factory borrows how Warhol worked (delegation, series, cheap machines, one gate) and never how his work looked. Pop-art pastiche is the one thing it doesn't make. Today's cheap image machines (the inkjet, the fax, the codec, the plotter, machine vision) and the hand that scratches and rubs out are its silkscreen, and the superstars' lines, taken literally, are its briefs. (Added 2026-10-23; see ACTIONS.md, Phase 9.)
 
 ## Floor event types (draft)
 

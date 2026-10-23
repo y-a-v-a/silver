@@ -6,10 +6,12 @@ Each day the Factory runs a **shift**:
 
 1. **Scouts** pull ready-made subjects from trending lists and news feeds, and you can add your own subjects as commissions.
 2. **Superstars**, persona agents, chatter about the subjects.
-3. **Studio assistants** turn each subject into a *series* of 12 generative p5.js sketches across several models, temperatures and techniques. The drift between them is kept on purpose.
-4. **Warhol**, an agent, shortlists from each series.
+3. **Studio assistants** turn each subject into a *series* of 12 generative p5.js sketches across several models, temperatures and procedures. Each variant also draws a dare card and takes one superstar line literally as its brief. The drift between them is kept on purpose.
+4. **Warhol**, an agent, shortlists from each series, and sends his first pick back to its maker for a **second pull**, pushed further.
 5. **You** approve or veto the shortlist on a local contact sheet. Nothing enters the canon without you.
 6. The **Printer** signs and deploys the approved works to a static gallery on Vercel, and **Fred Hughes** numbers the editions and publishes the feed.
+
+The Factory works the way Warhol's did, but it doesn't look like his: no pop-art pastiche. The procedures come from today's cheap image machines and from the hand (scratched film, a failing inkjet, a fax arriving, compression rot, a Rorschach blot, asemic handwriting), aiming for work that is strange, scratchy and still beautiful.
 
 Everything is recorded, including drafts, chatter and rejects, and the record feeds back in as raw material. The record lives on local disk and is **not committed to git**: this repository holds code, roles and config only.
 
@@ -18,14 +20,14 @@ Everything is recorded, including drafts, chatter and rejects, and the record fe
 
 ## Status
 
-**All phases (0–8) are built.** The gallery isn't live on Vercel yet.
+**All phases (0–9) are built.** Phase 9 (2026-10-23) replaced the pop-art studio with a contemporary one. The gallery isn't live on Vercel yet.
 - The floor (the event log) records everything.
 - The OpenRouter client runs as any role, archives transcripts and costs every call.
 - The daily budget cap is enforced.
 - The Scouts pull ready-made subjects from Google Trends, Hacker News, Reddit and news RSS, and you can commission your own.
-- The Studio assistants turn a subject into a series of 12 p5.js sketches across models, temperatures and techniques. Each sketch is rendered headless and checked for errors and blank canvases, and every series gets a contact sheet.
-- Warhol shortlists each series from its screenshots, and you approve or veto on a local review page. Every decision goes into `taste.md`, which Warhol reads next time.
-- Three Superstars (Brigid, Ondine, Viva) gossip about the day's subjects on a cheap model. Their chatter goes into the assistants' prompts, Warhol's review and the contact sheet, and now and then one of them pushes a subject onto the floor.
+- The Studio assistants turn a subject into a series of 12 p5.js sketches across models, temperatures and procedures. Every variant draws a card from the dare deck and takes one superstar line literally as its brief, and names what it made in a `// WORK:` line. Each sketch is rendered headless and checked for errors and blank canvases, and every series gets a contact sheet.
+- Warhol shortlists each series from its screenshots, and you approve or veto on a local review page. Every decision goes into `taste.md`, which Warhol reads next time. His first pick goes back to the assistant who made it for a second pull (`v13`), which you review next to the first.
+- Four Superstars (Brigid, Ondine, Viva, and Nico, who talks only in images) gossip about the day's subjects on a cheap model. Their chatter goes into the assistants' prompts, Warhol's review and the contact sheet, and now and then one of them pushes a subject onto the floor.
 - `silver shift` runs the whole day (scouts → superstars → series → shortlists → Archivist) and can be scheduled with launchd.
 - Every approval is printed into the canon (signed, print-checked), given an edition number, an English title and wall text by Fred Hughes, and published to a static gallery with an Atom feed, deployed to Vercel.
 
@@ -49,6 +51,7 @@ npx silver subjects [--open]     # subjects with short ids
 npx silver series <id|latest>    # 12 variants + screenshots + a contact sheet (--dry-run: 2 cheap ones)
 npx silver release <tool>        # the Technician announces a changed tool
 npx silver shortlist [series]    # Warhol picks from a finished series (default: the newest without a shortlist)
+npx silver pull [series]         # a second pull of Warhol's first pick (or --variant v03), pushed further
 npx silver review                # the review page on http://127.0.0.1:4747: approve, veto, close
 npx silver shift [--dry-run]     # the whole day: scouts, superstars, series (commissions first), shortlists, Archivist
 npx silver chatter [subject]     # the superstars talk (default: today's waiting subjects); --list shows the floor's chatter
@@ -100,7 +103,9 @@ All tunables live in [`silver.config.js`](silver.config.js):
 - `models`: the studio model pool and a default model per role (OpenRouter slugs)
 - `budget`: the daily spend cap ($5)
 - `series`: the variant matrix. 12 variants = 3 models × 2 temperatures × 2 techniques.
-- `techniques`: the technique menu (grid-repeat, misregistered silkscreen, halftone, …)
+- `techniques`: the procedure menu (scratch film, inkjet failure, fax transmission, compression rot, …)
+- `dares`: the dare deck, one card per variant
+- `series.secondPulls`: how many of Warhol's picks per series get a second pull (default 1)
 - `shift`, `sources`, `review`, `deploy`, `paths`
 
 `npx silver config --check` validates the file and reports every problem at once. `npx silver models` checks the model slugs against OpenRouter's live catalogue.
@@ -146,7 +151,7 @@ src/budget.js      daily ledger and caps
 src/pricing.js     model prices and capabilities from OpenRouter
 src/factory.js     wires the parts together for commands
 src/sources/       scout sources: Google Trends, Hacker News, Reddit, RSS, and the archive (rejects, diary)
-src/agents/        scouts, commissions, superstars, studio assistants, technician, Warhol, review, retire, printer, Fred Hughes, archivist
+src/agents/        scouts, commissions, superstars, studio assistants, technician, Warhol, the second pull, review, retire, printer, Fred Hughes, archivist
 src/shift.js       the daily shift
 src/schedule.js    the launchd job
 src/reconcile.js   ledger vs OpenRouter billing

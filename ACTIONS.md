@@ -52,6 +52,14 @@ The build plan for the Silver Factory in Node.js, derived from [ARCHITECTURE.md]
 | Model fallbacks | **Qwen 3.8 Flash falls back to Gemini 3.8 Flash** (2026-09-25) via OpenRouter's `models` list (`models.fallbacks`). |
 | Superstar-pushed subjects | **Ahead of the Scout's picks** (2026-09-25), after commissions. |
 | Gossip on the work | **The human veto is enough** (2026-09-25): chatter printed on a work goes public only through an approval. |
+| The look | **Not Warhol's** (2026-10-23, the owner: "far more strange, scratchy, weird, unique, but esthetical at the same time"; no "warholian rip offs"). The Factory keeps Warhol's way of working (delegation, series, one gate) and drops his surface. See Phase 9. |
+| Technique menu | **Procedures, not pop-art styles** (2026-10-23). 30 procedures (scratch film, inkjet failure, asemic ledger, compression rot, fax transmission, Rorschach, xerox generations, …) replace the six 1964 techniques. No artist names in the guidance: they produced copies of the named artist. |
+| The dare deck | **One card per variant** (2026-10-23): 44 oblique constraints in `dares` ("Make it tender.", "It has been left out in the rain."), dealt without repeats in a series. |
+| Superstar lines as briefs | **Every variant takes one line literally** (2026-10-23). The floor's lines are dealt across the series, about evenly and shuffled; with no chatter the Scout's proposed image is the brief. The superstars are told the assistants overhear them. |
+| Studio pool | **Sonnet 5.5, Opus 5.5, Gemini 4 Argon, Kimi K3, GPT-6 Luna Pro** (2026-10-23), after a bake-off of 12 models on the new brief. Out: Qwen 3.8 Flash, Gemini 3.8 Flash, Sonnet 5. Not cast: Grok 4.7 (hung), MiniMax M3.1 Flash, Mistral Large 4. About $0.07 a variant, ~$2.20 a day. |
+| Nico | **A fourth superstar** (2026-10-23), after Christa Päffgen: she talks in images, not gossip, so her lines make the strangest briefs. |
+| The second pull | **Warhol's first pick goes back to its maker** (2026-10-23), with his note, its image and its own code, to be pushed further. It joins the series as the next variant (`v13`) and is reviewed next to the first. `series.secondPulls` (default 1, 0 = off); `silver pull` by hand. |
+| Screenshot frame | **Frame 60** (2026-10-23), up from 30, so works that accumulate marks have built up. |
 
 ## Stack
 
@@ -76,6 +84,7 @@ silver/
   roles/                    # the "system prompts": one markdown file per role
     scout.md
     studio-assistant.md
+    second-pull.md          # Phase 9: Warhol's pick goes back to its maker
     warhol.md
     printer.md
     fred-hughes.md
@@ -85,6 +94,7 @@ silver/
       brigid.md
       ondine.md
       viva.md
+      nico.md               # Phase 9
   taste.md                  # append-only log of human approve/veto notes; read by Warhol (local only)
   process-log.jsonl         # build progress, one line per finished task
   bin/                      # setup.sh, log-progress.js
@@ -108,6 +118,7 @@ silver/
       superstars.js
       assistants.js
       warhol.js
+      pull.js               # Phase 9: the second pull
       printer.js
       hughes.js
       archivist.js
@@ -188,7 +199,7 @@ Event types, extending the draft list in ARCHITECTURE.md:
 | `chatter.posted` | superstar | persona id, text, ref |
 | `tool.released` | technician | tool name, version (in v1, emitted manually when a template changes) |
 | `series.started` | assistant | `subjectId` (this claims the subject; commissions without one are pending), technique list, model matrix |
-| `variant.produced` | assistant | series id, path, model, temperature, technique, seed |
+| `variant.produced` | assistant | series id, path, model, temperature, technique, seed; since Phase 9 also `dare`, `brief` (`{from, text, eventId}`: the superstar line it was made from), `note` (the sketch's `// WORK:` line), and for a second pull `pullOf` and `warholNote` |
 | `variant.failed` | renderer | series id, error (kept in the archive, since failures are material) |
 | `series.completed` | orchestrator | series id, variant ids, contact-sheet path |
 | `shortlist.proposed` | Warhol agent | picks with notes, reject note |
@@ -413,6 +424,24 @@ Also added in Phase 3:
 - **Verified:** `silver shift --dry-run` ran live on 2026-09-25 (6 subjects, 1 series, 1 shortlist, reconcile OK, about 2 minutes). The tests cover full, repeated, resumed, budget-stopped and dry-run shifts.
 - **Open:** the unattended run needs `silver install-schedule`, which I didn't run: it schedules daily spending, and `.env` doesn't hold the key yet (see the open questions).
 - **Open:** "publish" is Phase 5, so for now the morning flow ends at approval.
+
+## Phase 9: the contemporary studio ✅ (night shift, 2026-10-23)
+
+The owner's brief: the outputs were Warhol rip-offs (flat clip-art icons in grids, headline posters, hot pink and yellow), because every part of the pipeline asked for exactly that: the technique menu was Warhol's greatest hits, the assistant's brief demanded flat silkscreen logic and logos-as-type, the Scout proposed "flat, repeatable images to screen", Warhol selected for "looks like a print of the thing", Fred Hughes titled in the *(Disaster)* register, and `taste.md`'s placeholder examples liked "flat colour, hard repetition, brand type". The inputs (subjects, chatter) were fine; the outputs had to go wilder.
+
+- [x] **The studio brief** (`roles/studio-assistant.md`): it's 2026, pop-art pastiche is the one thing the Factory no longer makes. Sideways, not illustrated; marks, not clip-art; not the generative-art screensaver either; still beautiful; colour is a decision (beige paper is the new cliché); hold from across the room; type is material. Each sketch starts with a `// WORK:` line saying what it shows, kept as the variant's `note`.
+- [x] **30 procedures** replace the six techniques, described as processes without artist names.
+- [x] **The dare deck**: `dares` in the config, one card per variant (`buildMatrix`).
+- [x] **Briefs from the floor**: `dealBriefs` gives every variant one superstar line to take literally; `formatBrief` falls back to the Scout's image.
+- [x] **Warhol's eye**: bored by copies of himself; picks the strange one that still holds, leaves illustration, posters, clip-art and tasteful beige. He sees each variant's dare and whose line it came from.
+- [x] **Fred Hughes** may title from the superstar's line or the assistant's note; the wall text names the superstar. The canon keeps `dare`, `brief` and `makerNote`; the gallery's work page shows the line and the dare.
+- [x] **The Scout's `image`** proposes a detail, a residue, a strange angle, not a flat image to screen.
+- [x] **The review page and contact sheet** show each variant's note, brief and dare.
+- [x] **Template fixes** (found in the bake-off; they killed about a third of the stronger models' variants): `buffer.remove()` on a `createGraphics` buffer throws in p5 1.11.13 global mode, and `fill('#hex', alpha)` / `fill(color, alpha)` throws too. Both are now handled in the template; the brief also warns about top-level p5 calls and shadowing p5 names. Screenshot at frame 60.
+- [x] **Studio pool re-cast** after a bake-off (see the decisions table).
+- [x] **Nico** (`roles/superstars/nico.md`). Superstar replies that are a bare array are read as the lines.
+- [x] **The second pull** (`src/agents/pull.js`, `roles/second-pull.md`, `silver pull`, shift step 4b). The Archivist's diary notes it.
+- [x] `taste.md` (local): the Likes/Dislikes placeholders now hold the owner's own words from the brief; the default header's examples no longer recommend pop.
 
 ## Later (not v1)
 
