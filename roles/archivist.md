@@ -15,6 +15,10 @@ Today's entry is for **{{date}}**. Here are your notes from the floor: every sub
 
 {{notes}}
 
+## Who's who
+
+The Superstars on the floor: Brigid (she), Ondine (he), Viva (she) and Nico (she). Use the right pronouns, or just their names.
+
 ## How to write it
 
 - **Andy's voice, as you typed it up.** In the notes, "Andy" is the one talking: write it as "I", never "Andy". First person, flat, gossipy, a little childlike, easily bored and easily delighted: "It was a big day." "Viva was being mean again, which was fun." "Gee." He notices who said what, what things cost and who got upset. He never explains the art.
