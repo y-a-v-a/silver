@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { buildMatrix, extractSketch, sketchVars, sample, ExtractError } from '../src/agents/studio.js';
+import { buildMatrix, dealBriefs, extractNote, extractSketch, formatBrief, sketchVars, sample, ExtractError } from '../src/agents/studio.js';
 import { runSeries, findSubject, SeriesError } from '../src/agents/assistants.js';
 import { buildContactSheet } from '../src/tools/contact-sheet.js';
 import { readSketchMeta } from '../src/tools/template.js';
@@ -47,7 +47,42 @@ test('buildMatrix: dry run uses the dry-run model and 2 variants; variants can b
   assert.equal(big.cells[12].technique, big.cells[0].technique, 'the matrix repeats');
 });
 
+test('buildMatrix: every variant draws its own card from the dare deck', () => {
+  const m = buildMatrix(shipped, { rng: seq(0.3, 0.7, 0.1, 0.9) });
+  assert.ok(m.cells.every((c) => shipped.dares.includes(c.dare)));
+  assert.equal(new Set(m.cells.map((c) => c.dare)).size, 12, 'no card twice in a series');
+  const small = buildMatrix({ ...shipped, dares: ['a', 'b'] }, { variants: 5 });
+  assert.deepEqual(new Set(small.cells.map((c) => c.dare)), new Set(['a', 'b']), 'a short deck is dealt again');
+  const none = buildMatrix({ ...shipped, dares: undefined }, { variants: 2 });
+  assert.deepEqual(none.cells.map((c) => c.dare), [null, null]);
+});
+
+test('dealBriefs gives every variant a superstar line, each line about equally often', () => {
+  const line = (id, persona, text) => ({ id, actor: `superstar.${persona}`, payload: { persona, text } });
+  const chatter = [line('A', 'brigid', 'I have it on tape.'), line('B', 'ondine', 'A mad scene!'), line('C', 'viva', 'Boring.')];
+  const cells = dealBriefs(Array.from({ length: 12 }, (_, i) => ({ variant: `v${i}` })), chatter, seq(0.2, 0.8, 0.5, 0.1));
+  const counts = {};
+  for (const c of cells) counts[c.brief.eventId] = (counts[c.brief.eventId] ?? 0) + 1;
+  assert.deepEqual(counts, { A: 4, B: 4, C: 4 });
+  assert.deepEqual(cells.find((c) => c.brief.eventId === 'B').brief, { from: 'ondine', text: 'A mad scene!', eventId: 'B' });
+  assert.ok(dealBriefs([{ variant: 'v01' }], []).every((c) => c.brief === null), 'no chatter, no brief');
+});
+
+test('formatBrief quotes the line, or falls back to the Scout\'s proposal', () => {
+  const subject = { payload: { image: 'A smudge, circled.' } };
+  assert.equal(formatBrief({ from: 'viva', text: 'Expensive and green.' }, subject), 'Viva said it on the floor: “Expensive and green.”');
+  assert.match(formatBrief(null, subject), /Scout proposed this image; it's yours to misuse: A smudge, circled\./);
+  assert.match(formatBrief(null, { payload: {} }), /Find your own way in/);
+});
+
 // ---------- extraction ----------
+
+test('extractNote reads the sketch\'s WORK line, if there is one', () => {
+  assert.equal(extractNote('// WORK: A strip of  scratched film.\nfunction setup() {}'), 'A strip of scratched film.');
+  assert.equal(extractNote('let a;\n  //WORK:   Torn posters\nfunction setup() {}'), 'Torn posters');
+  assert.equal(extractNote(GOOD), null);
+  assert.equal(extractNote('// WORK: ' + 'x'.repeat(400)).length, 280);
+});
 
 const GOOD = 'function setup() {\n  createCanvas(SILVER.width, SILVER.height);\n}\nfunction draw() { background(0); }';
 
@@ -81,6 +116,12 @@ test('sketchVars merges the human and Scout notes and falls back when things are
   assert.equal(vars.floor_excerpt, '- superstar.viva: Boring. Print it.');
   assert.equal(vars.technique_guidance, 'Dots.');
   assert.equal(vars.width, '1080');
+  assert.equal(vars.ready_frames, '60');
+  assert.match(vars.brief, /Scout proposed this image; it's yours to misuse: Stacked boxes\./);
+  assert.equal(vars.dare, '(no card today)');
+  const briefed = sketchVars({ subject, chatter: [], cell: { technique: 'halftone', dare: 'Make it tender.', brief: { from: 'viva', text: 'Boring.' } }, techniques: { halftone: 'Dots.' } });
+  assert.equal(briefed.dare, 'Make it tender.');
+  assert.equal(briefed.brief, 'Viva said it on the floor: “Boring.”');
   const bare = sketchVars({ subject: { payload: { title: 'x', snapshot: {} } }, chatter: [], cell: { technique: 't' }, techniques: { t: 'g' } });
   assert.equal(bare.subject_why, '(no note)');
   assert.equal(bare.subject_context, '(only the title)');
@@ -122,7 +163,7 @@ function fakeRenderer() {
   };
 }
 
-const sketchReply = (marker = '') => completion('```js\nfunction setup(){ createCanvas(SILVER.width, SILVER.height); }\nfunction draw(){ background(200); ' + marker + ' }\n```', { cost: 0.01 });
+const sketchReply = (marker = '') => completion('```js\n// WORK: A grey field.\nfunction setup(){ createCanvas(SILVER.width, SILVER.height); }\nfunction draw(){ background(200); ' + marker + ' }\n```', { cost: 0.01 });
 
 async function studioSetup(replyFor, { variants = 4, dailyUsd = 5, maxTokens } = {}) {
   // maxTokens pins the role's token ceiling, so budget tests don't depend on the shipped tuning.
@@ -135,6 +176,7 @@ async function studioSetup(replyFor, { variants = 4, dailyUsd = 5, maxTokens } =
     models: { ...f.config.models, studio: ['test/text', 'test/vision'], dryRun: 'test/cheap' },
     series: { variants, modelsPerSeries: 2, temperatures: [0.7], techniquesPerSeries: 2, concurrency: 3 },
     techniques: { halftone: 'Dots.', 'grid-repeat': 'Grid.' },
+    dares: ['Make it tender.', 'Something drips.', 'It is a weather report.', 'Lines only; no filled shapes.'],
   };
   const subject = await f.floor.append({
     type: 'subject.posted',
@@ -162,6 +204,9 @@ test('runSeries: every cell becomes an event; sketches, PNG paths and a contact 
   const produced = await f.floor.read({ type: 'variant.produced' });
   assert.equal(produced.length, 4);
   assert.ok(produced.every((e) => e.ref === out.seriesId && e.payload.rendered && e.payload.png.endsWith('.png')));
+  // How each was made: its own dare, Brigid's line as the brief, and the sketch's WORK note.
+  assert.equal(new Set(produced.map((e) => e.payload.dare)).size, 4);
+  assert.ok(produced.every((e) => e.payload.brief.from === 'brigid' && e.payload.brief.text === 'Tomato, darling.' && e.payload.note === 'A grey field.'));
 
   const files = await readdir(out.dir);
   assert.deepEqual(files.filter((n) => n.endsWith('.html')).sort(), ['index.html', 'v01.html', 'v02.html', 'v03.html', 'v04.html']);
@@ -178,6 +223,8 @@ test('runSeries: every cell becomes an event; sketches, PNG paths and a contact 
   assert.doesNotMatch(system, /\{\{|\[(subject_\w+|technique\w*|floor_excerpt|width|height)\]/);
   assert.match(system, /\*\*campbell soup\*\*/);
   assert.match(system, /- superstar\.brigid: Tomato, darling\./);
+  assert.match(system, /Brigid said it on the floor: “Tomato, darling\.”/);
+  assert.doesNotMatch(system, /\[(brief|dare|ready_frames)\]/);
   // Each cell is called with its own model and temperature, and linked to the series.
   const models = new Set(f.fetch.requests.map((r) => r.body.model));
   assert.deepEqual([...models].sort(), ['test/text', 'test/vision']);

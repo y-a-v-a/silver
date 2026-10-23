@@ -80,7 +80,7 @@ test('Fred Hughes sees the titles already used for the subject, including earlie
   const [first, second] = f.fetch.requests.map((r) => r.body.messages[0].content);
   assert.match(first, /Titles already on the wall for this subject\n\n\(none yet\)/);
   assert.match(second, /- Soup \(Disaster\) \(No\. 001\)/);
-  assert.match(second, /number it deliberately/);
+  assert.match(second, /number them deliberately/);
 });
 
 test('retitle: a correction keeps the number, the canon shows the latest label, the old one stays on the floor', async () => {

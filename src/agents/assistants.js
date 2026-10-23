@@ -3,7 +3,7 @@
 // between them is kept (principle 2). Every variant is recorded, including failures.
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
-import { buildMatrix, extractSketch, sketchVars } from './studio.js';
+import { buildMatrix, dealBriefs, extractNote, extractSketch, sketchVars } from './studio.js';
 import { buildSketchHtml } from '../tools/template.js';
 import { buildContactSheet } from '../tools/contact-sheet.js';
 import { retiredSubjects, claimedSubjects } from './retire.js';
@@ -77,6 +77,7 @@ export async function runSeries({ config, floor, llm, renderer }, subjectRef, { 
   // dry run's chatter. `chatter: false` leaves it out (the Phase 6 A/B).
   const chatter = withChatter ? (await floor.read({ shift: 'all', type: 'chatter.posted', ref: subject.id })).filter((e) => dryRun || !e.payload.dryRun).slice(-20) : [];
   const matrix = buildMatrix(config, { rng, dryRun, variants });
+  dealBriefs(matrix.cells, chatter, rng);
 
   const started = await floor.append({
     type: 'series.started',
@@ -106,7 +107,7 @@ export async function runSeries({ config, floor, llm, renderer }, subjectRef, { 
     matrix.cells,
     concurrency,
     async (cell) => {
-      const base = { seriesId, variant: cell.variant, technique: cell.technique, requestedModel: cell.model, temperature: cell.temperature };
+      const base = { seriesId, variant: cell.variant, technique: cell.technique, requestedModel: cell.model, temperature: cell.temperature, dare: cell.dare, brief: cell.brief };
       const fail = async (stage, error, extra = {}) => {
         const actor = ['error', 'blank', 'no-canvas', 'timeout'].includes(stage) ? 'renderer' : 'studio-assistant';
         await floor.append({ type: 'variant.failed', actor, ref: seriesId, payload: { ...base, stage, error, ...extra } });
@@ -138,6 +139,7 @@ export async function runSeries({ config, floor, llm, renderer }, subjectRef, { 
         return fail('extract', why, { callId: res.id, model: res.model, reply: rel(replyPath), finishReason: res.finishReason });
       }
 
+      const note = extractNote(sketch);
       const htmlPath = join(dir, `${cell.variant}.html`);
       const meta = {
         title: `${subject.payload.title} (${cell.variant})`,
@@ -145,16 +147,19 @@ export async function runSeries({ config, floor, llm, renderer }, subjectRef, { 
         series: seriesId,
         variant: cell.variant,
         technique: cell.technique,
+        dare: cell.dare,
+        brief: cell.brief,
+        note,
         model: res.model,
         temperature: cell.temperature,
         callId: res.id,
       };
       await writeFile(htmlPath, buildSketchHtml({ sketch, meta }));
-      const made = { callId: res.id, model: res.model, usd: res.usd, path: rel(htmlPath) };
+      const made = { callId: res.id, model: res.model, usd: res.usd, path: rel(htmlPath), note };
 
       if (!renderer) {
         await floor.append({ type: 'variant.produced', actor: 'studio-assistant', ref: seriesId, payload: { ...base, ...made, png: null, seed: null, rendered: false } });
-        results.push({ ...cell, ok: true, html: `${cell.variant}.html`, png: null, model: res.model });
+        results.push({ ...cell, ok: true, html: `${cell.variant}.html`, png: null, model: res.model, note });
         return;
       }
 
@@ -173,7 +178,7 @@ export async function runSeries({ config, floor, llm, renderer }, subjectRef, { 
         ref: seriesId,
         payload: { ...base, ...made, png: rel(png.png), seed: png.seed, rendered: true, render: { ms: shot.ms, colors: png.colors, readySignal: shot.readySignal, blocked: shot.blocked } },
       });
-      results.push({ ...cell, ok: true, html: `${cell.variant}.html`, png: `${cell.variant}.png`, model: res.model });
+      results.push({ ...cell, ok: true, html: `${cell.variant}.html`, png: `${cell.variant}.png`, model: res.model, note });
     },
     () => stoppedEarly !== null,
   );
@@ -181,7 +186,7 @@ export async function runSeries({ config, floor, llm, renderer }, subjectRef, { 
   // Cells never started because the budget ran out are recorded too.
   for (const cell of matrix.cells) {
     if (results.some((r) => r.variant === cell.variant)) continue;
-    await floor.append({ type: 'variant.failed', actor: 'studio-assistant', ref: seriesId, payload: { seriesId, variant: cell.variant, technique: cell.technique, requestedModel: cell.model, temperature: cell.temperature, stage: 'budget', error: 'not started: budget exhausted' } });
+    await floor.append({ type: 'variant.failed', actor: 'studio-assistant', ref: seriesId, payload: { seriesId, variant: cell.variant, technique: cell.technique, requestedModel: cell.model, temperature: cell.temperature, dare: cell.dare, brief: cell.brief, stage: 'budget', error: 'not started: budget exhausted' } });
     results.push({ ...cell, ok: false, reason: 'budget', error: 'not started: budget exhausted' });
   }
   results.sort((a, b) => a.variant.localeCompare(b.variant));

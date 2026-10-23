@@ -201,3 +201,28 @@ test('a double-clicked form says "already recorded"', async () => {
     await srv.close();
   }
 });
+
+test('a series page shows how each variant was made, and puts a second pull right after its first', () => {
+  const variant = (id, extra = {}) => ({ variant: id, technique: 'scratch-film', temperature: 0.7, model: 'test/text', ok: true, png: `archive/variants/S1/${id}.png`, html: `archive/variants/S1/${id}.html`, reason: null, error: null, dare: null, brief: null, note: null, pullOf: null, ...extra });
+  const view = {
+    seriesId: 'S1',
+    started: { shift: '2026-10-23', payload: { subjectTitle: 'horns' } },
+    subject: { payload: { title: 'horns' } },
+    chatter: [],
+    decisions: new Map(),
+    closed: null,
+    shortlist: { payload: { picks: [{ variant: 'v02', note: 'The red one.' }], rejects: null } },
+    variants: [
+      variant('v01'),
+      variant('v02', { note: 'A horn behind wire.', dare: 'Make it tender.', brief: { from: 'nico', text: 'The sea keeps <its> face.' } }),
+      variant('v03', { pullOf: 'v02', note: 'A horn as big as the wall.' }),
+    ],
+  };
+  const html = seriesPage(view);
+  assert.ok(html.indexOf('id="v02"') < html.indexOf('id="v03"') && html.indexOf('id="v03"') < html.indexOf('id="v01"'), 'pick, its second pull, then the rest');
+  assert.match(html, /<dt>made:<\/dt> <dd>A horn behind wire\.<\/dd>/);
+  assert.match(html, /<dt>nico&#39;s line:<\/dt> <dd>“The sea keeps &lt;its&gt; face\.”<\/dd>/);
+  assert.match(html, /<dt>dare:<\/dt> <dd>Make it tender\.<\/dd>/);
+  assert.match(html, /<span class="badge pull">second pull of v02<\/span>/);
+  assert.match(html, /Sent back by Warhol: The red one\./);
+});

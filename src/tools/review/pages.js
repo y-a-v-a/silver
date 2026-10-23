@@ -29,8 +29,10 @@ const STYLE = `
   .frame img, .frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; object-fit: cover; }
   .meta { padding: 8px 10px 0; font-size: 12px; color: var(--muted); }
   .badge { display: inline-block; font-size: 11px; padding: 1px 6px; border: 1px solid currentColor; margin-right: 4px; }
-  .badge.pick { color: var(--pick); } .badge.ok { color: var(--ok); } .badge.bad { color: var(--bad); } .badge.off { color: var(--silver); }
+  .badge.pick { color: var(--pick); } .badge.pull { color: var(--pick); border-style: dashed; } .badge.ok { color: var(--ok); } .badge.bad { color: var(--bad); } .badge.off { color: var(--silver); }
   .note { padding: 6px 10px 0; font-style: italic; }
+  .making { margin: 0; padding: 6px 10px 0; font-size: 12px; color: var(--muted); }
+  .making dt { display: inline; color: var(--silver); } .making dd { display: inline; margin: 0; } .making div { margin-bottom: 3px; }
   form.decide { padding: 8px 10px 10px; display: grid; gap: 6px; margin-top: auto; }
   textarea { width: 100%; min-height: 38px; resize: vertical; background: #0d0d0d; color: var(--fg); border: 1px solid var(--line); padding: 6px; font: inherit; }
   .buttons { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -96,6 +98,16 @@ ${closed.length ? table(closed.map(row)) : '<p class="muted">None yet.</p>'}`,
   );
 }
 
+/** How a variant was made: the assistant's own note, the superstar's line it took as its brief, and its dare. */
+function making(v) {
+  const rows = [
+    v.note && ['made', v.note],
+    v.brief && [`${v.brief.from}'s line`, `“${v.brief.text}”`],
+    v.dare && ['dare', v.dare],
+  ].filter(Boolean);
+  return rows.length ? `<dl class="making">${rows.map(([k, val]) => `<div><dt>${esc(k)}:</dt> <dd>${esc(val)}</dd></div>`).join('')}</dl>` : '';
+}
+
 /** One series: Warhol's shortlist, the floor's chatter, and every variant with its decision form. */
 export function seriesPage(s, msg = {}, { works = new Map() } = {}) {
   const p = s.subject?.payload ?? {};
@@ -103,8 +115,9 @@ export function seriesPage(s, msg = {}, { works = new Map() } = {}) {
   const picks = new Map((s.shortlist?.payload.picks ?? []).map((pick, i) => [pick.variant, { ...pick, rank: i + 1 }]));
   const produced = s.variants.filter((v) => v.ok);
   const failed = s.variants.filter((v) => !v.ok);
-  // Warhol's picks first, in his order; then the rest.
-  produced.sort((a, b) => (picks.get(a.variant)?.rank ?? 99) - (picks.get(b.variant)?.rank ?? 99) || a.variant.localeCompare(b.variant));
+  // Warhol's picks first, in his order, each followed by its second pull; then the rest.
+  const rank = (v) => picks.get(v.variant)?.rank ?? (v.pullOf ? (picks.get(v.pullOf)?.rank ?? 99) + 0.5 : 99);
+  produced.sort((a, b) => rank(a) - rank(b) || a.variant.localeCompare(b.variant));
 
   const card = (v) => {
     const pick = picks.get(v.variant);
@@ -113,6 +126,7 @@ export function seriesPage(s, msg = {}, { works = new Map() } = {}) {
     const badges = [
       pick && `<span class="badge pick">Warhol #${pick.rank}</span>`,
       pick?.offTechnique && '<span class="badge off">off technique</span>',
+      v.pullOf && `<span class="badge pull">second pull of ${esc(v.pullOf)}</span>`,
       decision && `<span class="badge ${decision.verdict === 'approved' ? 'ok' : 'bad'}">${esc(decision.verdict)}</span>`,
       works.get(v.variant) && `<span class="badge ok">${works.get(v.variant).edition ? `No. ${String(works.get(v.variant).edition).padStart(3, '0')}` : 'printed'}</span>`,
     ].filter(Boolean).join('');
@@ -121,7 +135,9 @@ export function seriesPage(s, msg = {}, { works = new Map() } = {}) {
   <div class="frame">${v.png ? `<img src="${esc(fileUrl(v.png))}" alt="${esc(`${v.variant}, ${v.technique}`)}" loading="lazy">` : '<p class="muted small">not rendered</p>'}</div>
   <div class="meta">${badges} <strong>${esc(v.variant)}</strong> · ${esc(v.technique)} · t${esc(v.temperature)} · ${esc(v.model ?? '')}
     ${live ? ` · <a href="${esc(live)}" target="_blank" rel="noopener">open</a> · <a href="#" data-live="${esc(live)}">play here</a>` : ''}</div>
+  ${making(v)}
   ${pick?.note ? `<p class="note">Warhol: ${esc(pick.note)}</p>` : ''}
+  ${v.pullOf && !pick && picks.get(v.pullOf)?.note ? `<p class="note">Sent back by Warhol: ${esc(picks.get(v.pullOf).note)}</p>` : ''}
   ${decision?.note ? `<p class="note">You: ${esc(decision.note)}</p>` : ''}
   <form class="decide" method="post" action="/series/${esc(s.seriesId)}/decide">
     <input type="hidden" name="variant" value="${esc(v.variant)}">

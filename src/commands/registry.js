@@ -165,6 +165,19 @@ export const COMMANDS = [
     load: () => import('./shortlist.js'),
   },
   {
+    name: 'pull',
+    args: '[series]',
+    description: 'a second pull: Warhol sends his first pick back to its maker, to be pushed further (default: the latest series)',
+    phase: 9,
+    options: [
+      ['--variant <id>', 'pull this variant instead of Warhol\'s first pick'],
+      ['--no-render', 'write the sketch but don\'t render it'],
+      ['--dry-run', 'use the dry-run model'],
+      ['--json', 'print the variant event as JSON'],
+    ],
+    load: () => import('./pull.js'),
+  },
+  {
     name: 'review',
     description: 'serve the contact sheet on localhost to approve or veto variants',
     phase: 4,

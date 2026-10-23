@@ -19,11 +19,11 @@ async function silver(...args) {
   }
 }
 
-test('registry: names are unique and phases are ACTIONS.md phases (0-8)', () => {
+test('registry: names are unique and phases are ACTIONS.md phases (0-9)', () => {
   const names = COMMANDS.map((c) => c.name);
   assert.equal(new Set(names).size, names.length);
   for (const c of COMMANDS) {
-    assert.ok(Number.isInteger(c.phase) && c.phase >= 0 && c.phase <= 8, `${c.name} phase`);
+    assert.ok(Number.isInteger(c.phase) && c.phase >= 0 && c.phase <= 9, `${c.name} phase`);
     assert.ok(c.description, `${c.name} description`);
   }
 });

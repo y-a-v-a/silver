@@ -96,7 +96,7 @@ test('structural errors', () => {
 
 test('model errors', () => {
   rejects((c) => (c.models.studio = []), /models\.studio must be a non-empty array/);
-  rejects((c) => c.models.studio.push('not a slug'), /models\.studio\[4\] is not an OpenRouter slug/);
+  rejects((c) => c.models.studio.push('not a slug'), new RegExp(`models\\.studio\\[${shipped.models.studio.length}\\] is not an OpenRouter slug`));
   rejects((c) => c.models.studio.push(c.models.studio[0]), /duplicates/);
   rejects((c) => delete c.models.roles.warhol, /models\.roles\.warhol/);
   rejects((c) => (c.models.roles.andy = 'a/b'), /unknown role "andy"/);
@@ -127,6 +127,15 @@ test('a series may repeat the matrix (24 = 2 x 12)', () => {
   const c = base();
   c.series.variants = 24;
   assert.deepEqual(validateConfig(c), []);
+});
+
+test('the dare deck is optional, but when present a list of distinct, non-empty cards', () => {
+  const c = base();
+  delete c.dares;
+  assert.deepEqual(validateConfig(c), []);
+  rejects((c) => (c.dares = 'Make it tender.'), /dares must be a list/);
+  rejects((c) => (c.dares = ['Make it tender.', ' ']), /dares\[1\] must be a non-empty string/);
+  rejects((c) => (c.dares = ['Make it tender.', 'Make it tender.']), /dares contains duplicates/);
 });
 
 test('technique errors', () => {

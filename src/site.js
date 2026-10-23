@@ -84,6 +84,8 @@ function workPage(w, prev, next, siteUrl) {
     <p class="meta">No. ${pad(w.edition)} · ${esc(w.technique)} · signed ${esc(w.publishedAt.slice(0, 10))}${w.revisedAt ? ` · label revised ${esc(w.revisedAt.slice(0, 10))}` : ''}</p>
     <p class="wall">${esc(w.wallText)}</p>
     <p class="meta">After: ${source}</p>
+    ${w.brief ? `<p class="meta">From a line ${esc(w.brief.from.charAt(0).toUpperCase() + w.brief.from.slice(1))} said on the floor: “${esc(w.brief.text)}”</p>` : ''}
+    ${w.dare ? `<p class="meta">Dare: ${esc(w.dare)}</p>` : ''}
     <p class="meta">Live: every visit prints it again. <a href="sketch.html">Full screen</a> · <a href="${LICENCE_URL}" rel="license">CC BY 4.0</a> · signature <code>${esc(w.signature.slice(0, 16))}…</code></p>
   </div>
   <nav class="pager">${prev ? `<a href="/works/${esc(prev.canonId)}/">← No. ${pad(prev.edition)}</a>` : '<span></span>'}${next ? `<a href="/works/${esc(next.canonId)}/">No. ${pad(next.edition)} →</a>` : '<span></span>'}</nav>

@@ -28,6 +28,8 @@ import { EVENT_TYPES } from './events.js';
 const REQUIRED = ['id', 'name', 'temperature', 'output', 'reads', 'emits'];
 const OPTIONAL = ['model', 'model_role', 'max_tokens', 'vision', 'reasoning'];
 export const REASONING = Object.freeze(['off', 'low', 'medium', 'high']);
+/** Roles that run on the studio pool (models.studio) rather than on a model of their own. */
+export const STUDIO_ROLES = Object.freeze(['studio-assistant', 'second-pull']);
 const SLUG = /^~?[a-z0-9][\w.-]*\/[\w.:-]+$/i;
 const PLACEHOLDER = /\{\{\s*([a-z_][a-z0-9_]*)\s*\}\}/gi;
 
@@ -179,7 +181,8 @@ export async function loadRoles({ dir, models }) {
   function modelFor(role) {
     if (role.model) return role.model;
     if (role.group === 'superstar') return models.roles.superstar;
-    if (role.id === 'studio-assistant') return models.studio[0];
+    // Studio roles run on whichever studio model the series dealt them; the first is the default.
+    if (STUDIO_ROLES.includes(role.id)) return models.studio[0];
     const key = role.modelRole ?? role.id;
     const model = models.roles[key];
     if (!model) throw new RoleError([`${role.file}: no model in frontmatter and no models.roles["${key}"] in config`]);

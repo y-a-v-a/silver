@@ -17,7 +17,7 @@ const SERIES_EVENTS = ['subject.posted', 'chatter.posted', 'series.started', 'va
  * @property {object|null} completed     series.completed event
  * @property {object} subject            subject.posted event
  * @property {object[]} chatter          chatter.posted events about the subject
- * @property {{variant: string, technique: string, temperature: number, model: string|null, ok: boolean, png: string|null, html: string|null, reason: string|null, error: string|null}[]} variants
+ * @property {{variant: string, technique: string, temperature: number, model: string|null, ok: boolean, png: string|null, html: string|null, reason: string|null, error: string|null, dare: string|null, brief: {from: string, text: string}|null, note: string|null, pullOf: string|null}[]} variants
  * @property {object|null} shortlist    the latest shortlist.proposed
  * @property {Map<string, object>} decisions  latest review.decision per variant
  * @property {object|null} closed       the review.decision that closed the review, if any
@@ -55,6 +55,10 @@ export function buildSeriesViews(events) {
           html: p.path ?? null,
           reason: ok ? (p.rendered === false ? 'unrendered' : null) : p.stage,
           error: ok ? null : p.error ?? null,
+          dare: p.dare ?? null,
+          brief: p.brief ?? null,
+          note: p.note ?? null,
+          pullOf: p.pullOf ?? null,
         });
         break;
       }

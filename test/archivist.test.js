@@ -98,3 +98,14 @@ test('archiveShift: manifest always, diary only for real shifts, and a failed di
 test('longDate spells the day out', () => {
   assert.equal(longDate('2026-09-25'), 'Friday, September 25, 2026');
 });
+
+test('digest notes a second pull separately from the series it joins', async () => {
+  const f = await tmpFactory();
+  const { seriesId } = await seedSeries(f);
+  await f.floor.append({ type: 'variant.produced', actor: 'studio-assistant', ref: seriesId, payload: { seriesId, variant: 'v05', pullOf: 'v02', note: 'A horn as big as the wall.', rendered: true } });
+  await f.floor.append({ type: 'variant.failed', actor: 'renderer', ref: seriesId, payload: { seriesId, variant: 'v06', pullOf: 'v03', stage: 'error', error: 'ReferenceError: x' } });
+  const { text } = digest(await f.floor.read({ shift: 'all' }));
+  assert.match(text, /series on "campbell soup" done: 3 made, 1 died/);
+  assert.match(text, /Andy sends v02 of "campbell soup" back for a second pull; it comes back as v05: A horn as big as the wall\./);
+  assert.match(text, /Andy sends v03 of "campbell soup" back for a second pull, and it dies \(ReferenceError: x\)\./);
+});

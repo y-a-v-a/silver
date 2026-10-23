@@ -6,8 +6,9 @@ import { pathToFileURL, fileURLToPath } from 'node:url';
  * @typedef {object} SilverConfig
  * @property {{studio: string[], roles: Record<string, string>, dryRun: string}} models
  * @property {{dailyUsd: number, chatterShare: number}} budget
- * @property {{variants: number, modelsPerSeries: number, temperatures: number[], techniquesPerSeries: number, concurrency: number}} series
+ * @property {{variants: number, modelsPerSeries: number, temperatures: number[], techniquesPerSeries: number, concurrency: number, secondPulls?: number}} series
  * @property {Record<string, string>} techniques
+ * @property {string[]} [dares]   the dare deck: one card per variant (optional)
  * @property {{at: string, subjectsPerShift: number, seriesPerShift: number, maxArchiveSubjectsPerShift: number}} shift
  * @property {{rss: string[], trending: {googleTrendsGeo: string, hackernews: boolean, reddit: boolean}, itemsPerSource: number, repeatAfterDays: number}} sources
  * @property {{port: number, tasteEntriesInPrompt: number}} review
@@ -22,7 +23,9 @@ export const DEFAULT_CONFIG_PATH = resolve(ROOT, 'silver.config.js');
 /** Roles that need a default model. Superstars share one entry. */
 export const ROLES = Object.freeze(['scout', 'superstar', 'warhol', 'printer', 'fred-hughes', 'archivist', 'technician']);
 
-const TOP_LEVEL = ['models', 'budget', 'series', 'techniques', 'shift', 'sources', 'review', 'deploy', 'printer', 'superstars', 'paths'];
+const TOP_LEVEL = ['models', 'budget', 'series', 'techniques', 'dares', 'shift', 'sources', 'review', 'deploy', 'printer', 'superstars', 'paths'];
+// Top-level keys that may be left out; every other key must be an object.
+const OPTIONAL_TOP_LEVEL = ['dares'];
 const PATH_KEYS = ['roles', 'floor', 'archive', 'canon', 'site', 'taste'];
 const SLUG = /^~?[a-z0-9][\w.-]*\/[\w.:-]+$/i;
 const KEBAB = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -59,10 +62,10 @@ export function validateConfig(c) {
   if (!isObj(c)) return ['config must be an object'];
 
   for (const key of Object.keys(c)) if (!TOP_LEVEL.includes(key)) err(`unknown top-level key "${key}"`);
-  for (const key of TOP_LEVEL) if (!isObj(c[key])) err(`"${key}" must be an object`);
+  for (const key of TOP_LEVEL) if (!OPTIONAL_TOP_LEVEL.includes(key) && !isObj(c[key])) err(`"${key}" must be an object`);
   if (errors.length) return errors;
 
-  const { models, budget, series, techniques, shift, sources, review, deploy, printer, superstars, paths } = c;
+  const { models, budget, series, techniques, dares, shift, sources, review, deploy, printer, superstars, paths } = c;
 
   // models
   if (!Array.isArray(models.studio) || models.studio.length === 0) err('models.studio must be a non-empty array');
@@ -97,6 +100,15 @@ export function validateConfig(c) {
     if (typeof guidance !== 'string' || guidance.trim() === '') err(`technique "${name}" needs a guidance string`);
   }
 
+  // dares
+  if (dares !== undefined) {
+    if (!Array.isArray(dares)) err('dares must be a list of strings');
+    else {
+      dares.forEach((d, i) => (typeof d === 'string' && d.trim()) || err(`dares[${i}] must be a non-empty string`));
+      if (new Set(dares).size !== dares.length) err('dares contains duplicates');
+    }
+  }
+
   // series
   if (!isInt(series.variants, 1)) err('series.variants must be a positive integer');
   if (!isInt(series.modelsPerSeries, 1)) err('series.modelsPerSeries must be a positive integer');
@@ -108,6 +120,7 @@ export function validateConfig(c) {
   else if (series.techniquesPerSeries > techniqueNames.length)
     err(`series.techniquesPerSeries (${series.techniquesPerSeries}) exceeds the technique menu (${techniqueNames.length})`);
   if (!isInt(series.concurrency, 1, 64)) err('series.concurrency must be an integer between 1 and 64');
+  if (series.secondPulls !== undefined && !isInt(series.secondPulls, 0, 3)) err('series.secondPulls must be an integer between 0 and 3');
   const cells = series.modelsPerSeries * (series.temperatures?.length ?? 0) * series.techniquesPerSeries;
   if (isInt(series.variants, 1) && isInt(cells, 1) && series.variants % cells !== 0)
     err(`series.variants (${series.variants}) must be a multiple of the matrix size models x temperatures x techniques (${cells})`);

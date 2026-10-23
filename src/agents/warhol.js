@@ -1,6 +1,7 @@
 // Warhol: looks at one screenshot per produced variant (decision 2026-09-25) and proposes
-// a shortlist for the human's review. He sees the images and the techniques, never the
-// code or the model names: he judges the surface, not the effort or the brand.
+// a shortlist for the human's review. He sees the images, the techniques, the dares and whose
+// line was the brief, never the code or the model names: he judges the surface, not the
+// effort or the brand.
 import { join } from 'node:path';
 import { findSeries } from './series-data.js';
 import { tasteForPrompt } from '../lib/taste.js';
@@ -16,7 +17,9 @@ export class ShortlistError extends Error {
 
 /** The variant list Warhol reads, numbered in image order. */
 export function describeVariants(variants) {
-  return variants.map((v, i) => `Image ${i + 1} = ${v.variant} · technique: ${v.technique} · temperature ${v.temperature}`).join('\n');
+  return variants
+    .map((v, i) => [`Image ${i + 1} = ${v.variant} · technique: ${v.technique} · temperature ${v.temperature}`, v.dare && `dare: ${v.dare}`, v.brief && `brief: ${v.brief.from}'s line`].filter(Boolean).join(' · '))
+    .join('\n');
 }
 
 /**

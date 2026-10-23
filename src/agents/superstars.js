@@ -1,7 +1,7 @@
 // The Superstars: cast talent on the floor. After the Scouts, each superstar reads the day's
 // subjects and what the others already said, and posts a few lines of chatter about them.
-// The chatter reaches the assistants' prompts ({{floor_excerpt}}), Warhol's review and the
-// contact sheet. Now and then one superstar is shown the Scout's leftovers and may push one
+// The chatter reaches the assistants' prompts (each variant takes one line as its brief, the
+// rest as {{floor_excerpt}}), Warhol's review and the contact sheet. Now and then one superstar is shown the Scout's leftovers and may push one
 // of them onto the floor as a subject (blurry roles, ARCHITECTURE principle 6).
 import { normalizeSensitive } from './scouts.js';
 import { snapshotPage } from '../lib/snapshot.js';
@@ -14,7 +14,8 @@ const FLOOR_LINES = 16;
 export const HOUSE_RULES = `House rules:
 - Talk about the subjects on the floor, by their number. Opinions, jokes, gossip and associations are yours to make; facts are not. Don't state names, numbers, dates or events that aren't in the cards, and don't sharpen a vague number ("hundreds of thousands" stays that, never "half a million").
 - Public figures are fair game as public figures. Nothing sexual about real people, no slurs, and nothing mocking victims, children, suicide or private people.
-- Each line at most two or three sentences.`;
+- Each line at most two or three sentences.
+- The studio assistants overhear the floor and take some lines literally, as the brief for a work. You don't have to help them.`;
 
 const FORMAT = `Reply with JSON only:
 {"lines": [{"subject": <number>, "text": "..."}], "propose": null}
@@ -51,8 +52,10 @@ export function formatPile(pile) {
 export function validateChatter(json, { subjects, maxLines, pileSize }) {
   const problems = [];
   const lines = [];
-  const raw = Array.isArray(json?.lines) ? json.lines : [];
-  if (!Array.isArray(json?.lines)) problems.push('reply has no "lines" array');
+  // A bare array is read as the lines: some models drop the wrapper object.
+  const linesIn = Array.isArray(json) ? json : json?.lines;
+  const raw = Array.isArray(linesIn) ? linesIn : [];
+  if (!Array.isArray(linesIn)) problems.push('reply has no "lines" array');
   for (const l of raw) {
     const n = Number(l?.subject);
     const text = typeof l?.text === 'string' ? l.text.replace(/\s+/g, ' ').trim() : '';

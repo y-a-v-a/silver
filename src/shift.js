@@ -1,4 +1,4 @@
-// One daily shift: scouts -> superstars -> series -> Warhol's shortlists -> archivist.
+// One daily shift: scouts -> superstars -> series -> Warhol's shortlists -> second pulls -> archivist.
 // Idempotent per date: a second run the same day resumes where the first stopped and
 // never duplicates work. A spent budget ends the shift cleanly, with the reason recorded.
 // Printing happens outside the shift, when the human approves (the veto is async).
@@ -9,6 +9,7 @@ import { pendingCommissions } from './agents/commissions.js';
 import { retiredSubjects, claimedSubjects } from './agents/retire.js';
 import { listSeries, isPendingReview } from './agents/series-data.js';
 import { shortlistSeries } from './agents/warhol.js';
+import { secondPull, pulled } from './agents/pull.js';
 import { archiveShift } from './agents/archivist.js';
 
 export class ShiftError extends Error {
@@ -159,6 +160,35 @@ export async function runShift({ config, floor, llm, budget, createRenderer, fet
       }
     }
     if (!steps.some((s) => s.step === 'shortlist')) record('shortlist', todo.length ? 'done' : 'skipped', todo.length ? { shortlisted } : { reason: 'nothing new to shortlist' });
+  }
+  // 4b. Second pulls: Warhol's first pick(s) of each of today's series go back to the hand
+  // that made them, to be pushed further (decision 2026-10-23). Once per pick, even if it failed.
+  const pulls = [];
+  if (!stoppedReason && config.series.secondPulls > 0) {
+    const todo = (await listSeries(floor)).filter((s) => s.started.shift === shift && sameKind(s.started) && s.shortlist);
+    let renderer = null;
+    try {
+      for (const s of todo) {
+        const done = pulled(s);
+        for (const pick of s.shortlist.payload.picks.slice(0, config.series.secondPulls)) {
+          if (done.has(pick.variant)) continue;
+          renderer ??= await createRenderer();
+          try {
+            const r = await secondPull({ config, floor, llm, renderer }, s.seriesId, { variant: pick.variant });
+            pulls.push({ seriesId: s.seriesId, variant: r.variant, pullOf: r.pullOf, ok: r.ok });
+          } catch (err) {
+            if (isBudget(err)) throw err;
+            pulls.push({ seriesId: s.seriesId, pullOf: pick.variant, ok: false, error: err.message });
+          }
+        }
+      }
+    } catch (err) {
+      if (isBudget(err)) stop(err);
+      else record('second-pull', 'failed', { error: err.message });
+    } finally {
+      await renderer?.close();
+    }
+    if (!steps.some((s) => s.step === 'second-pull')) record('second-pull', pulls.length ? 'done' : 'skipped', pulls.length ? { pulls } : { reason: 'nothing to pull again' });
   }
   if (stoppedReason) record('stopped', 'budget', { reason: stoppedReason });
 

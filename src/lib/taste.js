@@ -10,8 +10,8 @@ export const DEFAULT_HEADER = `# Taste
 Write here, in your own words, what you like and what you don't. Warhol reads this page
 before every shortlist, together with your latest decisions below. Edit this part freely.
 
-- Likes: (for example: flat colour, hard repetition, brand type, deadpan)
-- Dislikes: (for example: gradients, "generative art" swirls, cute)
+- Likes: (for example: scratchy marks, strange colour, things you haven't seen before)
+- Dislikes: (for example: pop-art pastiche, tidy posters, cute)
 `;
 
 const clean = (s) => String(s ?? '').replace(/\s+/g, ' ').trim();

@@ -44,11 +44,13 @@ test('a complete catalogue passes, with prices per million tokens', async () => 
 });
 
 test('missing models and text-only image roles are problems', async () => {
-  const list = allShipped().filter((m) => m.id !== shipped.models.studio[1]);
+  // A studio model that no role uses, so dropping it only hits the studio row.
+  const studioOnly = shipped.models.studio.find((m) => !Object.values(shipped.models.roles).includes(m));
+  const list = allShipped().filter((m) => m.id !== studioOnly);
   const warhol = list.findIndex((m) => m.id === shipped.models.roles.warhol);
   list[warhol] = model(shipped.models.roles.warhol, { vision: false });
   const { problems } = await auditModels(shipped, [], lookupFrom(list));
-  assert.ok(problems.some((p) => p.includes(`studio: "${shipped.models.studio[1]}" is not on OpenRouter`)));
+  assert.ok(problems.some((p) => p.includes(`studio: "${studioOnly}" is not on OpenRouter`)));
   assert.ok(problems.some((p) => /role warhol: .* cannot take images/.test(p)));
 });
 
