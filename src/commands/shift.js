@@ -48,6 +48,8 @@ export default async function shiftCommand(_args, opts, ctx) {
             ? `${s.series.length} series`
             : s.shortlisted
               ? `${s.shortlisted.length} shortlisted`
+              : s.pulls
+                ? `${s.pulls.filter((x) => x.ok).length} of ${s.pulls.length} pulled again`
               : s.manifest
                 ? `${s.diary?.path && !s.diary.skipped ? `diary ${s.diary.path}` : `diary ${s.diary?.skipped ?? 'none'}`}${s.missing ? `, ${s.missing} artifacts missing` : ''}`
                 : '');

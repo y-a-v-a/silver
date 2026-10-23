@@ -145,6 +145,19 @@ test('an empty reply (reasoning ate max_tokens) is costed, recorded and thrown',
   assert.equal(failed.payload.reason, 'empty');
 });
 
+test('a provider that fails mid-reply (finish_reason error) is asked once more, then given up on', async () => {
+  const ok = await tmpFactory({ roles: TECH, replies: [completion(' Cui', { finish: 'error', cost: 0 }), completion('Release note.')] });
+  const r = await ok.llm.call('technician', { vars: { who: 'x' }, prompt: 'p' });
+  assert.equal(r.content, 'Release note.');
+  assert.equal(r.rounds.length, 2);
+  assert.equal(ok.fetch.requests.length, 2);
+
+  const bad = await tmpFactory({ roles: TECH, replies: [completion(' Cui', { finish: 'error', cost: 0 }), completion(' Cu', { finish: 'error', cost: 0 })] });
+  await assert.rejects(bad.llm.call('technician', { vars: { who: 'x' }, prompt: 'p' }), (err) => err instanceof LlmOutputError && /mid-reply twice/.test(err.message));
+  const [failed] = await bad.floor.read({ type: 'llm.failed' });
+  assert.equal(failed.payload.reason, 'provider-error');
+});
+
 test('json roles parse fenced replies', async () => {
   const f = await tmpFactory({ roles: JSONROLE, replies: [completion('```json\n{"picks":["v1"]}\n```')] });
   const res = await f.llm.call('technician', { vars: { who: 'x' }, prompt: 'p' });

@@ -118,6 +118,16 @@ export default {
       'The subject moving through a long photographic exposure: light trails, motion smears, ghost doubles, everything solid dissolved into streaks; one thing held still and sharp. Night palette; build it up from many faint layers.',
     'x-ray':
       'The subject seen through an X-ray or ultrasound: inverted greyscale, soft inner structures, anything metal glowing white, a scan cone or film edge, measurement ticks and grain. Clinical and intimate.',
+    spectrogram:
+      'The subject as a sound, printed as a spectrogram: time runs left to right, pitch bottom to top, loudness as heat. Hiss, harmonics and silences, and somewhere in the frequencies a word or a shape from the subject hidden in the sound, the way some musicians hide a face in a track.',
+    'thermal-camera':
+      'The subject seen through a thermal camera: false-colour heat from black through violet and orange to white, warm things soft and glowing, cold things gone, a temperature scale along one edge, a crosshair and a reading. Grainy, low resolution, a little delayed.',
+    'security-pattern':
+      'The blue-grey security pattern printed inside envelopes so nobody can read the letter through them, built from tiny repeated marks or words of the subject; one place where the pattern fails and something shows through.',
+    guilloche:
+      'Fine engraved guilloché, like a banknote or a share certificate: interlaced rosettes, waves and borders in thin lines, the subject in microtext and one denomination, with one plate printed out of register.',
+    'sun-bleach':
+      'A poster about the subject left in a shop window for years: magenta and yellow have faded away, cyan and black survive, the paper has curled and yellowed at the edge, a rectangle where a sticker used to be, a dead fly.',
     'one-bit-dither':
       'Draw the subject small, then dither it to one bit (Floyd-Steinberg or Atkinson) and blow it up so every pixel shows, in two colours that do not belong together (oxblood on pink, lime on grey). Like a camera from a toy, or an old screen in a dark room.',
   },

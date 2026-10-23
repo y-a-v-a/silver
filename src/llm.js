@@ -317,8 +317,20 @@ export function createLlm({
     if (fallbacks.length) body.models = [chosenModel, ...fallbacks];
 
     const ctx = { role, model: chosenModel, fallbacks, imageCount: loaded.length, imageSources };
-    const first = await round({ ...ctx, body, ref });
+    let first = await round({ ...ctx, body, ref });
     const rounds = [first];
+
+    // A provider that dies mid-generation answers with finish_reason "error" and a fragment
+    // (Gemini 4 Argon once sent " Cui"). That is never a usable reply, so ask once more.
+    if (first.finishReason === 'error') {
+      first = await round({ ...ctx, body, ref: first.id });
+      rounds.push(first);
+      if (first.finishReason === 'error') {
+        const err = new LlmOutputError('the provider failed mid-reply twice (finish_reason: error)', { rounds });
+        await recordFailure(role, chosenModel, first.id, err, { reason: 'provider-error', finishReason: 'error' });
+        throw err;
+      }
+    }
 
     if (!first.content.trim()) {
       const err = new LlmOutputError(`empty reply (finish_reason: ${first.finishReason ?? 'unknown'})`, { rounds });
