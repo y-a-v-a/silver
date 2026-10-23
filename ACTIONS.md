@@ -593,3 +593,24 @@ v1 is built (Phases 0–8). What is left, in order:
 3. **More sources:** product catalogues (the soup cans), Wikipedia most-read.
 4. **Social channels for Fred Hughes** (Bluesky/Mastodon), after Vercel is live.
 5. **Continuous tempo:** floor subscribers instead of one sequential shift.
+
+## Where things stand (2026-10-23, after the night shift)
+
+Phase 9 is built on the branch `night-shift/wilder` (local, not pushed). The 09:00 launchd job runs from this working tree, so today's shift is the first real one with the new studio.
+
+**How it was checked**
+- A bake-off of 12 models on one subject (the Amelia Earhart "debris" that was a clump of trees), then 8 sandbox series on real subjects with real chatter, on a copy of the floor (`SILVER_ROOT`), never the real one.
+- A full shift rehearsal on a fresh sandbox at the real $5 cap: 6 subjects, 11 lines from 4 superstars, 2 series (23/24 produced), 2 shortlists, 2 second pulls, the diary. **$1.92.** With the dearest trio (Opus, Sonnet, Gemini 4) twice, a shift is about $2.80.
+- 318 tests pass, including the browser tests.
+- The real floor got one event tonight: the Technician's `tool.released` note for the new template.
+- Tonight's experiments cost about $7.60 on the shared OpenRouter key, so the 09:00 reconcile will show a gap for the UTC day.
+
+**Open questions**
+1. **Merge `night-shift/wilder` into `main`?** It's already what runs; merging and pushing is yours.
+2. **The cost.** About $2–2.80 a shift now, against ~$0.60 before, still inside the $5 cap. To make it cheaper, drop Opus 5.5 from `models.studio` (it costs about twice as much per variant as the others); the cheapest strong pool is Sonnet 5.5, Gemini 4 Argon, Kimi K3 and GPT-6 Luna Pro.
+3. **Nico.** A fourth persona after a real person, like the others. Keep her?
+4. **The second pull.** `series.secondPulls: 1`. Keep it, raise it to 2–3, or set 0.
+5. **`taste.md`.** The Likes/Dislikes lines now quote your brief to the night shift, so Warhol reads them. Rewrite them in your own words whenever you like.
+6. **The backlog.** 54 pop-era series are still waiting for review. Leave them, or should there be a way to close old reviews in bulk (`silver review --close-before <date>`)?
+7. **Next for the look:** non-square formats (tall film strips and receipts, wide spectrograms and seismographs). It touches the renderer, review page, site and Printer, so I left it for a day shift.
+8. **Sandbox works into the canon.** The night's ~100 works live in the scratchpad, not on the floor. Their subjects are still open on the real floor, so `silver series KFYMM1W8` (loudspeakers), `RY5JX2EK` (Earhart), `2XW9HJX5` (pink diamond), `TSB4A37W` (checkers), `7Y2VF4S9` (satellites) or `N3SYZE87` (cheese receipt) makes a real series of any of them. Each uses a series slot and about $1 of that day's budget.
