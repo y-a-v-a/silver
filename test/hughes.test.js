@@ -30,6 +30,14 @@ test('describeWork gives only the facts: headline, source host, notes, technique
   assert.match(made, /A second pull: Warhol sent the first print \(v05\) back/);
 });
 
+test('a wall text that ends on a quoted headline keeps its closing quote; wrapping quotes go', async () => {
+  const f = await signedWorks([completion(JSON.stringify({ title: '“Soup”', wallText: 'A can. After the headline "Campbell soup."' })), completion(JSON.stringify({ title: 'Can', wallText: '"A can of soup."' }))]);
+  const { released } = await releaseEditions({ config: f.config, floor: f.floor, llm: f.llm });
+  assert.equal(released[0].payload.title, 'Soup');
+  assert.equal(released[0].payload.wallText, 'A can. After the headline "Campbell soup."');
+  assert.equal(released[1].payload.wallText, 'A can of soup.');
+});
+
 test('releaseEditions numbers works in signing order, with an English title and wall text', async () => {
   const f = await signedWorks([
     completion(JSON.stringify({ title: '"Campbell\'s Soup (Halftone)"', wallText: '  A can of soup.   Made in halftone.  ' })),

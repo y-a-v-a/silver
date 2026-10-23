@@ -8,7 +8,11 @@ export const MAX_WALL_TEXT = 700;
 
 const clean = (s, max) => {
   if (typeof s !== 'string') return null;
-  const t = s.replace(/\s+/g, ' ').trim().replace(/^["“”']+|["“”']+$/g, '');
+  let t = s.replace(/\s+/g, ' ').trim();
+  // Strip quotes wrapped around the whole text ("Soup Cans"), never the quote that closes a
+  // headline quoted at the end of a wall text.
+  const wrapped = t.match(/^["“'](.*)["”']$/);
+  if (wrapped && !/["“”]/.test(wrapped[1])) t = wrapped[1].trim();
   return t ? (t.length > max ? t.slice(0, max - 1) + '…' : t) : null;
 };
 
