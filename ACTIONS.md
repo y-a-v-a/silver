@@ -601,7 +601,7 @@ Phase 9 is built on the branch `night-shift/wilder` (local, not pushed). The 09:
 **How it was checked**
 - A bake-off of 12 models on one subject (the Amelia Earhart "debris" that was a clump of trees), then 8 sandbox series on real subjects with real chatter, on a copy of the floor (`SILVER_ROOT`), never the real one.
 - A full shift rehearsal on a fresh sandbox at the real $5 cap: 6 subjects, 11 lines from 4 superstars, 2 series (23/24 produced), 2 shortlists, 2 second pulls, the diary. **$1.92.** With the dearest trio (Opus, Sonnet, Gemini 4) twice, a shift is about $2.80.
-- 318 tests pass, including the browser tests.
+- 319 tests pass, including the browser tests.
 - The real floor got one event tonight: the Technician's `tool.released` note for the new template.
 - Tonight's experiments cost about $7.60 on the shared OpenRouter key, so the 09:00 reconcile will show a gap for the UTC day.
 
