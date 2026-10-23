@@ -23,6 +23,11 @@ test('describeWork gives only the facts: headline, source host, notes, technique
     { payload: { why: 'The can.', scoutWhy: null } },
   );
   assert.equal(text, 'Headline / subject: campbell soup\nSource: bbc.co.uk\nWhy it is a ready-made: The can.\nTechnique: halftone\nWarhol\'s note: Flat.\nSigned: 2026-09-25');
+  const made = describeWork({ subjectTitle: 'horns', technique: 'rorschach', makerNote: 'A blot.', brief: { from: 'nico', text: 'The sea keeps its face.' }, dare: 'Make it tender.', pullOf: 'v05', publishedAt: '2026-10-23T10:00:00Z' }, null);
+  assert.match(made, /The assistant's note on what it shows: A blot\./);
+  assert.match(made, /Made from a line the Superstar Nico said on the floor: “The sea keeps its face\.”/);
+  assert.match(made, /The assistant's dare: Make it tender\./);
+  assert.match(made, /A second pull: Warhol sent the first print \(v05\) back/);
 });
 
 test('releaseEditions numbers works in signing order, with an English title and wall text', async () => {

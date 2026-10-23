@@ -12,6 +12,8 @@ const clean = (s, max) => {
   return t ? (t.length > max ? t.slice(0, max - 1) + '…' : t) : null;
 };
 
+const cap = (s) => String(s).charAt(0).toUpperCase() + String(s).slice(1);
+
 /** The facts Fred Hughes may use, as prompt text. */
 export function describeWork(work, subject) {
   const p = subject?.payload ?? {};
@@ -22,7 +24,8 @@ export function describeWork(work, subject) {
     (p.why || p.scoutWhy) && `Why it is a ready-made: ${[p.why, p.scoutWhy].filter(Boolean).join(' / ')}`,
     `Technique: ${work.technique}`,
     work.makerNote && `The assistant's note on what it shows: ${work.makerNote}`,
-    work.brief && `Made from a line ${work.brief.from} said on the floor${work.brief.stray ? ' about a different subject' : ''}: “${work.brief.text}”`,
+    work.brief && `Made from a line the Superstar ${cap(work.brief.from)} said on the floor${work.brief.stray ? ' about a different subject' : ''}: “${work.brief.text}”`,
+    work.pullOf && `A second pull: Warhol sent the first print (${work.pullOf}) back to the assistant who made it, to be pushed further.`,
     work.dare && `The assistant's dare: ${work.dare}`,
     work.warholNote && `Warhol's note: ${work.warholNote}`,
     work.humanNote && `The human's note: ${work.humanNote}`,

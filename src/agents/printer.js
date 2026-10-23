@@ -65,6 +65,7 @@ export async function printApproved({ config, floor, llm, renderer }, { limit = 
         dare: variant.dare ?? null,
         brief: variant.brief ?? null,
         makerNote: variant.note ?? null,
+        pullOf: variant.pullOf ?? null,
         approvalId: approval.id,
         humanNote: approval.payload.note ?? null,
         warholNote: pick?.note ?? null,
