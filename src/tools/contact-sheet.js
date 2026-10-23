@@ -17,7 +17,7 @@ export function buildContactSheet({ seriesId, subject, variants }) {
       const body = v.ok
         ? `<a href="${esc(v.html)}"><img src="${esc(v.png)}" alt="${esc(v.variant)}" loading="lazy"></a>`
         : `<div class="failed"><strong>${esc(v.reason ?? 'failed')}</strong><span>${esc(v.error ?? '')}</span>${v.html ? `<a href="${esc(v.html)}">sketch</a>` : ''}</div>`;
-      const making = [v.note && esc(v.note), v.brief && `<em>${esc(v.brief.from)}:</em> “${esc(v.brief.text)}”`, v.dare && `<em>dare:</em> ${esc(v.dare)}`].filter(Boolean);
+      const making = [v.note && esc(v.note), v.brief && `<em>${esc(v.brief.from)}${v.brief.stray ? ' (about something else)' : ''}:</em> “${esc(v.brief.text)}”`, v.dare && `<em>dare:</em> ${esc(v.dare)}`].filter(Boolean);
       return `<figure class="${v.ok ? 'ok' : 'bad'}">${body}<figcaption>${label}${making.map((m) => `<span class="making">${m}</span>`).join('')}</figcaption></figure>`;
     })
     .join('\n');

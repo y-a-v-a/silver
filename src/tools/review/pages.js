@@ -102,7 +102,7 @@ ${closed.length ? table(closed.map(row)) : '<p class="muted">None yet.</p>'}`,
 function making(v) {
   const rows = [
     v.note && ['made', v.note],
-    v.brief && [`${v.brief.from}'s line`, `“${v.brief.text}”`],
+    v.brief && [`${v.brief.from}'s line${v.brief.stray ? ' (about something else)' : ''}`, `“${v.brief.text}”`],
     v.dare && ['dare', v.dare],
   ].filter(Boolean);
   return rows.length ? `<dl class="making">${rows.map(([k, val]) => `<div><dt>${esc(k)}:</dt> <dd>${esc(val)}</dd></div>`).join('')}</dl>` : '';

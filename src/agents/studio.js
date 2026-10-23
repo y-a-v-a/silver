@@ -35,21 +35,29 @@ export function buildMatrix(config, { rng = Math.random, dryRun = false, variant
   return { models, techniques, temperatures, cells: out };
 }
 
+/** Below this many lines about the subject, the deal is topped up with lines overheard about other subjects. */
+export const MIN_BRIEF_LINES = 3;
+
 /**
  * Hand the floor's lines out as briefs: every variant gets one superstar line to take
  * literally. Each line is dealt about equally often, and the deal is shuffled so a line
- * doesn't always land on the same technique, model or temperature. Mutates and returns
- * `cells`; with no chatter every brief is null.
+ * doesn't always land on the same technique, model or temperature. When the subject has
+ * fewer than MIN_BRIEF_LINES lines, strays (lines about other subjects) top up the hand,
+ * marked `stray`: cross-contamination, the Factory's oldest trick. Mutates and returns
+ * `cells`; with no lines at all every brief is null.
  * @param {{variant: string}[]} cells
- * @param {import('../floor.js').FloorEvent[]} chatter
+ * @param {import('../floor.js').FloorEvent[]} chatter   lines about this subject
  * @param {() => number} [rng]
+ * @param {{strays?: import('../floor.js').FloorEvent[]}} [opts]   lines about other subjects
  */
-export function dealBriefs(cells, chatter, rng = Math.random) {
-  const hand = chatter.length ? Array.from({ length: cells.length }, (_, i) => chatter[i % chatter.length]) : [];
+export function dealBriefs(cells, chatter, rng = Math.random, { strays = [] } = {}) {
+  const topUp = chatter.length < MIN_BRIEF_LINES ? sample(strays, Math.min(MIN_BRIEF_LINES - chatter.length, strays.length), rng) : [];
+  const pool = [...chatter.map((e) => ({ e, stray: false })), ...topUp.map((e) => ({ e, stray: true }))];
+  const hand = pool.length ? Array.from({ length: cells.length }, (_, i) => pool[i % pool.length]) : [];
   const lines = sample(hand, hand.length, rng);
   cells.forEach((cell, i) => {
-    const e = lines[i] ?? null;
-    cell.brief = e ? { from: e.payload.persona ?? e.actor.replace(/^superstar\./, ''), text: e.payload.text, eventId: e.id } : null;
+    const line = lines[i];
+    cell.brief = line ? { from: line.e.payload.persona ?? line.e.actor.replace(/^superstar\./, ''), text: line.e.payload.text, eventId: line.e.id, ...(line.stray ? { stray: true } : {}) } : null;
   });
   return cells;
 }
@@ -102,6 +110,7 @@ const capitalise = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
 /** The brief as prompt text: the superstar's line, or the Scout's proposal when nobody spoke. */
 export function formatBrief(brief, subject) {
+  if (brief?.stray) return `${capitalise(brief.from)} said it on the floor, about something else entirely: “${brief.text}”`;
   if (brief) return `${capitalise(brief.from)} said it on the floor: “${brief.text}”`;
   const image = subject.payload.image;
   return image ? `Nobody on the floor has said anything about it yet. The Scout proposed this image; it's yours to misuse: ${image}` : 'Nobody gave you a line. Find your own way in.';

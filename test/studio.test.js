@@ -68,9 +68,25 @@ test('dealBriefs gives every variant a superstar line, each line about equally o
   assert.ok(dealBriefs([{ variant: 'v01' }], []).every((c) => c.brief === null), 'no chatter, no brief');
 });
 
+test('dealBriefs tops a thin subject up with strays: lines overheard about other subjects', () => {
+  const line = (id, persona, text) => ({ id, actor: `superstar.${persona}`, payload: { persona, text } });
+  const own = [line('A', 'nico', 'The forest is a grid now.')];
+  const strays = [line('X', 'viva', 'Boring.'), line('Y', 'brigid', 'I have it on tape.'), line('Z', 'ondine', 'A mad scene!')];
+  const cells = dealBriefs(Array.from({ length: 12 }, (_, i) => ({ variant: `v${i}` })), own, seq(0.3, 0.6, 0.9, 0.1), { strays });
+  const ids = new Set(cells.map((c) => c.brief.eventId));
+  assert.equal(ids.size, 3, 'the own line plus two strays');
+  assert.ok(ids.has('A'));
+  assert.ok(cells.filter((c) => c.brief.eventId === 'A').every((c) => !c.brief.stray));
+  assert.ok(cells.filter((c) => c.brief.eventId !== 'A').every((c) => c.brief.stray === true));
+  const full = dealBriefs([{ variant: 'v01' }], [own[0], line('B', 'viva', 'b'), line('C', 'brigid', 'c')], Math.random, { strays });
+  assert.ok(!full[0].brief.stray, 'three lines of its own: no strays');
+  assert.equal(dealBriefs([{ variant: 'v01' }], [], Math.random, { strays })[0].brief.stray, true, 'nobody spoke: strays only');
+});
+
 test('formatBrief quotes the line, or falls back to the Scout\'s proposal', () => {
   const subject = { payload: { image: 'A smudge, circled.' } };
   assert.equal(formatBrief({ from: 'viva', text: 'Expensive and green.' }, subject), 'Viva said it on the floor: “Expensive and green.”');
+  assert.equal(formatBrief({ from: 'viva', text: 'Boring.', stray: true }, subject), 'Viva said it on the floor, about something else entirely: “Boring.”');
   assert.match(formatBrief(null, subject), /Scout proposed this image; it's yours to misuse: A smudge, circled\./);
   assert.match(formatBrief(null, { payload: {} }), /Find your own way in/);
 });

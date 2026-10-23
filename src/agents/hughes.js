@@ -22,7 +22,7 @@ export function describeWork(work, subject) {
     (p.why || p.scoutWhy) && `Why it is a ready-made: ${[p.why, p.scoutWhy].filter(Boolean).join(' / ')}`,
     `Technique: ${work.technique}`,
     work.makerNote && `The assistant's note on what it shows: ${work.makerNote}`,
-    work.brief && `Made from a line ${work.brief.from} said on the floor: “${work.brief.text}”`,
+    work.brief && `Made from a line ${work.brief.from} said on the floor${work.brief.stray ? ' about a different subject' : ''}: “${work.brief.text}”`,
     work.dare && `The assistant's dare: ${work.dare}`,
     work.warholNote && `Warhol's note: ${work.warholNote}`,
     work.humanNote && `The human's note: ${work.humanNote}`,

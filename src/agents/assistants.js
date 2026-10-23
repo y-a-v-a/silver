@@ -73,11 +73,14 @@ async function pool(items, limit, fn, stop = () => false) {
  */
 export async function runSeries({ config, floor, llm, renderer }, subjectRef, { variants, dryRun = false, concurrency = config.series.concurrency, rng, chatter: withChatter = true } = {}) {
   const subject = await findSubject(floor, subjectRef);
-  // The floor's chatter about this subject goes into every prompt; a real series ignores a
-  // dry run's chatter. `chatter: false` leaves it out (the Phase 6 A/B).
-  const chatter = withChatter ? (await floor.read({ shift: 'all', type: 'chatter.posted', ref: subject.id })).filter((e) => dryRun || !e.payload.dryRun).slice(-20) : [];
+  // The floor's chatter about this subject goes into every prompt, and each variant takes one
+  // line as its brief (topped up with strays about other subjects when there are few). A real
+  // series ignores a dry run's chatter. `chatter: false` leaves it all out (the Phase 6 A/B).
+  const floorLines = withChatter ? (await floor.read({ shift: 'all', type: 'chatter.posted' })).filter((e) => dryRun || !e.payload.dryRun) : [];
+  const chatter = floorLines.filter((e) => e.ref === subject.id).slice(-20);
+  const strays = floorLines.filter((e) => e.ref !== subject.id).slice(-30);
   const matrix = buildMatrix(config, { rng, dryRun, variants });
-  dealBriefs(matrix.cells, chatter, rng);
+  dealBriefs(matrix.cells, chatter, rng, { strays });
 
   const started = await floor.append({
     type: 'series.started',

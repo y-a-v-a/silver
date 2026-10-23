@@ -28,7 +28,7 @@ Context from the source:
 
 {{brief}}
 
-Take your brief literally and seriously. The superstars talk in images without knowing it: your work is the image that line describes, or what that image would leave behind. Don't write the line on the canvas, and don't illustrate it like a cartoon. Find the picture inside it.
+Take your brief literally and seriously. The superstars talk in images without knowing it: your work is the image that line describes, or what that image would leave behind. Don't write the line on the canvas, and don't illustrate it like a cartoon. Find the picture inside it. If the line was said about something else, that's how the Factory works: overheard things get mixed up. Make it about this subject anyway.
 
 Everything else overheard on the floor, yours to steal:
 {{floor_excerpt}}
