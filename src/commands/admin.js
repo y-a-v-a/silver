@@ -24,14 +24,15 @@ const CLI = fileURLToPath(new URL('../cli.js', import.meta.url));
 async function serve(opts, ctx, { startPath = '/' } = {}) {
   const env = process.env;
   // A broken studio.json mustn't lock you out of the page that fixes it.
-  const notices = [];
+  let configProblem = null;
+  const describe = (err) => `studio.json doesn't work, so these settings aren't in use here, and the shift won't run until it's fixed or reset on System: ${err.errors.join('; ')}`;
   let start;
   try {
     start = await createFactory();
   } catch (err) {
     if (err.name !== 'ConfigError') throw err;
     start = await createFactory({ overlay: false });
-    notices.push({ level: 'bad', text: `studio.json doesn't work, so these settings aren't in use, and the shift won't run until it's fixed or reset on System: ${err.errors.join('; ')}` });
+    configProblem = describe(err);
   }
   const { config, floor } = start;
   if (await ensureTaste(config.paths.taste)) ctx.stderr.write(`created ${config.paths.taste}: write what you like at the top\n`);
@@ -44,16 +45,17 @@ async function serve(opts, ctx, { startPath = '/' } = {}) {
   const getConfig = async () => {
     try {
       live = await loadConfigFromEnv(env);
-      return live;
+      configProblem = null;
     } catch (err) {
       if (err.name !== 'ConfigError') throw err;
-      return live;
+      configProblem = describe(err);
     }
+    return live;
   };
 
   const preflightProblems = [];
   const notes = {
-    list: () => [...notices, ...preflightProblems.map((text) => ({ level: 'bad', text: `The code you just saved doesn't load, so this admin keeps running the last good version:\n${text}` }))],
+    list: () => [...(configProblem ? [{ level: 'bad', text: configProblem }] : []), ...preflightProblems.map((text) => ({ level: 'bad', text: `The code you just saved doesn't load, so this admin keeps running the last good version:\n${text}` }))],
   };
   process.on('message', (m) => {
     if (m?.type === 'preflight') {
@@ -99,6 +101,7 @@ async function serve(opts, ctx, { startPath = '/' } = {}) {
   const pending = (await listSeries(floor)).filter(isPendingReview).length;
   ctx.stdout.write(`admin: http://${LOCAL_NAME}:${port}${startPath === '/' ? '' : startPath}  (also ${url}; ${pending} series waiting; Ctrl-C to stop)\n`);
   if (supervised) process.send({ type: 'ready' });
+  else if (opts.open) execFile('open', [`http://${LOCAL_NAME}:${port}${startPath}`], () => {});
   await new Promise((resolve) => {
     process.once('SIGINT', resolve);
     process.once('SIGTERM', resolve);
@@ -116,7 +119,7 @@ export default async function adminCommand(_args, opts, ctx) {
 
   const config = await loadConfigFromEnv(process.env, { overlay: false });
   const port = opts.port === undefined ? config.review.port : Number(opts.port);
-  const childArgs = ['admin', '--no-supervise', '--port', String(port), ...(opts.publish === false ? ['--no-publish'] : [])];
+  const childArgs = ['admin', '--no-supervise', '--no-open', '--port', String(port), ...(opts.publish === false ? ['--no-publish'] : [])];
   // What this process read from .env is left out of the child's environment, so a restart
   // after editing .env reads the new values (a variable already set would win over the file).
   const env = { ...process.env };

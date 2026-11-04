@@ -165,7 +165,7 @@ ${p.sensitive?.flag ? `<p class="warn" role="note">Sensitive subject${p.sensitiv
   <div>
     ${notes}
     ${shortlist}
-    <div class="toolbar"><span class="small muted"><kbd>j</kbd> <kbd>k</kbd> move · <kbd>enter</kbd> look · <kbd>a</kbd> approve · <kbd>x</kbd> veto · <kbd>n</kbd> note · <kbd>p</kbd> play</span><span class="small muted">${approvedN} approved · ${s.decisions.size - approvedN} vetoed</span></div>
+    <div class="toolbar"><span class="small muted keys"><kbd>j</kbd> <kbd>k</kbd> move · <kbd>enter</kbd> look · <kbd>a</kbd> approve · <kbd>x</kbd> veto · <kbd>n</kbd> note · <kbd>p</kbd> play</span><span class="small muted">${approvedN} approved · ${s.decisions.size - approvedN} vetoed</span></div>
     <div class="sheet">${produced.map(card).join('\n')}</div>
     ${failed.length ? `<h2>Failed (${failed.length})</h2><ul class="failed">${failed.map((v) => `<li><strong>${esc(v.variant)}</strong> ${esc(v.technique)} · ${esc(v.model ?? '')}: ${esc(v.reason)}${v.error ? ` <span class="muted">${esc(String(v.error).split('\n')[0].slice(0, 160))}</span>` : ''}</li>`).join('')}</ul>` : ''}
   </div>
@@ -258,7 +258,7 @@ export function routes(app) {
 
   app.post('/subjects/:id/say', async (c) => {
     const form = await c.form();
-    const back = form.get('back')?.startsWith('/') ? form.get('back') : `/subjects/${c.params.id}`;
+    const back = /^\/[^/\\]/.test(form.get('back') ?? '') ? form.get('back') : `/subjects/${c.params.id}`;
     c.back = back;
     const subject = (await c.floor.read({ shift: 'all', type: 'subject.posted' })).find((e) => e.id === c.params.id);
     if (!subject) return c.notFound(`no subject ${c.params.id}`);

@@ -131,7 +131,18 @@
       stage.append(img);
     }
     $('.light-side', light).innerHTML = '';
-    for (const part of card.querySelectorAll('.meta, .making, .note')) $('.light-side', light).append(part.cloneNode(true));
+    for (const part of card.querySelectorAll('.meta, .making, .note')) {
+      const copy = part.cloneNode(true);
+      copy.querySelectorAll('[data-live]').forEach((a) => a.remove());
+      $('.light-side', light).append(copy);
+    }
+    if (card.querySelector('form.decide')) {
+      const act = document.createElement('p');
+      act.className = 'buttons';
+      act.style.marginTop = '10px';
+      act.innerHTML = '<button type="button" class="approve" data-light-decide="approved">Approve</button><button type="button" class="veto" data-light-decide="vetoed">Veto</button>';
+      $('.light-side', light).append(act);
+    }
     const live = card.dataset.sketch;
     if (live) {
       const b = document.createElement('p');
@@ -151,7 +162,9 @@
       lp.remove();
       return;
     }
-    if (e.target === light) return light.close();
+    const verdict = e.target.closest('[data-light-decide]');
+    if (verdict) return decide(verdict.dataset.lightDecide);
+    if (e.target === light || e.target.matches?.('.light-stage')) return light.close();
     const f = e.target.closest('.sheet .frame');
     if (!f || f.querySelector('iframe') || !s) return;
     const card = f.closest('.card');

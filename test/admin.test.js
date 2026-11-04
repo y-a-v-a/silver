@@ -287,6 +287,7 @@ test('a subject can be pinned, said something about and retired', async () => {
   assert.equal(chatter.at(-1).actor, 'human');
   assert.match((await page(`/subjects/${s.id}`)).html, /the human<\/b>: It smells of rain\./);
   assert.match(told(await post(`/subjects/${s.id}/say`, { text: '' })), /error=say something first/);
+  assert.match(told(await post(`/subjects/${s.id}/say`, { text: 'Hm.', back: '//evil.example/' })), new RegExp(`^/subjects/${s.id}\\?`), 'the way back stays on this site');
 
   const other = await floor.append({ type: 'subject.posted', actor: 'scout', payload: { origin: 'scouted', title: 'to retire' } });
   assert.match(told(await post(`/subjects/${other.id}/retire`, { reason: 'too sad' })), /Retired "to retire"/);

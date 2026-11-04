@@ -94,3 +94,49 @@ test('the gallery poster is the later frame, and a revised label shows on the pa
   assert.equal(feed.items.length, 2, 'a correction is not a new entry');
   assert.equal(feed.items[1].title, 'No. 001: Soup (Corrected)');
 });
+
+test('the site works from any directory: its links are relative, so the admin can preview the real build', async () => {
+  const f = await gallery();
+  const { dir } = await buildSite({ config: f.config, floor: f.floor });
+  const index = await readFile(join(dir, 'index.html'), 'utf8');
+  const [first] = (await readdir(join(dir, 'works'))).sort();
+  const work = await readFile(join(dir, 'works', first, 'index.html'), 'utf8');
+  assert.match(index, /<a href="works\/campbell-soup-v0\d-[a-z0-9]+\/" data-technique="/);
+  assert.match(index, /<img src="works\/[^"]+\/poster\.png"/);
+  assert.match(work, /<a class="mark" href="\.\.\/\.\.\/">/);
+  assert.match(work, /rel="next" href="\.\.\/campbell-soup/);
+  assert.doesNotMatch(`${index}${work}`, /(href|src)="\/(works|feed)/, 'nothing assumes the site sits at the root');
+});
+
+test('the wall can be filtered by procedure, and works without its script', async () => {
+  const f = await gallery();
+  const { dir } = await buildSite({ config: f.config, floor: f.floor });
+  const index = await readFile(join(dir, 'index.html'), 'utf8');
+  assert.match(index, /<button type="button" data-technique="halftone" aria-pressed="false">halftone 1<\/button>/);
+  assert.match(index, /<button type="button" data-technique="grid-repeat" aria-pressed="false">grid-repeat 1<\/button>/);
+  assert.doesNotMatch(index, /<a [^>]*\shidden/, 'everything shows until a filter is clicked');
+  assert.match(index, /2 editions\./);
+});
+
+test('the gallery says how it is made, and has a page for what is not there', async () => {
+  const f = await gallery();
+  const { dir } = await buildSite({ config: f.config, floor: f.floor });
+  const about = await readFile(join(dir, 'about', 'index.html'), 'utf8');
+  assert.match(about, /2 editions in 2 procedures/);
+  assert.match(about, /<link rel="alternate"[^>]*href="\.\.\/feed\.xml"/);
+  assert.match(await readFile(join(dir, '404.html'), 'utf8'), /Not on the wall/);
+});
+
+test('a work is live in a sandbox; a line by the human reads right; a source that is no URL is no link', async () => {
+  const f = await gallery();
+  await f.floor.append({ type: 'work.published', actor: 'printer', payload: { canonId: 'zzz-v09-aaaaaa', seriesId: 'S', variant: 'v09', technique: 'x-ray', subjectTitle: 'a <can>', sourceUrl: 'javascript:alert(1)', sketch: (await f.floor.read({ type: 'work.published' }))[0].payload.sketch, poster: (await f.floor.read({ type: 'work.published' }))[0].payload.poster, later: null, signature: 'abcdefabcdefabcdef', brief: { from: 'the human', text: 'It smells of rain.' }, dare: 'Make it tender.' } });
+  await f.floor.append({ type: 'edition.released', actor: 'fred-hughes', payload: { canonId: 'zzz-v09-aaaaaa', edition: 9, title: 'Rain', wallText: 'Wet.', channel: 'site' } });
+  const { dir } = await buildSite({ config: f.config, floor: f.floor });
+  const page = await readFile(join(dir, 'works', 'zzz-v09-aaaaaa', 'index.html'), 'utf8');
+  assert.match(page, /<iframe src="sketch\.html"[^>]*sandbox="allow-scripts"/);
+  assert.match(page, /From a line the human said on the floor: “It smells of rain\.”/);
+  assert.doesNotMatch(page, /javascript:alert/);
+  assert.match(page, /After: a &lt;can&gt;/);
+  assert.match(page, /Dare: Make it tender\./);
+});
+
