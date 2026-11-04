@@ -2,13 +2,16 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { benchedSuperstars, benchSuperstar, castSuperstar, checkSoul, composeSoul, listRevisions, listSouls, readRevision, readSoul, recallSuperstar, saveSoul, sha, SoulConflict, SoulError, splitSoul } from '../src/admin/souls.js';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { benchedSuperstars, benchSuperstar, castSuperstar, checkSoul, commitSouls, soulChanges, composeSoul, listRevisions, listSouls, readRevision, readSoul, recallSuperstar, saveSoul, sha, SoulConflict, SoulError, splitSoul } from '../src/admin/souls.js';
 import { ROLE_VARS, varsFor } from '../src/admin/contract.js';
 import { compactDiff, hasChanges, lineDiff } from '../src/lib/diff.js';
 import { listRoles } from './helpers-souls.js';
 import { loadRoles, placeholdersIn } from '../src/roles.js';
 import { roleFile, tmpFactory } from './helpers.js';
 
+const exec = promisify(execFile);
 const VIVA = await readFile(new URL('../roles/superstars/viva.md', import.meta.url), 'utf8');
 const WARHOL = await readFile(new URL('../roles/warhol.md', import.meta.url), 'utf8');
 
@@ -161,3 +164,38 @@ test('lineDiff finds the changed lines; compactDiff keeps only those and their s
   assert.equal(c[0].count, 1);
   assert.deepEqual(lineDiff('', 'x').filter((x) => x.op !== 'same').map((x) => x.op), ['del', 'add']);
 });
+
+test('souls are committed only on request: just the role files, whatever else is staged', async () => {
+  const f = await setup();
+  const run = (...args) => exec('git', ['-C', f.root, ...args]).then((r) => r.stdout.trim());
+  assert.equal(await soulChanges(f.config), null, 'not a repository: nothing to offer');
+  await assert.rejects(commitSouls(deps(f), {}), /aren't in a git repository/);
+
+  await run('init', '--quiet', '--initial-branch=wilder');
+  await run('config', 'user.name', 'T');
+  await run('config', 'user.email', 't@example.invalid');
+  await writeFile(join(f.root, 'other.txt'), 'x');
+  await run('add', 'roles', 'other.txt');
+  await run('commit', '--quiet', '-m', 'start');
+  assert.deepEqual(await soulChanges(f.config), { branch: 'wilder', files: [] });
+  await assert.rejects(commitSouls(deps(f), {}), /no soul has changed/);
+
+  const soul = await readSoul(f.config, 'viva');
+  await saveSoul(deps(f), 'viva', { raw: composeSoul(soul.raw, { settings: { temperature: 1.2 } }), baseHash: soul.hash });
+  await writeFile(join(f.root, 'other.txt'), 'staged, and none of our business');
+  await run('add', 'other.txt');
+  assert.deepEqual((await soulChanges(f.config)).files, ['roles/superstars/viva.md']);
+
+  const r = await commitSouls(deps(f), {});
+  assert.equal(r.branch, 'wilder');
+  assert.equal(await run('log', '-1', '--format=%s'), 'Souls: viva');
+  assert.deepEqual((await run('show', '--name-only', '--format=', 'HEAD')).split('\n'), ['roles/superstars/viva.md']);
+  assert.match(await run('status', '--porcelain'), /^M {2}other\.txt/m, 'what was staged stays staged, uncommitted');
+  assert.deepEqual((await soulChanges(f.config)).files, []);
+  assert.match((await f.floor.read({ type: 'studio.changed' })).at(-1).payload.summary, /committed the souls \(viva\) to wilder/);
+
+  await benchSuperstar(deps(f), 'viva');
+  assert.equal((await commitSouls(deps(f), { message: 'She left.' })).files.length, 1);
+  assert.equal(await run('log', '-1', '--format=%s'), 'She left.');
+});
+

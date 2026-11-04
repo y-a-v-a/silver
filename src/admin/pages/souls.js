@@ -3,12 +3,12 @@
 // the files from disk when it starts. The files stay plain markdown in roles/, so an edit in
 // a text editor shows up here, and the two can't overwrite each other.
 import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { placeholdersIn, REASONING } from '../../roles.js';
 import { compactDiff, hasChanges, lineDiff } from '../../lib/diff.js';
 import { LOCKED_FIELDS, varsFor } from '../contract.js';
 import { ago, esc, field, messages, usd } from '../ui.js';
-import { benchedSuperstars, benchSuperstar, castSuperstar, checkSoul, composeSoul, listRevisions, listSouls, readRevision, readSoul, recallSuperstar, saveSoul, splitSoul } from '../souls.js';
+import { benchedSuperstars, benchSuperstar, castSuperstar, checkSoul, commitSouls, composeSoul, listRevisions, listSouls, readRevision, readSoul, recallSuperstar, saveSoul, soulChanges, splitSoul } from '../souls.js';
 
 const LIMIT = 512 * 1024;
 
@@ -27,11 +27,20 @@ function soulCard(s, config) {
   return `<a class="soul" href="/souls/${esc(s.id)}"><h3>${esc(s.role.name)}</h3><p class="x">${esc(s.role.body.replace(/\s+/g, ' ').slice(0, 220))}</p><div class="tag wrap">${esc(m.model)} · t${esc(s.role.temperature)} · ${esc(ago(s.mtime))}</div></a>`;
 }
 
-export function soulsBody({ souls, benched, config, msg }) {
+/** Saving changes the file and the next run; this is the separate, deliberate step into git. */
+function commitPanel(changes) {
+  if (!changes?.files.length) return '';
+  const names = changes.files.map((f) => basename(f, '.md')).join(', ');
+  return `<form method="post" action="/souls/commit" class="panel spread"><span><strong>${changes.files.length} changed since the last commit:</strong> ${esc(names)}. <span class="small muted">They already count; committing just puts them in git, on <code>${esc(changes.branch)}</code>.</span></span>
+  <span class="row"><input type="text" name="message" placeholder="Souls: ${esc(names)}" aria-label="Commit message" style="width:16em"><button>Commit them</button></span></form>`;
+}
+
+export function soulsBody({ souls, benched, config, msg, changes = null }) {
   const stars = souls.filter((s) => s.group === 'superstar');
   const staff = souls.filter((s) => s.group !== 'superstar');
   return `<div class="top"><div><h1>Souls</h1><p class="lede">Who they are and what they're told. Each is a markdown file in <code>roles/</code>; save one here or in your editor and it counts from the next shift or job.</p></div></div>
 ${messages(msg)}
+${commitPanel(changes)}
 <h2>The superstars <small>their lines become the briefs</small></h2>
 <div class="soul-grid">${stars.map((s) => soulCard(s, config)).join('')}
   <form method="post" action="/souls/cast" class="soul" style="cursor:default"><h3>Cast someone new</h3>
@@ -126,8 +135,15 @@ export function routes(app) {
   const deps = (c) => ({ config: c.config, floor: c.floor });
 
   app.get('/souls', async (c) => {
-    const body = soulsBody({ souls: await listSouls(c.config), benched: await benchedSuperstars(c.config), config: c.config, msg: c.msg });
+    const body = soulsBody({ souls: await listSouls(c.config), benched: await benchedSuperstars(c.config), config: c.config, msg: c.msg, changes: await soulChanges(c.config) });
     return c.page({ title: 'Souls', active: 'souls', body });
+  });
+
+  app.post('/souls/commit', async (c) => {
+    c.back = '/souls';
+    const form = await c.form();
+    const r = await commitSouls(deps(c), { message: form.get('message') });
+    return c.redirect('/souls', { done: `Committed ${r.files.length} soul${r.files.length === 1 ? '' : 's'} to ${r.branch} (${r.commit}).` });
   });
 
   app.post('/souls/cast', async (c) => {

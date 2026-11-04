@@ -52,7 +52,7 @@ The Factory's back room, on this machine only. It needs no login: it binds to `1
 | **Review** | The contact sheet: film strips per series, a lightbox, and the keyboard (`j` `k` move, `enter` look, `a` approve, `x` veto, `p` play). Send a variant back with a note, ask Warhol to look, clear the backlog by date. |
 | **Subjects** | Commission something, pin anything to the front of the queue, say a line on the floor (it may become a brief), retire a subject, or make a series now with procedures, hands, temperatures, a dare or a note pinned. |
 | **Studio** | Steering: a standing direction to the Scout, the superstars, the assistants and Warhol; the shift's pace and budget; the matrix; the hands; the procedures (bench, favour, rewrite, add); the dare deck; the sources. What the record says about each sits next to it. |
-| **Souls** | The role files. Rewrite a soul or its settings, audition a superstar, cast a new one, bench one. It checks as you type, keeps every version it replaces, and won't overwrite an edit made in your text editor. |
+| **Souls** | The role files. Rewrite a soul or its settings, audition a superstar, cast a new one, bench one. It checks as you type, keeps every version it replaces, won't overwrite an edit made in your text editor, and commits the changed souls to git when you ask. |
 | **Taste** | Your words at the top of `taste.md`, your decisions, and what they add up to. |
 | **Floor, Canon, Diary, Gallery** | The record to read: the floor live, the editions and their labels, Andy's diary, the gallery exactly as it would deploy. Any model call can be read in full. |
 | **Jobs, System** | What's running and its log; keys, schedule, pause, the record, the money, model checks and restart. |

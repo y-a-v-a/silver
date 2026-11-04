@@ -646,7 +646,7 @@ Phase 9 is built on the branch `night-shift/wilder` (local, not pushed). The 09:
 
 ## Where things stand (2026-11-04, after the admin)
 
-Phase 10 is on `night-shift/wilder` (local, not pushed), which is also what the 09:00 job runs. 461 tests pass, browser tests included. It was driven in a real browser against a clone of the record and a mock OpenRouter, including a full dry-run shift through the job queue; the real floor got no events from it.
+Phase 10 is on `night-shift/wilder` (local, not pushed), which is also what the 09:00 job runs. 462 tests pass, browser tests included. It was driven in a real browser against a clone of the record and a mock OpenRouter, including a full dry-run shift through the job queue. On the real record, a read-only crawl of 700 pages found no errors and left the floor byte for byte the same. One real model call was made from the sandbox (`silver audition nico`, $0.00041), so the new prompt path has met a real model once; a full series on the new prompts hasn't, because the account is out of credit.
 
 **Open questions**
 1. **Start the admin for good?** `npx silver install-admin` keeps it running at `http://silver.localhost:4747`. It wasn't installed, because that's a new always-on service on a machine shared with your other agents.

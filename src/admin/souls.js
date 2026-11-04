@@ -2,14 +2,17 @@
 // loader validates them, refused rather than half-applied, written atomically, kept in the
 // record as revisions, and announced on the floor. Every shift and job reads the role files
 // from disk when it starts, so a saved soul counts from the next one with no restart.
+import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { promisify } from 'node:util';
 import { basename, join, relative, sep } from 'node:path';
 import { monotonicFactory } from 'ulid';
 import { parseRole, placeholdersIn } from '../roles.js';
 import { writeFileAtomic } from '../lib/atomic.js';
 import { varsFor } from './contract.js';
 
+const execFileP = promisify(execFile);
 const nextId = monotonicFactory();
 const KEBAB = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
@@ -285,3 +288,45 @@ export async function recallSuperstar({ config, floor }, id) {
   await recordChange(floor, { what: 'role', target: id, summary: `the cast: ${parseRole(raw, { file: `${id}.md`, group: 'superstar' }).role?.name ?? id} is back on the floor` });
   return readSoul(config, id);
 }
+
+// trimEnd: in `status --porcelain` the leading space is part of the line.
+const git = (root, ...args) => execFileP('git', ['-C', root, ...args]).then(({ stdout }) => stdout.trimEnd());
+
+/**
+ * Role files changed since the last commit, and the branch a commit would land on. Null when
+ * the roles aren't in a git repository (a sandbox).
+ * @returns {Promise<{branch: string, files: string[]}|null>}
+ */
+export async function soulChanges(config) {
+  const roles = relative(config.root, config.paths.roles);
+  try {
+    if ((await git(config.root, 'rev-parse', '--show-toplevel')) !== (await realpath(config.root))) return null;
+    const status = await git(config.root, 'status', '--porcelain', '--', roles);
+    return { branch: await git(config.root, 'rev-parse', '--abbrev-ref', 'HEAD'), files: status ? status.split('\n').map((l) => l.slice(3)) : [] };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Commit the role files, and nothing else that happens to be staged. Only ever on request: an
+ * unattended commit could land on whatever branch happens to be checked out.
+ */
+export async function commitSouls({ config, floor }, { message }) {
+  const changes = await soulChanges(config);
+  if (!changes) throw new SoulError("the roles aren't in a git repository here", 409);
+  if (!changes.files.length) throw new SoulError('no soul has changed since the last commit', 409);
+  const roles = relative(config.root, config.paths.roles);
+  const names = changes.files.map((f) => basename(f, '.md')).join(', ');
+  const text = String(message ?? '').trim() || `Souls: ${names}`;
+  try {
+    await git(config.root, 'add', '--all', '--', roles);
+    await git(config.root, 'commit', '--quiet', '-m', text, '--', roles);
+  } catch (err) {
+    throw new SoulError(`git wouldn't commit it: ${String(err.stderr || err.message).trim().split('\n').at(-1)}`, 409);
+  }
+  const commit = await git(config.root, 'rev-parse', '--short', 'HEAD');
+  await recordChange(floor, { what: 'role', target: names, summary: `committed the souls (${names}) to ${changes.branch}`, commit });
+  return { commit, branch: changes.branch, files: changes.files };
+}
+
