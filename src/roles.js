@@ -82,7 +82,9 @@ export function parseRole(text, { file, group }) {
   const err = (msg) => errors.push(`${file}: ${msg}`);
   let parsed;
   try {
-    parsed = matter(text);
+    // With options, gray-matter skips its cache: that cache never shrinks, and on a second read
+    // of a broken file it hands back empty data instead of the YAML error.
+    parsed = matter(text, {});
   } catch (e) {
     return { errors: [`${file}: frontmatter is not valid YAML (${e.message})`] };
   }

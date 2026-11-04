@@ -2,11 +2,12 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { tmpFactory, seedSeries } from './helpers.js';
-import { createReviewServer } from '../src/tools/review/server.js';
+import { createAdminServer } from '../src/admin/server.js';
 import { recordDecision, closeReview, ReviewError } from '../src/agents/review.js';
 import { listSeries } from '../src/agents/series-data.js';
 import { readTaste } from '../src/lib/taste.js';
-import { indexPage, seriesPage, fileUrl, esc } from '../src/tools/review/pages.js';
+import { reviewBody as indexPage, seriesBody as seriesPage } from '../src/admin/pages/review.js';
+import { fileUrl, esc } from '../src/admin/ui.js';
 
 let f;
 let series;
@@ -23,7 +24,7 @@ before(async () => {
     payload: { seriesId: series.seriesId, subjectId: series.subject.id, picks: [{ variant: 'v02', note: 'Gee, a can.', offTechnique: true }], rejects: 'Too busy.' },
   });
   await f.floor.append({ type: 'chatter.posted', actor: 'superstar.brigid', ref: series.subject.id, payload: { text: 'Tomato <b>darling</b>.' } });
-  review = createReviewServer({ config: f.config, floor: f.floor });
+  review = createAdminServer({ config: f.config, floor: f.floor });
   base = await review.listen(0);
 });
 after(() => review.close());
@@ -39,12 +40,12 @@ test('esc and fileUrl', () => {
 });
 
 test('the index lists the pending series with Warhol status', async () => {
-  const res = await fetch(base);
+  const res = await fetch(`${base}/review`);
   assert.equal(res.status, 200);
   const html = await res.text();
   assert.match(html, /Waiting for review \(1\)/);
   assert.match(html, new RegExp(`<a href="/series/${series.seriesId}">campbell soup</a> <span class="warn">sensitive</span>`));
-  assert.match(html, /<td>3\/4<\/td><td>1 picked<\/td>/);
+  assert.match(html, /3\/4 produced · 1 picked/);
 });
 
 test('a series page shows picks first, notes, badges, chatter (escaped), failures and forms', async () => {
@@ -139,9 +140,9 @@ test('closing a review moves it off the pending list; closing twice is an error'
   const res = await post(`/series/${series.seriesId}/close`, {});
   assert.equal(res.status, 303);
   assert.match(decodeURIComponent(res.headers.get('location')), /Closed the review of "campbell soup"/);
-  const html = await (await fetch(base)).text();
+  const html = await (await fetch(`${base}/review`)).text();
   assert.match(html, /Waiting for review \(0\)/);
-  assert.match(html, /Recently closed/);
+  assert.match(html, /Recently closed \(1\)/);
   const again = await post(`/series/${series.seriesId}/close`, {});
   assert.match(decodeURIComponent(again.headers.get('location')), /already closed/);
 });
@@ -166,7 +167,8 @@ test('page builders work on bare views (no subject, no shortlist)', async () => 
   await seedSeries(g, { produced: [], failed: [] });
   const views = await listSeries(g.floor);
   views[0].subject = null;
-  assert.match(indexPage(views), /\(unknown subject\)|campbell soup/);
+  assert.doesNotThrow(() => indexPage(views));
+  assert.match(indexPage(views, {}, { show: 'all' }), /campbell soup/, 'the series remembers the title itself');
   assert.match(seriesPage(views[0]), /Warhol hasn't looked at this series yet/);
 });
 
@@ -189,7 +191,7 @@ test('the same decision twice (double click, resubmit) is recorded once; a chang
 test('a double-clicked form says "already recorded"', async () => {
   const g = await tmpFactory();
   const { seriesId } = await seedSeries(g);
-  const srv = createReviewServer({ config: g.config, floor: g.floor });
+  const srv = createAdminServer({ config: g.config, floor: g.floor });
   const url = await srv.listen(0);
   try {
     const send = () => fetch(`${url}/series/${seriesId}/decide`, { method: 'POST', redirect: 'manual', headers: { 'Content-Type': 'application/x-www-form-urlencoded', Origin: url }, body: 'variant=v01&verdict=approved' });

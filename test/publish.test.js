@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { tmpFactory, completion, seedSeries, decide, fakePrintRenderer } from './helpers.js';
 import { publish, publishQueue, withPublishLock, PublishBusy } from '../src/publish.js';
 import { deployVercel, parseDeployUrl, DeployError } from '../src/deploy.js';
-import { createReviewServer } from '../src/tools/review/server.js';
+import { createAdminServer as createReviewServer } from '../src/admin/server.js';
 
 const role = (name) => readFile(new URL(`../roles/${name}.md`, import.meta.url), 'utf8');
 const ROLES = { 'printer.md': await role('printer'), 'fred-hughes.md': await role('fred-hughes') };
@@ -154,7 +154,7 @@ test('the review server asks for a publish after each new approval, not after ve
 
     await publish({ config: s.config, floor: s.floor, llm: s.llm, createRenderer: s.createRenderer, deploy: null });
     const page = await (await fetch(`${url}/series/${s.seriesId}`)).text();
-    assert.match(page, /<span class="badge ok">No\. 001<\/span>/);
+    assert.match(page, /<span class="badge ed">No\. 001<\/span>/);
   } finally {
     await srv.close();
   }

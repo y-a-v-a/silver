@@ -2,6 +2,7 @@
 // append-only log of every review decision. Warhol reads both before each shortlist.
 import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
+import { writeFileAtomic } from './atomic.js';
 
 export const DECISIONS_MARKER = '## Decisions';
 
@@ -48,6 +49,19 @@ export async function appendTaste(path, decision) {
   const text = await readFile(path, 'utf8');
   const prefix = text.includes(DECISIONS_MARKER) ? (text.endsWith('\n') ? '' : '\n') : `\n${DECISIONS_MARKER}\n\n`;
   await appendFile(path, `${prefix}${formatTasteEntry(decision)}\n`);
+}
+
+/**
+ * Replace the human's words at the top of taste.md, leaving the decision log exactly as it is.
+ * @param {string} path
+ * @param {string} header
+ */
+export async function writeTasteHeader(path, header) {
+  await ensureTaste(path);
+  const text = await readFile(path, 'utf8');
+  const at = text.indexOf(DECISIONS_MARKER);
+  const log = at === -1 ? `${DECISIONS_MARKER}\n\n` : text.slice(at);
+  await writeFileAtomic(path, `${String(header).trim()}\n\n${log}`);
 }
 
 /**

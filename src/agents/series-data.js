@@ -59,6 +59,8 @@ export function buildSeriesViews(events) {
           brief: p.brief ?? null,
           note: p.note ?? null,
           pullOf: p.pullOf ?? null,
+          humanNote: p.humanNote ?? null,
+          usd: p.usd ?? null,
         });
         break;
       }
