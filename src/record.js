@@ -1,4 +1,4 @@
-// The record: floor/, archive/, canon/ and taste.md, backed up as their own git repository
+// The record: floor/, archive/, canon/, taste.md and the owner's steering files, backed up as their own git repository
 // (decision 2026-09-24). The code repo ignores them; the record's git directory lives in
 // .record/ (also ignored) with the repository root as its work tree, and only the data
 // paths are ever added. The Archivist commits after each shift and pushes to a
@@ -21,7 +21,7 @@ export const RECORD_DIR = '.record';
 export const BRANCH = 'main';
 
 /** What the record holds, relative to the repository root. */
-export const DATA_PATHS = Object.freeze(['floor', 'archive', 'canon', 'taste.md']);
+export const DATA_PATHS = Object.freeze(['floor', 'archive', 'canon', 'taste.md', 'direction.md', 'studio.json']);
 
 /**
  * Pathspecs for the data. The code repo's .gitignore ignores exactly these paths (and its
@@ -41,6 +41,8 @@ export const EXCLUDE = `# The Silver record: only the Factory's data (see src/re
 !/archive/
 !/canon/
 !/taste.md
+!/direction.md
+!/studio.json
 /canon/.publish.lock
 *.tmp
 .DS_Store

@@ -27,5 +27,8 @@ floor/
 archive/
 canon/
 taste.md
+# the owner's steering, edited from the admin (kept in the record, not in the code)
+direction.md
+studio.json
 # the record's own git directory (silver init-record)
 .record/

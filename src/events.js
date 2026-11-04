@@ -5,6 +5,7 @@ export const EVENT_TYPES = Object.freeze([
   'shift.ended',
   'subject.posted',
   'subject.retired',
+  'subject.pinned',
   'chatter.posted',
   'tool.released',
   'series.started',
@@ -21,6 +22,7 @@ export const EVENT_TYPES = Object.freeze([
   'diary.written',
   'shift.archived',
   'record.pushed',
+  'studio.changed',
 ]);
 
 const ULID = /^[0-9A-HJKMNP-TV-Z]{26}$/;
