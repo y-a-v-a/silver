@@ -1,6 +1,7 @@
 // Fred Hughes: gives each signed work its edition number, an English title and wall text,
 // and releases it to the site. If his call fails, the work stays unreleased and is picked
 // up by the next publish, rather than going out with a placeholder title.
+import { HUMAN_PERSONA } from './studio.js';
 import { readCanon, writeCanonJson } from '../canon.js';
 
 export const MAX_TITLE = 80;
@@ -28,7 +29,7 @@ export function describeWork(work, subject) {
     (p.why || p.scoutWhy) && `Why it is a ready-made: ${[p.why, p.scoutWhy].filter(Boolean).join(' / ')}`,
     `Technique: ${work.technique}`,
     work.makerNote && `The assistant's note on what it shows: ${work.makerNote}`,
-    work.brief && `Made from a line the Superstar ${cap(work.brief.from)} said on the floor${work.brief.stray ? ' about a different subject' : ''}: “${work.brief.text}”`,
+    work.brief && `Made from a line ${work.brief.from === HUMAN_PERSONA ? 'the human' : `the Superstar ${cap(work.brief.from)}`} said on the floor${work.brief.stray ? ' about a different subject' : ''}: “${work.brief.text}”`,
     work.pullOf && `A second pull: Warhol sent the first print (${work.pullOf}) back to the assistant who made it, to be pushed further.`,
     work.dare && `The assistant's dare: ${work.dare}`,
     work.warholNote && `Warhol's note: ${work.warholNote}`,

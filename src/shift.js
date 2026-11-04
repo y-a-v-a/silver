@@ -6,7 +6,7 @@ import { runScouts } from './agents/scouts.js';
 import { runSuperstars } from './agents/superstars.js';
 import { runSeries } from './agents/assistants.js';
 import { pendingCommissions } from './agents/commissions.js';
-import { retiredSubjects, claimedSubjects } from './agents/retire.js';
+import { pinnedSubjects, retiredSubjects, claimedSubjects } from './agents/retire.js';
 import { listSeries, isPendingReview } from './agents/series-data.js';
 import { shortlistSeries } from './agents/warhol.js';
 import { secondPull, pulled } from './agents/pull.js';
@@ -22,21 +22,29 @@ export class ShiftError extends Error {
 const isBudget = (err) => err?.name === 'BudgetExhausted';
 
 /**
- * Choose the subjects for today's series: commissions first (oldest first), then subjects a
- * superstar pushed, then today's scouted subjects in the Scout's order. Retired subjects and subjects that already have
- * a series are never picked (decisions 2026-09-24 and 2026-09-25). A real shift never
- * picks a dry run's subjects; a dry run may use either.
+ * Choose the subjects for today's series: whatever the human pinned (from any day), then
+ * commissions (oldest first), then subjects a superstar pushed, then today's scouted subjects
+ * in the Scout's order. Retired subjects and subjects that already have a series are never
+ * picked (decisions 2026-09-24 and 2026-09-25). A real shift never picks a dry run's subjects;
+ * a dry run may use either.
  * @returns {Promise<import('./floor.js').FloorEvent[]>}
  */
 export async function pickSubjects(floor, shift, slots, { dryRun = false } = {}) {
   if (slots <= 0) return [];
   const retired = await retiredSubjects(floor);
   const claimed = claimedSubjects(await floor.read({ shift: 'all', type: 'series.started' }));
-  const commissions = (await pendingCommissions(floor)).filter((s) => !claimed.has(s.id));
-  const scouted = (await floor.read({ shift, type: 'subject.posted' })).filter((s) => s.payload.origin !== 'commission' && (dryRun || !s.payload.dryRun) && !claimed.has(s.id) && !retired.has(s.id));
+  const pinIds = [...(await pinnedSubjects(floor)).keys()].filter((id) => !claimed.has(id) && !retired.has(id));
+  const pinned = [];
+  if (pinIds.length) {
+    const byId = new Map((await floor.read({ shift: 'all', type: 'subject.posted' })).map((s) => [s.id, s]));
+    for (const id of pinIds) if (byId.has(id) && (dryRun || !byId.get(id).payload.dryRun)) pinned.push(byId.get(id));
+  }
+  const isPinned = (s) => pinIds.includes(s.id);
+  const commissions = (await pendingCommissions(floor)).filter((s) => !claimed.has(s.id) && !isPinned(s));
+  const scouted = (await floor.read({ shift, type: 'subject.posted' })).filter((s) => s.payload.origin !== 'commission' && (dryRun || !s.payload.dryRun) && !claimed.has(s.id) && !retired.has(s.id) && !isPinned(s));
   // A subject a superstar pushed onto the floor jumps the Scout's queue: that's the point of it.
   const pushed = scouted.filter((s) => s.payload.origin === 'superstar');
-  return [...commissions, ...pushed, ...scouted.filter((s) => s.payload.origin !== 'superstar')].slice(0, slots);
+  return [...pinned, ...commissions, ...pushed, ...scouted.filter((s) => s.payload.origin !== 'superstar')].slice(0, slots);
 }
 
 /**
@@ -51,10 +59,14 @@ export async function pickSubjects(floor, shift, slots, { dryRun = false } = {})
  * @param {() => Promise<object>} [deps.reconcile]          best-effort ledger check
  * @param {(title: string, message: string) => Promise<boolean>} [deps.notify]
  * @param {(message: string) => Promise<object>} [deps.backup]  commit (and push) the record
- * @param {{dryRun?: boolean, again?: boolean}} [opts]
+ * @param {{dryRun?: boolean, again?: boolean, force?: boolean}} [opts]
+ *   force: run even though the owner paused the daily shift
  */
-export async function runShift({ config, floor, llm, budget, createRenderer, fetch, reconcile, notify, backup }, { dryRun = false, again = false } = {}) {
+export async function runShift({ config, floor, llm, budget, createRenderer, fetch, reconcile, notify, backup }, { dryRun = false, again = false, force = false } = {}) {
   const shift = floor.today();
+  // Paused by the owner (the schedule keeps firing, so a pause needs no launchd change).
+  // A dry run or a shift started by hand is a deliberate act, and goes ahead.
+  if (config.shift.paused && !dryRun && !force) return { shift, status: 'paused' };
   const today = await floor.read({ shift });
   // A dry run never stands in for the real shift, and vice versa.
   const sameKind = (e) => Boolean(e.payload?.dryRun) === dryRun;

@@ -36,6 +36,10 @@ The human has the last word: nothing is signed without them. This is their taste
 
 {{taste}}
 
+And what they're after right now:
+
+{{direction}}
+
 ## The variants
 
 You get one image per variant, in this order. Each was made with an assigned procedure, an assigned dare (a constraint card), and usually one superstar's line as its brief:

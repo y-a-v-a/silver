@@ -5,6 +5,7 @@
 import { join } from 'node:path';
 import { findSeries } from './series-data.js';
 import { tasteForPrompt } from '../lib/taste.js';
+import { directionFor, readDirection } from '../lib/direction.js';
 
 export const MAX_PICKS = 3;
 
@@ -79,6 +80,7 @@ export async function shortlistSeries({ config, floor, llm }, seriesRef, { force
       subject,
       chatter,
       taste: await tasteForPrompt(config.paths.taste, config.review.tasteEntriesInPrompt),
+      direction: directionFor(await readDirection(config.root), 'warhol'),
       variants: describeVariants(shown),
       max_picks: String(MAX_PICKS),
     },

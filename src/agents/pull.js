@@ -8,8 +8,10 @@ import { findSeries } from './series-data.js';
 import { extractNote, extractSketch, sketchVars } from './studio.js';
 import { render } from '../roles.js';
 import { buildSketchHtml, readSketchCode, READY_FRAMES } from '../tools/template.js';
+import { NO_DIRECTION } from '../lib/direction.js';
 
 export const PULL_PROMPT = "Here's how it came out (the image), and your code. Pull it again.";
+const NO_HUMAN_NOTE = '(nothing: Andy pointed, and that was enough)';
 
 export class PullError extends Error {
   constructor(message) {
@@ -31,14 +33,16 @@ export const pulled = (series) => new Map(series.variants.filter((v) => v.pullOf
  * Pull one of Warhol's picks again.
  * @param {{config: object, floor: object, llm: {call: Function, roles?: object}, renderer: {render: Function}|null}} deps
  * @param {string} seriesRef           id, id suffix, or "latest"
- * @param {{variant?: string}} [opts]  default: Warhol's first pick
+ * @param {{variant?: string, note?: string, again?: boolean}} [opts]
+ *   variant: default Warhol's first pick. note: what the human wants pushed. again: pull a
+ *   variant that already has a second pull, once more.
  */
-export async function secondPull({ config, floor, llm, renderer }, seriesRef, { variant } = {}) {
+export async function secondPull({ config, floor, llm, renderer }, seriesRef, { variant, note: humanNote, again = false } = {}) {
   const series = await findSeries(floor, seriesRef);
   const picks = series.shortlist?.payload.picks ?? [];
   const pickId = variant ?? picks[0]?.variant;
   if (!pickId) throw new PullError(`series ${series.seriesId} has no shortlist pick to pull again`);
-  if (pulled(series).has(pickId)) throw new PullError(`${pickId} already has a second pull (${pulled(series).get(pickId).variant})`);
+  if (pulled(series).has(pickId) && !again) throw new PullError(`${pickId} already has a second pull (${pulled(series).get(pickId).variant})`);
   const first = series.variants.find((v) => v.variant === pickId);
   if (!first?.ok || !first.png || !first.html) throw new PullError(`${pickId} has no rendered first pull to work from`);
   const subject = series.subject;
@@ -50,13 +54,14 @@ export async function secondPull({ config, floor, llm, renderer }, seriesRef, { 
 
   // The brief it was made from, exactly as the studio assistant read it the first time.
   const cell = { technique: first.technique, dare: first.dare, brief: first.brief };
-  const firstBrief = render(llm.roles.get('studio-assistant').body, sketchVars({ subject, chatter: series.chatter.slice(-20), cell, techniques: config.techniques }));
+  const firstBrief = render(llm.roles.get('studio-assistant').body, sketchVars({ subject, chatter: series.chatter.slice(-20), cell, techniques: config.techniques, direction: series.started.payload.direction ?? NO_DIRECTION }));
+  const human = String(humanNote ?? '').trim() || null;
 
   const seriesId = series.seriesId;
   const dir = join(config.paths.archive, 'variants', seriesId);
   const rel = (p) => relative(config.root, p);
   const id = nextVariant(series.variants);
-  const base = { seriesId, variant: id, pullOf: pickId, technique: first.technique, requestedModel: first.model, temperature: first.temperature, dare: first.dare, brief: first.brief, warholNote };
+  const base = { seriesId, variant: id, pullOf: pickId, technique: first.technique, requestedModel: first.model, temperature: first.temperature, dare: first.dare, brief: first.brief, warholNote, ...(human ? { humanNote: human } : {}) };
   const fail = async (stage, error, extra = {}) => {
     const actor = ['error', 'blank', 'no-canvas', 'timeout'].includes(stage) ? 'renderer' : 'studio-assistant';
     const event = await floor.append({ type: 'variant.failed', actor, ref: seriesId, payload: { ...base, stage, error, ...extra } });
@@ -66,7 +71,7 @@ export async function secondPull({ config, floor, llm, renderer }, seriesRef, { 
   let res;
   try {
     res = await llm.call('second-pull', {
-      vars: { warhol_note: warholNote, first_brief: firstBrief, ready_frames: String(READY_FRAMES) },
+      vars: { warhol_note: warholNote, human_note: human ?? NO_HUMAN_NOTE, first_brief: firstBrief, ready_frames: String(READY_FRAMES) },
       messages: [{ role: 'user', content: `${PULL_PROMPT}\n\n\`\`\`js\n${sketch}\n\`\`\`` }],
       images: [join(config.root, first.png)],
       model: first.model ?? undefined,

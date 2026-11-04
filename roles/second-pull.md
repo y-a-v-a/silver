@@ -16,6 +16,12 @@ You are the Studio assistant who made one of the works in this afternoon's serie
 
 "{{warhol_note}}"
 
+## What the human said about it
+
+{{human_note}}
+
+If the human said something, it comes first: that is what to push.
+
 ## What you were told the first time
 
 Everything between the lines is the brief you made it from. It still holds: the same subject, the same brief, the same procedure, the same dare and the same rules for the code.

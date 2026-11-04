@@ -134,6 +134,11 @@ export const COMMANDS = [
       ['--no-render', 'write the sketches but skip the headless render'],
       ['--dry-run', 'dry-run model and 2 variants'],
       ['--no-chatter', 'leave the floor\'s chatter out of the prompts (for an A/B)'],
+      ['--technique <names...>', 'only these techniques, instead of drawing from the menu'],
+      ['--model <slugs...>', 'only these models, instead of drawing from the studio pool'],
+      ['--temperature <values...>', 'only these temperatures'],
+      ['--dare <text>', 'this dare for every variant, instead of the deck'],
+      ['--note <text>', 'a note from the human, read by every assistant on this series'],
       ['--matrix-seed <n>', 'pick the same models and techniques every time for this seed'],
       ['--open', 'open the contact sheet when done'],
       ['--json', 'print the result as JSON'],
@@ -171,6 +176,8 @@ export const COMMANDS = [
     phase: 9,
     options: [
       ['--variant <id>', 'pull this variant instead of Warhol\'s first pick'],
+      ['--note <text>', 'what you want pushed: the assistant reads it next to Warhol\'s note'],
+      ['--again', 'pull a variant once more, even though it already has a second pull'],
       ['--no-render', 'write the sketch but don\'t render it'],
       ['--dry-run', 'use the dry-run model'],
       ['--json', 'print the variant event as JSON'],
@@ -250,6 +257,7 @@ export const COMMANDS = [
     options: [
       ['--dry-run', 'cheapest model, 2 variants per series'],
       ['--again', 'run another round after today\'s shift has ended'],
+      ['--force', 'run even though the shift is paused'],
       ['--no-notify', 'no macOS notification at the end'],
       ['--json', 'print the result as JSON'],
     ],

@@ -118,11 +118,17 @@ export function digest(events, { since = null, maxChars = 24_000 } = {}) {
       case 'subject.retired':
         add(`${time} the human retires "${titleOf(p.subjectId)}"${p.reason ? ` (${clip(p.reason, 100)})` : ''}.`);
         break;
+      case 'subject.pinned':
+        add(`${time} the human ${p.pinned ? 'pins' : 'unpins'} "${titleOf(p.subjectId)}"${p.pinned ? ' to the front of the queue' : ''}.`);
+        break;
+      case 'studio.changed':
+        add(`${time} the human changes ${clip(p.summary ?? p.target ?? 'something in the studio', 200)}.`);
+        break;
       case 'chatter.posted':
         add(`${time} ${p.persona ?? e.actor} on "${titleOf(e.ref)}": ${clip(p.text, 240)}`);
         break;
       case 'series.started':
-        add(`${time} the assistants start a series on "${titleOf(p.subjectId)}": ${p.variants} variants, techniques ${(p.techniques ?? []).join(', ')}.`);
+        add(`${time} the assistants start a series on "${titleOf(p.subjectId)}": ${p.variants} variants, techniques ${(p.techniques ?? []).join(', ')}.${p.steer?.note ? ` The human told them: "${clip(p.steer.note, 200)}"` : ''}`);
         break;
       case 'series.completed': {
         // Second pulls come later and get their own note.
@@ -140,7 +146,7 @@ export function digest(events, { since = null, maxChars = 24_000 } = {}) {
         if (!p.pullOf) break;
         add(
           e.type === 'variant.produced'
-            ? `${time} Andy sends ${p.pullOf} of "${seriesTitle(p.seriesId)}" back for a second pull; it comes back as ${p.variant}${p.note ? `: ${clip(p.note, 160)}` : ''}.`
+            ? `${time} ${p.humanNote ? `the human sends ${p.pullOf} of "${seriesTitle(p.seriesId)}" back ("${clip(p.humanNote, 120)}")` : `Andy sends ${p.pullOf} of "${seriesTitle(p.seriesId)}" back for a second pull`}; it comes back as ${p.variant}${p.note ? `: ${clip(p.note, 160)}` : ''}.`
             : `${time} Andy sends ${p.pullOf} of "${seriesTitle(p.seriesId)}" back for a second pull, and it dies (${clip(p.error ?? p.stage, 80)}).`,
         );
         break;

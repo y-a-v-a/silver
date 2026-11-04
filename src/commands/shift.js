@@ -23,11 +23,15 @@ export default async function shiftCommand(_args, opts, ctx) {
       notify: opts.notify ? (title, message) => notify(title, message) : undefined,
       backup: (await hasRecord(config)) ? (message) => commitRecord(config, { message }) : undefined,
     },
-    { dryRun: Boolean(opts.dryRun), again: Boolean(opts.again) },
+    { dryRun: Boolean(opts.dryRun), again: Boolean(opts.again), force: Boolean(opts.force) },
   );
 
   if (opts.json) {
     ctx.stdout.write(JSON.stringify(result, null, 2) + '\n');
+    return;
+  }
+  if (result.status === 'paused') {
+    ctx.stdout.write(`the shift is paused (shift.paused); nothing ran. Use --force to run it anyway, or unpause it in the admin\n`);
     return;
   }
   if (result.status === 'already-done') {

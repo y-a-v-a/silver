@@ -5,6 +5,8 @@
 // of them onto the floor as a subject (blurry roles, ARCHITECTURE principle 6).
 import { normalizeSensitive } from './scouts.js';
 import { snapshotPage } from '../lib/snapshot.js';
+import { HUMAN_PERSONA } from './studio.js';
+import { readDirection } from '../lib/direction.js';
 
 export const MAX_LINE = 280;
 const MAX_SUBJECTS = 10;
@@ -21,6 +23,33 @@ const FORMAT = `Reply with JSON only:
 {"lines": [{"subject": <number>, "text": "..."}], "propose": null}
 
 If you were shown a pile and one item in it is a better ready-made than anything on the floor, you may push it: "propose": {"pile": <P-number>, "why": "one line on why it belongs on the floor", "sensitive": {"flag": false, "reason": null}}. Most days, leave "propose" null. Never propose suicide or self-harm, children, or named private victims.`;
+
+/** The prompt every superstar gets: house rules, the human's note to the floor if any, the format. */
+export function chatterPrompt(direction) {
+  const note = String(direction ?? '').trim();
+  return [HOUSE_RULES, note && `The human walked through and said this to the floor. Do what you like with it:\n${note}`, FORMAT].filter(Boolean).join('\n\n');
+}
+
+/**
+ * The human says a line on the floor about a subject. It counts like anyone's: the superstars
+ * hear it, and an assistant may be dealt it as the brief for a work.
+ * @param {ReturnType<import('../floor.js').createFloor>} floor
+ * @param {import('../floor.js').FloorEvent} subject
+ * @param {string} text
+ */
+export async function sayOnFloor(floor, subject, text) {
+  const line = String(text ?? '').replace(/\s+/g, ' ').trim();
+  if (!line) throw new ChatterError('say something first');
+  if (line.length > MAX_LINE) throw new ChatterError(`a line on the floor is at most ${MAX_LINE} characters`);
+  return floor.append({ type: 'chatter.posted', actor: 'human', ref: subject.id, payload: { persona: HUMAN_PERSONA, text: line } });
+}
+
+export class ChatterError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'ChatterError';
+  }
+}
 
 /** Subjects as numbered cards. */
 export function formatSubjects(subjects) {
@@ -102,6 +131,7 @@ export async function runSuperstars({ config, floor, llm, fetch = globalThis.fet
   const offered = pile.slice(0, config.superstars.pileSize);
   const pileHolder = offered.length && rng() < config.superstars.proposeChance ? cast[Math.floor(rng() * cast.length)].id : null;
   const ids = new Set(onFloor.map((s) => s.id));
+  const prompt = chatterPrompt((await readDirection(config.root)).superstars);
 
   for (const role of cast) {
     const kind = (e) => dryRun || !e.payload.dryRun;
@@ -111,7 +141,7 @@ export async function runSuperstars({ config, floor, llm, fetch = globalThis.fet
     try {
       res = await llm.call(role.id, {
         vars: { subjects: formatSubjects(onFloor), floor: formatFloor(chatter, onFloor), pile: formatPile(myPile), lines: String(maxLines) },
-        prompt: `${HOUSE_RULES}\n\n${FORMAT}`,
+        prompt,
       });
     } catch (err) {
       if (err.name === 'BudgetExhausted' && err.scope === 'chatter') {

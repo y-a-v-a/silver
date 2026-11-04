@@ -8,7 +8,7 @@ export default async function pullCommand([seriesRef = 'latest'], opts, ctx) {
   const { createRenderer } = await import('../tools/render.js');
   const renderer = opts.render === false ? null : await createRenderer();
   try {
-    const r = await secondPull({ config: factory.config, floor: factory.floor, llm: await factory.llm(), renderer }, seriesRef, { variant: opts.variant });
+    const r = await secondPull({ config: factory.config, floor: factory.floor, llm: await factory.llm(), renderer }, seriesRef, { variant: opts.variant, note: opts.note, again: Boolean(opts.again) });
     if (opts.json) return void ctx.stdout.write(JSON.stringify(r.event, null, 2) + '\n');
     const p = r.event.payload;
     ctx.stdout.write(`${r.series.subject?.payload.title ?? r.series.seriesId} (series ${r.series.seriesId})\n\n`);

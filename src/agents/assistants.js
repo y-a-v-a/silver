@@ -7,6 +7,7 @@ import { buildMatrix, dealBriefs, extractNote, extractSketch, sketchVars } from 
 import { buildSketchHtml } from '../tools/template.js';
 import { buildContactSheet } from '../tools/contact-sheet.js';
 import { retiredSubjects, claimedSubjects } from './retire.js';
+import { directionFor, NO_DIRECTION, readDirection } from '../lib/direction.js';
 
 export const ASSISTANT_PROMPT = 'Make your variant now. Reply with the JavaScript in one ```js block, nothing else.';
 
@@ -52,6 +53,13 @@ export async function findSubject(floor, ref) {
   return subject;
 }
 
+/** Pins have to name what exists: a typo here would otherwise burn a series on a wrong model id. */
+function checkSteer(config, steer) {
+  for (const t of steer?.techniques ?? []) if (!config.techniques[t]) throw new SeriesError(`no technique "${t}" on the menu`);
+  for (const t of steer?.temperatures ?? []) if (!(Number.isFinite(t) && t >= 0 && t <= 2)) throw new SeriesError(`temperature ${t} must be between 0 and 2`);
+  for (const m of steer?.models ?? []) if (!/^~?[a-z0-9][\w.-]*\/[\w.:-]+$/i.test(m)) throw new SeriesError(`"${m}" is not an OpenRouter model id`);
+}
+
 /** Run `fn` over `items` with at most `limit` in flight. Stops starting new work once `stop()` is true. */
 async function pool(items, limit, fn, stop = () => false) {
   let next = 0;
@@ -69,17 +77,21 @@ async function pool(items, limit, fn, stop = () => false) {
  * @param {{call: Function}} deps.llm
  * @param {{render: Function}|null} deps.renderer   null: write sketches but don't render (variants stay unverified)
  * @param {string} subjectRef  id, unique id suffix, or "latest"
- * @param {{variants?: number, dryRun?: boolean, concurrency?: number, rng?: () => number, chatter?: boolean}} [opts]
+ * @param {{variants?: number, dryRun?: boolean, concurrency?: number, rng?: () => number, chatter?: boolean, steer?: import('./studio.js').Steer}} [opts]
  */
-export async function runSeries({ config, floor, llm, renderer }, subjectRef, { variants, dryRun = false, concurrency = config.series.concurrency, rng, chatter: withChatter = true } = {}) {
+export async function runSeries({ config, floor, llm, renderer }, subjectRef, { variants, dryRun = false, concurrency = config.series.concurrency, rng, chatter: withChatter = true, steer } = {}) {
   const subject = await findSubject(floor, subjectRef);
+  checkSteer(config, steer);
   // The floor's chatter about this subject goes into every prompt, and each variant takes one
   // line as its brief (topped up with strays about other subjects when there are few). A real
   // series ignores a dry run's chatter. `chatter: false` leaves it all out (the Phase 6 A/B).
   const floorLines = withChatter ? (await floor.read({ shift: 'all', type: 'chatter.posted' })).filter((e) => dryRun || !e.payload.dryRun) : [];
   const chatter = floorLines.filter((e) => e.ref === subject.id).slice(-20);
   const strays = floorLines.filter((e) => e.ref !== subject.id).slice(-30);
-  const matrix = buildMatrix(config, { rng, dryRun, variants });
+  const matrix = buildMatrix(config, { rng, dryRun, variants, steer });
+  // The human's standing note to the studio plus any note for this series. Recorded, so a
+  // later second pull reads what the first pull read.
+  const direction = directionFor(await readDirection(config.root), 'studio', steer?.note);
   dealBriefs(matrix.cells, chatter, rng, { strays });
 
   const started = await floor.append({
@@ -96,6 +108,8 @@ export async function runSeries({ config, floor, llm, renderer }, subjectRef, { 
       dryRun,
       chatter: withChatter,
       chatterLines: chatter.length,
+      ...(direction === NO_DIRECTION ? {} : { direction }),
+      ...(steer && Object.keys(steer).length ? { steer } : {}),
     },
   });
   const seriesId = started.id;
@@ -120,7 +134,7 @@ export async function runSeries({ config, floor, llm, renderer }, subjectRef, { 
       let res;
       try {
         res = await llm.call('studio-assistant', {
-          vars: sketchVars({ subject, chatter, cell, techniques: config.techniques }),
+          vars: sketchVars({ subject, chatter, cell, techniques: config.techniques, direction }),
           prompt: ASSISTANT_PROMPT,
           model: cell.model,
           temperature: cell.temperature,

@@ -56,6 +56,12 @@ Candidates marked `(archive)` come from the Factory's own record: rejects from e
 
 {{candidates}}
 
+## What the human is after right now
+
+{{direction}}
+
+A steer, not a shopping list. You still pick only from the candidates, and you still never invent one.
+
 ## Your task
 
 How many to choose: {{count}} at most, fewer if fewer are worth it. For each one:
