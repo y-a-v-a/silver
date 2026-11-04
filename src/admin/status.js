@@ -97,7 +97,7 @@ export async function readStatus({ config, floor, env = {}, schedule = null, cre
   const alerts = [];
   if (!env.OPENROUTER_API_KEY) alerts.push({ level: 'bad', text: 'No OpenRouter key: nothing can be made. Put OPENROUTER_API_KEY in .env, and the admin picks it up by itself.', href: '/system', label: 'System' });
   if (noCredit.length) {
-    alerts.push({ level: 'bad', text: `OpenRouter refused ${noCredit.length} call${noCredit.length === 1 ? '' : 's'} in the last day for lack of credits: variants die and Warhol can't look. The account needs topping up (the key is shared with your other agents).`, href: 'https://openrouter.ai/settings/credits', label: 'Add credits' });
+    alerts.push({ level: 'bad', text: `OpenRouter refused ${noCredit.length} call${noCredit.length === 1 ? '' : 's'} in the last day for lack of credits${typeof credit?.remaining === 'number' ? ` (${usd(credit.remaining)} left)` : ''}: variants die and Warhol can't look. The account needs topping up (the key is shared with your other agents).`, href: 'https://openrouter.ai/settings/credits', label: 'Add credits' });
   } else if (failures.length >= 5) {
     alerts.push({ level: 'warn', text: `${failures.length} model calls failed in the last day.`, href: '/floor?type=llm.failed&shift=all', label: 'See them' });
   }

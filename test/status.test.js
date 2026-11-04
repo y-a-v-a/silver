@@ -49,7 +49,8 @@ test('the status names what is wrong: no key, no credit, failed calls, pause, sc
   for (let i = 0; i < 5; i++) await f.floor.append({ type: 'llm.failed', actor: 'warhol', payload: { role: 'warhol', status: 500, error: 'boom' } });
   assert.match(await texts(), /5 model calls failed/);
   await f.floor.append({ type: 'llm.failed', actor: 'warhol', payload: { role: 'warhol', status: 402, error: 'no money' } });
-  assert.match(await texts(), /refused 1 call in the last day for lack of credits/);
+  assert.match(await texts(), /refused 1 call in the last day for lack of credits:/);
+  assert.match(await texts({ credit: { remaining: 0.006 } }), /for lack of credits \(\$0\.006 left\)/);
   await f.floor.append({ type: 'record.pushed', actor: 'archivist', payload: { error: 'denied' } });
   assert.match(await texts(), /last backup didn't push: denied/);
 });
