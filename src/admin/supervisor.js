@@ -7,7 +7,7 @@
 // process reads those fresh.
 import { spawn } from 'node:child_process';
 import { watch } from 'node:fs';
-import { stat } from 'node:fs/promises';
+import { readdir, stat } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { join, relative } from 'node:path';
 
@@ -72,6 +72,19 @@ export async function preflight({ root, cli, files, env }) {
   return problems;
 }
 
+/** Every file that could mean a restart, with its modification time. */
+async function snapshot(root) {
+  const seen = new Map();
+  const note = async (rel) => {
+    const st = await stat(join(root, rel)).catch(() => null);
+    if (st?.isFile()) seen.set(rel, st.mtimeMs);
+  };
+  await Promise.all(['silver.config.js', 'package.json', '.env'].map(note));
+  const entries = await readdir(join(root, 'src'), { recursive: true }).catch(() => []);
+  await Promise.all(entries.map((name) => join('src', name)).filter(isCodeChange).map(note));
+  return seen;
+}
+
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
 /**
@@ -96,7 +109,7 @@ export function createSupervisor({ root, cli, childArgs, port, env = process.env
   let exited = null;
   let starting = false;
   let checking = false;
-  let watchingSince = 0;
+  let seen = new Map();
   const watchers = [];
 
   const tell = (message) => {
@@ -212,9 +225,12 @@ export function createSupervisor({ root, cli, childArgs, port, env = process.env
 
   async function noticed(rel) {
     if (!rel || !isCodeChange(rel)) return;
-    // macOS reports changes from just before the watch began too; those are already running.
-    const mtime = await stat(join(root, rel)).then((st) => st.mtimeMs, () => Infinity);
-    if (mtime <= watchingSince) return;
+    // A file only counts if it really differs from what the running code was started from:
+    // macOS also reports a write from the instant before the watch began, and repeats itself.
+    const mtime = await stat(join(root, rel)).then((st) => st.mtimeMs, () => null);
+    if (seen.get(rel) === mtime || (mtime === null && !seen.has(rel))) return;
+    if (mtime === null) seen.delete(rel);
+    else seen.set(rel, mtime);
     changed.add(rel);
     clearTimeout(timer);
     timer = setTimeout(onChange, debounceMs);
@@ -222,7 +238,7 @@ export function createSupervisor({ root, cli, childArgs, port, env = process.env
 
   return {
     async start() {
-      watchingSince = Date.now();
+      seen = await snapshot(root);
       await start();
       const dirs = [['src', true], ['.', false]];
       for (const [dir, recursive] of dirs) {
