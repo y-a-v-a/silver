@@ -8,7 +8,7 @@ Each day the Factory runs a **shift**:
 2. **Superstars**, persona agents, chatter about the subjects.
 3. **Studio assistants** turn each subject into a *series* of 12 generative p5.js sketches across several models, temperatures and procedures. Each variant also draws a dare card and takes one superstar line literally as its brief. The drift between them is kept on purpose.
 4. **Warhol**, an agent, shortlists from each series, and sends his first pick back to its maker for a **second pull**, pushed further.
-5. **You** approve or veto the shortlist on a local contact sheet. Nothing enters the canon without you.
+5. **You** approve or veto the shortlist in the local admin. Nothing enters the canon without you.
 6. The **Printer** signs and deploys the approved works to a static gallery on Vercel, and **Fred Hughes** numbers the editions and publishes the feed.
 
 The Factory works the way Warhol's did, but it doesn't look like his: no pop-art pastiche. The procedures come from today's cheap image machines and from the hand (scratched film, a failing inkjet, a fax arriving, compression rot, a Rorschach blot, asemic handwriting), aiming for work that is strange, scratchy and still beautiful.
@@ -20,7 +20,7 @@ Everything is recorded, including drafts, chatter and rejects, and the record fe
 
 ## Status
 
-**All phases (0–9) are built.** Phase 9 (2026-10-23) replaced the pop-art studio with a contemporary one. The gallery isn't live on Vercel yet.
+**All phases (0–10) are built.** Phase 9 (2026-10-23) replaced the pop-art studio with a contemporary one, and Phase 10 (2026-11-04) added the admin. The gallery isn't live on Vercel yet.
 - The floor (the event log) records everything.
 - The OpenRouter client runs as any role, archives transcripts and costs every call.
 - The daily budget cap is enforced.
@@ -37,9 +37,43 @@ Everything is recorded, including drafts, chatter and rejects, and the record fe
 
 See [`process-log.jsonl`](process-log.jsonl) for a task-by-task log of the build (`npm run log:list`).
 
+## The admin
+
+```sh
+npx silver admin           # http://silver.localhost:4747 (http://127.0.0.1:4747 works too)
+npx silver install-admin   # keep it running: starts at login, comes back if it dies
+```
+
+The Factory's back room, on this machine only. It needs no login: it binds to `127.0.0.1`, refuses other `Host` headers and origins, and serves the sketches in a sandbox, because a model wrote them.
+
+| Page | What it's for |
+|---|---|
+| **Today** | What's wrong first (no credit, thin series, a failed backup), the day's series and spend, what's next. Run the shift or a dry run. |
+| **Review** | The contact sheet: film strips per series, a lightbox, and the keyboard (`j` `k` move, `enter` look, `a` approve, `x` veto, `p` play). Send a variant back with a note, ask Warhol to look, clear the backlog by date. |
+| **Subjects** | Commission something, pin anything to the front of the queue, say a line on the floor (it may become a brief), retire a subject, or make a series now with procedures, hands, temperatures, a dare or a note pinned. |
+| **Studio** | Steering: a standing direction to the Scout, the superstars, the assistants and Warhol; the shift's pace and budget; the matrix; the hands; the procedures (bench, favour, rewrite, add); the dare deck; the sources. What the record says about each sits next to it. |
+| **Souls** | The role files. Rewrite a soul or its settings, audition a superstar, cast a new one, bench one. It checks as you type, keeps every version it replaces, and won't overwrite an edit made in your text editor. |
+| **Taste** | Your words at the top of `taste.md`, your decisions, and what they add up to. |
+| **Floor, Canon, Diary, Gallery** | The record to read: the floor live, the editions and their labels, Andy's diary, the gallery exactly as it would deploy. Any model call can be read in full. |
+| **Jobs, System** | What's running and its log; keys, schedule, pause, the record, the money, model checks and restart. |
+
+### What updates by itself
+
+- **Souls, `direction.md`, `taste.md`, settings:** nothing to restart. Every shift and job is a fresh process that reads them when it starts, and the admin reads them on every request. A save counts from the next call.
+- **Code, `silver.config.js`, `package.json`, `.env`:** the admin's supervisor watches them. On a save it checks that the code parses and the config loads, then restarts the server, and open pages reload themselves unless you're in the middle of typing. If the code doesn't stand up, the old server keeps running and says what's wrong; if it can't boot at all, the address answers with the error until a save fixes it. Jobs are separate processes, so a restart doesn't touch them.
+
+### What can't be edited from the browser, on purpose
+
+API keys (`.env`; never shown), the floor, archive and signatures (append-only), paths, the admin's port and the deploy provider (moving them could strand the record or lock you out), the code, and what the code relies on in a role file (`id`, `output`, `vision`, `reads`, `emits`). No setting can turn off the human gate. The System page has this list too.
+
+Settings go in `studio.json`, over `silver.config.js`: the config file has comments that record why things are the way they are, so a browser doesn't rewrite it. `studio.json` and `direction.md` stay out of git and go into the record, like `taste.md`. Every change is an event on the floor, so the diary hears about it.
+
 ## Commands
 
 ```sh
+npx silver admin [--no-supervise] # the back room above (`silver review` opens it at the contact sheet)
+npx silver install-admin          # keep it running with launchd (uninstall-admin removes it)
+npx silver audition <superstar> [subject]  # hear a persona; nothing reaches the floor but the cost
 npx silver config [--check]      # resolved configuration / validate it
 npx silver models                # every configured model: on OpenRouter? price? can it see images?
 npx silver ping technician       # one real call as a role: prints the reply, cost and transcript path
@@ -51,11 +85,11 @@ npx silver subjects [--open]     # subjects with short ids
 npx silver series <id|latest>    # 12 variants + screenshots + a contact sheet (--dry-run: 2 cheap ones)
 npx silver release <tool>        # the Technician announces a changed tool
 npx silver shortlist [series]    # Warhol picks from a finished series (default: the newest without a shortlist)
-npx silver pull [series]         # a second pull of Warhol's first pick (or --variant v03), pushed further
-npx silver review                # the review page on http://127.0.0.1:4747: approve, veto, close
-npx silver shift [--dry-run]     # the whole day: scouts, superstars, series (commissions first), shortlists, Archivist
+npx silver pull [series]         # a second pull of Warhol's first pick (or --variant v03 --note "bigger"), pushed further
+npx silver shift [--dry-run]     # the whole day: scouts, superstars, series (pins and commissions first), shortlists, Archivist (--force runs it even when paused)
 npx silver chatter [subject]     # the superstars talk (default: today's waiting subjects); --list shows the floor's chatter
 npx silver series <id> --no-chatter --matrix-seed 7   # an A/B: the same matrix without the floor's chatter
+npx silver series <id> --technique x-ray --model a/b --temperature 1.2 --dare "..." --note "..."   # steer one series
 npx silver diary [date] [--write] # the Archivist's diary entry
 npx silver archive [date]        # check every event's artifacts on disk; write the day's manifest
 npx silver init-record           # the private record in .record/ (--github <name> --yes to add a private GitHub remote)
@@ -98,7 +132,7 @@ Fill in `.env` with your keys. Existing shell environment variables take precede
 
 ## Configuration
 
-All tunables live in [`silver.config.js`](silver.config.js):
+All tunables live in [`silver.config.js`](silver.config.js), and most can be changed from the admin's Studio page, which writes them to `studio.json` on top of it:
 
 - `models`: the studio model pool and a default model per role (OpenRouter slugs)
 - `budget`: the daily spend cap ($5)
@@ -136,6 +170,7 @@ Roles are markdown files in `roles/`: the body is the role's system prompt, and 
 | `npm run check` | Validate the config, then run the fast tests |
 | `npm run log -- --phase N --task "…" --summary "…"` | Append an entry to `process-log.jsonl` |
 | `npm run log:list [-- --phase N]` | Print the process log |
+| `npm run admin` | Start the admin |
 
 ## Layout
 
@@ -160,12 +195,16 @@ src/publish.js     print → editions → site → deploy
 src/site.js        the static gallery and feed
 src/deploy.js      Vercel
 src/record.js      the private record: a git repo in .record/ over floor/, archive/, canon/, taste.md
-src/tools/         the Technician's workbench: p5 template, headless renderer, contact sheet, review server
+src/tools/         the Technician's workbench: p5 template, headless renderer, contact sheet
+src/admin/         `silver admin`: the server, its pages and assets, souls, jobs, the supervisor
+src/settings.js    studio.json: the owner's settings over the config file
 src/lib/           shared helpers (append-only JSONL, process log, .env, formatting, dedupe, page snapshots)
 bin/               project scripts (setup, process log)
 roles/             role system prompts (markdown); roles/superstars/ holds the personas
+direction.md       what the human is after right now, per audience (local only)
+studio.json        the owner's settings, edited from the admin (local only)
 floor/             the event log, one JSONL file per shift (append-only, local only)
-archive/           transcripts, every variant including rejects, the diary, daily manifests (local only)
+archive/           transcripts, every variant including rejects, the diary, daily manifests, job logs, revisions of everything the admin overwrites (local only)
 canon/             signed works (local only; published through the site)
 site/              the generated gallery (gitignored, rebuilt on publish)
 test/              node:test suites

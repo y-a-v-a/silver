@@ -86,3 +86,4 @@
 {"ts":"2026-10-23T00:33:15.310Z","phase":"9","task":"LLM client retries a provider that fails mid-reply (finish_reason error)","status":"done","summary":"","files":["src/llm.js"]}
 {"ts":"2026-10-23T00:33:15.343Z","phase":"9","task":"Archivist knows the cast's pronouns","status":"done","summary":"","files":["roles/archivist.md"]}
 {"ts":"2026-10-23T00:33:19.732Z","phase":"9","task":"full shift rehearsal on a sandbox floor at the $5 cap: 6 subjects, 11 lines, 2 series (23/24), 2 shortlists, 2 second pulls, diary; $1.92. 318 tests pass","status":"note","summary":"","files":[]}
+{"ts":"2026-11-04T09:15:06.777Z","phase":"10","task":"the admin: back room, steering, souls, jobs, supervisor, gallery","status":"done","summary":"444 tests pass including browser tests; driven in a browser against a cloned record and a mock OpenRouter","files":["src/admin","src/settings.js","src/lib/direction.js","src/site.js"]}

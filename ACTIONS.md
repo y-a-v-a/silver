@@ -60,6 +60,10 @@ The build plan for the Silver Factory in Node.js, derived from [ARCHITECTURE.md]
 | Nico | **A fourth superstar** (2026-10-23), after Christa Päffgen: she talks in images, not gossip, so her lines make the strangest briefs. |
 | The second pull | **Warhol's first pick goes back to its maker** (2026-10-23), with his note, its image and its own code, to be pushed further. It joins the series as the next variant (`v13`) and is reviewed next to the first. `series.secondPulls` (default 1, 0 = off); `silver pull` by hand. |
 | Screenshot frame | **Frame 60** (2026-10-23), up from 30, so works that accumulate marks have built up. |
+| The admin | **`silver admin`, on this machine, no login** (2026-11-04, the owner's brief). It replaces the bare review page. It binds to 127.0.0.1 and refuses other hosts and origins; sketches are served in a sandbox. See Phase 10. |
+| What the browser may edit | **Souls, direction, taste, settings; not secrets, the record, paths or code** (2026-11-04). Settings go in `studio.json`, over the commented `silver.config.js`. Every edit is on the floor; everything overwritten is kept in `archive/revisions/`. |
+| Soul files | **`roles/*.md` are the souls** (2026-11-04): the owner asked for "soul.md files", and the role files are what that means here. They stay plain markdown, editable in either place, and neither side can overwrite the other unseen. |
+| Picking up changes | **Fresh processes, plus a supervisor for the server itself** (2026-11-04). All work runs as new `silver` processes, so souls, settings and code count from the next one. The supervisor restarts the admin on a code save, after checking that it parses and that the config loads. |
 
 ## Stack
 
@@ -213,6 +217,8 @@ Event types, extending the draft list in ARCHITECTURE.md:
 | `record.pushed` | archivist | the private record's commit, whether it was pushed, and the error if not (retried next shift) |
 | `site.deployed` | fred-hughes | url, number of works, provider (Phase 5) |
 | `subject.retired` | **human** | `subjectId`, reason. Hides the subject from `latest`, `subjects --open` and the shift; the subject itself stays on the floor (Phase 3b). |
+| `subject.pinned` | **human** | `subjectId`, `pinned`. The latest per subject counts; a pinned subject from any day goes first in the next shift (Phase 10). |
+| `studio.changed` | **human** | `what` (`role`, `settings`, `direction`, `taste`), `target`, `summary`, `path` to the revision it replaced, `changes` with from and to for settings (Phase 10). |
 
 ---
 
@@ -443,6 +449,20 @@ The owner's brief: the outputs were Warhol rip-offs (flat clip-art icons in grid
 - [x] **The second pull** (`src/agents/pull.js`, `roles/second-pull.md`, `silver pull`, shift step 4b). The Archivist's diary notes it.
 - [x] `taste.md` (local): the Likes/Dislikes placeholders now hold the owner's own words from the brief; the default header's examples no longer recommend pop.
 
+## Phase 10: the admin ✅ (2026-11-04)
+
+The owner's brief: make the web interface better; a real admin; no login, since it runs locally; edit the souls from the browser; restart the agent, or have it pick up edited code and markdown by itself; decide what's editable; steer how the works get made.
+
+- [x] **The back room** (`src/admin/`): Today, Review, Subjects, Studio, Souls, Taste, Floor, Canon, Diary, Gallery, Jobs, System. Server-rendered forms with no framework or build step; everything works with JavaScript off, and the script adds the keyboard, a lightbox, forms that keep your place, and live updates. The look is a darkroom: film rebate, amber frame numbers, grease pencil for decisions. `silver review` still works and opens at the contact sheet.
+- [x] **Steering**: `direction.md` per audience (Scout, superstars, assistants, Warhol); pins for one series (`steer`: procedures, models, temperatures, dare, note); procedures benched or favoured (`steering.techniques`, 0–3); a line said by the human on the floor, dealt as a brief like anyone's; `subject.pinned` to move any subject to the front; a second pull with a note, of any variant, again; `shift.paused`.
+- [x] **Settings** (`src/settings.js`, `studio.json`): an overlay validated as a whole by `validateConfig` before anything is written. Paths, the port and the deploy provider can't be set. A broken one stops the shift with the reason, rather than spending money on settings nobody chose; the admin still starts, to fix it.
+- [x] **Souls** (`src/admin/souls.js`, `contract.js`): `{{placeholders}}` a role isn't given are refused (they would stop it on its next call), dropped ones warned about, a save based on an old version refused, a file that doesn't load opened whole. Superstars can be cast, benched and recalled. `silver audition` hears one without touching the floor.
+- [x] **Jobs** (`src/admin/jobs.js`, `run-job.js`): every piece of work is a fresh CLI process with its own runner, a JSON file and a log in `archive/jobs/`. They survive an admin restart. One per lane, because budget reservations only hold inside a process; printing has its own lane; a shift from launchd holds the studio lane.
+- [x] **The supervisor** (`src/admin/supervisor.js`, `silver install-admin`): watches code, `silver.config.js`, `package.json` and `.env`; restarts on a change that parses and loads; keeps the old server otherwise; serves the error if the server can't boot. `node --check` is no use here: it lets ES modules with syntax errors through, so modules are compiled with `vm.SourceTextModule`.
+- [x] **Evidence next to the controls** (`src/admin/stats.js`, `status.js`): made, died, picked and approved per procedure, hand and superstar, with refusals for lack of credit kept out of a model's failure rate. Today says what's wrong: no credit, thin series, unseen series, a failed backup.
+- [x] **The gallery** (`src/site.js`): a wall of works with a filter by procedure, a work page with its label beside it, arrow keys, an About page, a 404. Relative links, so the admin can preview the real build.
+- [x] **Fixed on the way**: gray-matter's cache (it never shrinks, and hid a broken role's real error on a second read); a `javascript:` URL from a feed becoming a link; a second pull of a variant whose procedure has left the menu; bulk closing the backlog (open question 6 of 2026-10-23).
+
 ## Later (not v1)
 
 - The Technician goes live: an agent that proposes and writes new techniques and templates, gated by `tool.released`
@@ -622,3 +642,14 @@ Phase 9 is built on the branch `night-shift/wilder` (local, not pushed). The 09:
    npx silver retitle 4 --wall "The ready-made is a mayor's giveaway of opera tickets, distributed by lottery, ten thousand a month, seats in every section of the house. Rendered in grid-repeat by the Silver Factory studio assistants, chosen by Warhol, signed by the human. Headline: \"Every New Yorker should have the opportunity... no matter what's in their bank account.\""
    npx silver retitle 20 --wall "This ready-made is a corporate software update: Microsoft's announcement that a spreadsheet cell can now hold more than one value. Rendered in halftone by Factory assistants, chosen by Warhol and signed by the human. The headline reads, \"Excel now supports multiple values in a single cell.\""
    ```
+
+## Where things stand (2026-11-04, after the admin)
+
+Phase 10 is on `night-shift/wilder` (local, not pushed), which is also what the 09:00 job runs. 444 tests pass, browser tests included. It was driven in a real browser against a clone of the record and a mock OpenRouter, including a full dry-run shift through the job queue; the real floor got no events from it.
+
+**Open questions**
+1. **Start the admin for good?** `npx silver install-admin` keeps it running at `http://silver.localhost:4747`. It wasn't installed, because that's a new always-on service on a machine shared with your other agents.
+2. **OpenRouter credit.** The shifts have been failing on HTTP 402 since about 2026-11-01 (today 9 of 24 variants, and Warhol looked at none). Today shows it first. The key is shared, so another agent may be what's draining it.
+3. **The backlog.** 82 series were waiting on 2026-11-04, and no decision has been made since 2026-09-26. Review now has "Clear the backlog" by date; 2026-10-23 is the day the pop-art studio ended.
+4. **Superstars and the new note.** The personas' files aren't touched: the human's standing note reaches them in the user message next to the house rules, not in the soul.
+
