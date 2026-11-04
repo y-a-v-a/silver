@@ -146,3 +146,22 @@ test('preflight names the file that does not parse, and a config that does not l
   assert.match((await preflight({ root, cli: join(root, 'cli.mjs'), files: ['.env'], env }))[0], /invalid silver config/);
   assert.equal((await readFile(join(root, 'ok.js'), 'utf8')).length > 0, true);
 });
+
+test('a good save on top of a broken one is no reason to restart: the broken one is still checked', async () => {
+  const { root, sup, until, logs, read } = await setup();
+  try {
+    const first = await until((r) => r.text.startsWith('one:'));
+    await writeFile(join(root, 'src', 'version.js'), `export const VERSION = ;;;\n`);
+    for (let i = 0; i < 100 && !logs.some((l) => l.includes("doesn't stand up")); i++) await sleep(40);
+    logs.length = 0;
+    await writeFile(join(root, 'src', 'other.js'), `export const fine = 1;\n`);
+    for (let i = 0; i < 100 && !logs.some((l) => l.includes("doesn't stand up")); i++) await sleep(40);
+    assert.ok(logs.some((l) => /src\/version\.js/.test(l)), logs.join('\n'));
+    assert.equal((await read()).text, first.text, 'still the same process');
+    await writeFile(join(root, 'src', 'version.js'), `export const VERSION = 'mended';\n`);
+    await until((r) => r.text.startsWith('mended:'));
+  } finally {
+    await sup.stop();
+  }
+});
+

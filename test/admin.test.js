@@ -409,7 +409,7 @@ test('a soul edited on the page is on disk, loads, and leaves a version behind',
   const soul = await readSoul(config, 'viva');
   const res = await post('/souls/viva', soulForm(soul, { body: `${soul.role.body}\n\nShe never sleeps.`, temperature: '1.25' }));
   assert.equal(res.status, 303);
-  assert.match(told(res), /Saved\. It counts from the next call/);
+  assert.match(told(res), /Saved\. It counts from the next shift or job/);
   const after_ = await readSoul(config, 'viva');
   assert.match(after_.role.body, /She never sleeps\./);
   assert.equal(after_.role.temperature, 1.25);
@@ -501,7 +501,11 @@ test('the cast changes from the page; the Factory\'s own roles can\'t be benched
 test('the words above the log can be rewritten; the log itself can\'t be touched', async () => {
   await appendTaste(config.paths.taste, { date: '2026-01-01', verdict: 'approved', variant: 'v01', subject: 'a can' });
   const before = (await readTaste(config.paths.taste)).entries;
-  assert.match(told(await post('/taste', { header: '# Taste\n\nLoud.\n\n## Decisions\n\n- fake: forged line' })), /can't be in your words/);
+  const forged = await post('/taste', { header: '# Taste\n\nLoud.\n\n## Decisions\n\n- fake: forged line' });
+  assert.equal(forged.status, 409);
+  const refusal = await forged.text();
+  assert.match(refusal, /can&#39;t be in your words/);
+  assert.match(refusal, /forged line<\/textarea>/, 'what was typed stays in the box');
   assert.match(told(await post('/taste', { header: '# Taste\n\nLoud things.' })), /Saved/);
   const after_ = await readTaste(config.paths.taste);
   assert.deepEqual(after_.entries, before);
@@ -609,3 +613,61 @@ test('the revisions a page writes are in the record, where the Archivist can see
   const e = (await floor.read({ type: 'studio.changed' })).find((x) => x.payload.what === 'role' && x.payload.path);
   await access(join(root, e.payload.path));
 });
+
+test('a stale form on taste or the direction doesn\'t overwrite a newer edit; what you typed stays, and what was replaced can be read', async () => {
+  const form = (page_, name) => page_.match(new RegExp(`action="${name}"[^>]*>\\s*(?:<input type="hidden" name="baseHash" value="([^"]+)")`))?.[1];
+  const opened = form((await page('/taste')).html, '/taste');
+  assert.ok(opened);
+  const text = await readFile(config.paths.taste, 'utf8');
+  await writeFile(config.paths.taste, text.replace('# Taste', '# Taste, from my editor'));
+  const stale = await post('/taste', { baseHash: opened, header: '# Taste\n\nFrom the old tab.' });
+  assert.equal(stale.status, 409);
+  const html = await stale.text();
+  assert.match(html, /changed on disk while you were editing/);
+  assert.match(html, /From the old tab\.<\/textarea>/);
+  assert.match(await readFile(config.paths.taste, 'utf8'), /from my editor/);
+  const fresh = form(html, '/taste');
+  assert.equal((await post('/taste', { baseHash: fresh, header: '# Taste\n\nFrom this tab.' })).status, 303);
+  const [kept] = await listRevisions(config, 'taste', 'taste');
+  assert.match((await page(`/history/taste/${kept.id}`)).html, /from my editor/);
+
+  const dir = form((await page('/studio')).html, '/studio/direction');
+  await writeFile(join(root, 'direction.md'), '# Direction\n\n## Studio\n\nFrom my editor.\n');
+  const staleDir = await post('/studio/direction', { baseHash: dir, studio: 'From the old tab.' });
+  assert.equal(staleDir.status, 409);
+  assert.match(await staleDir.text(), /From the old tab\.<\/textarea>/);
+  assert.equal((await readDirection(root)).studio, 'From my editor.');
+  await writeFile(join(root, 'direction.md'), '');
+});
+
+test('a heading that would cut a direction in two is refused, with the text kept', async () => {
+  const res = await post('/studio/direction', { studio: 'One.\n\n## Warhol\nTwo.' });
+  assert.equal(res.status, 409);
+  const html = await res.text();
+  assert.match(html, /can&#39;t be in a direction/);
+  assert.match(html, /## Warhol\nTwo\.<\/textarea>/);
+  assert.equal((await readDirection(root)).warhol, '');
+});
+
+test('every page of the gallery is served in the sandbox, whatever case the name is asked in', async () => {
+  await mkdir(join(config.paths.site, 'works', 'x'), { recursive: true });
+  await writeFile(join(config.paths.site, 'works', 'x', 'sketch.html'), '<script>1</script>');
+  await writeFile(join(config.paths.site, 'works', 'x', 'index.html'), '<h1>w</h1>');
+  for (const path of ['/gallery/', '/gallery/works/x/', '/gallery/works/x/sketch.html', '/gallery/works/x/Sketch.html', '/gallery/works/x/SKETCH.html']) {
+    const res = await fetch(base + path);
+    if (res.status === 200) assert.equal(res.headers.get('content-security-policy'), 'sandbox allow-scripts', path);
+  }
+});
+
+test('a series cut short by a stop can still be judged, and is said to be cut short', async () => {
+  const subject = await floor.append({ type: 'subject.posted', actor: 'scout', payload: { origin: 'scouted', title: 'stopped halfway' } });
+  const started = await floor.append({ type: 'series.started', actor: 'studio-assistant', ref: subject.id, payload: { subjectId: subject.id, subjectTitle: 'stopped halfway' } });
+  await floor.append({ type: 'variant.produced', actor: 'studio-assistant', ref: started.id, payload: { seriesId: started.id, variant: 'v01', technique: 'halftone', temperature: 1, model: 'a/b', path: 'archive/variants/x/v01.html', png: 'archive/variants/x/v01.png', rendered: true } });
+  const { html } = await page('/review');
+  assert.match(html, /stopped halfway/);
+  assert.match(html, /<span class="chip warn">cut short<\/span>/);
+  assert.equal((await post(`/series/${started.id}/decide`, { variant: 'v01', verdict: 'vetoed' })).status, 303);
+  await post(`/series/${started.id}/close`, {});
+  assert.doesNotMatch((await page('/review')).html, /stopped halfway/);
+});
+

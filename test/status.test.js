@@ -1,15 +1,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createCreditWatch, nextShift, readStatus, shiftInProgress } from '../src/admin/status.js';
+import { createCreditWatch, nextInLine, nextShift, readStatus, shiftInProgress } from '../src/admin/status.js';
+import { shiftLockPath } from '../src/shift.js';
+import { withLock } from '../src/lib/lock.js';
+import { postCommission } from '../src/agents/commissions.js';
 import { computeStats, shiftCost, variantCost } from '../src/admin/stats.js';
 import { applySettings } from '../src/admin/store.js';
 import { buildAdminPlist, buildPlist, installAdminService, plistPath, scheduleStatus, uninstallAdminService, ADMIN_LABEL } from '../src/schedule.js';
 import { readOverlay } from '../src/settings.js';
 import { listSeries } from '../src/agents/series-data.js';
-import { createFloor } from '../src/floor.js';
 import { seedSeries, tmpFactory } from './helpers.js';
 import shipped from '../silver.config.js';
 
@@ -22,16 +24,27 @@ test('nextShift is today until it has run or passed, then tomorrow', () => {
   assert.equal(nextShift('07:00', { now }).getDate(), 5);
 });
 
-test('a shift on the floor holds the queue; a crashed one stops holding it after a while', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'silver-status-'));
-  let date = new Date();
-  const floor = createFloor({ dir, now: () => date });
-  assert.equal(await shiftInProgress(floor), false);
-  await floor.append({ type: 'shift.started', actor: 'orchestrator' });
-  assert.equal(await shiftInProgress(floor, { now: date }), true);
-  assert.equal(await shiftInProgress(floor, { now: new Date(date.getTime() + 3 * 3_600_000) }), false, 'a crash leaves no ending; it stops counting');
-  await floor.append({ type: 'shift.ended', actor: 'orchestrator' });
-  assert.equal(await shiftInProgress(floor, { now: date }), false);
+test('a shift holds the queue only while its process lives; a stopped or crashed one blocks nothing', async () => {
+  const archive = await mkdtemp(join(tmpdir(), 'silver-status-'));
+  const config = { paths: { archive } };
+  assert.equal(await shiftInProgress(config), false);
+  await withLock(shiftLockPath(config), async () => assert.equal(await shiftInProgress(config), true));
+  assert.equal(await shiftInProgress(config), false);
+  await writeFile(shiftLockPath(config), '999999');
+  assert.equal(await shiftInProgress(config), false, 'a lock left by a dead process');
+});
+
+test('the next in line is today\'s until the shift ended; then only what carries over', async () => {
+  const f = await tmpFactory();
+  await f.floor.append({ type: 'subject.posted', actor: 'scout', payload: { origin: 'scouted', title: 'scouted today' } });
+  const { event: mine } = await postCommission({ floor: f.floor, fetch: async () => new Response('x') }, 'my own');
+  assert.deepEqual((await nextInLine(f.floor, 5)).subjects.map((s) => s.payload.title), ['my own', 'scouted today']);
+  await f.floor.append({ type: 'shift.ended', actor: 'orchestrator', payload: { dryRun: true } });
+  assert.equal((await nextInLine(f.floor, 5)).doneToday, false, 'a dry run is not the shift');
+  await f.floor.append({ type: 'shift.ended', actor: 'orchestrator', payload: {} });
+  const after_ = await nextInLine(f.floor, 5);
+  assert.equal(after_.doneToday, true);
+  assert.deepEqual(after_.subjects.map((s) => s.id), [mine.id], 'today\'s scouted leftovers won\'t run tomorrow');
 });
 
 test('the status names what is wrong: no key, no credit, failed calls, pause, schedule, record', async () => {
@@ -124,6 +137,29 @@ test('the schedule status reads the plist, and knows whose it is', async () => {
   await writeFile(plistPath(home), buildPlist({ node: '/n', cli: '/c', root: '/repo', at: '07:05', logDir: '/l' }));
   assert.deepEqual(await scheduleStatus(c, { home }), { installed: true, at: '07:05', root: '/repo', mine: true, path: plistPath(home) });
   assert.equal((await scheduleStatus({ ...c, root: '/sandbox' }, { home })).mine, false);
+  assert.equal((await scheduleStatus(c, { home, uid: 501, run: async () => {} })).loaded, true, 'launchd has it');
+  assert.equal((await scheduleStatus(c, { home, uid: 501, run: async () => { throw new Error('not loaded'); } })).loaded, false);
+});
+
+test('loading a plist tries again while launchd winds the old job down, and says so if it never works', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'silver-home-'));
+  const cfg = { root: '/repo', paths: { archive: join(home, 'archive') } };
+  let boots = 0;
+  const flaky = async (_c, args) => {
+    if (args[0] === 'bootstrap' && ++boots < 3) throw Object.assign(new Error('EIO'), { stderr: 'Input/output error' });
+  };
+  await installAdminService({ config: cfg }, { home, uid: 501, node: '/n', run: flaky });
+  assert.equal(boots, 3);
+  const never = async (_c, args) => {
+    if (args[0] === 'bootstrap') throw Object.assign(new Error('EIO'), { stderr: 'Input/output error' });
+  };
+  await assert.rejects(installAdminService({ config: cfg }, { home, uid: 501, node: '/n', run: never }), /launchctl bootstrap failed: Input\/output error/);
+});
+
+test('the status says when the schedule is on disk but launchd hasn\'t got it', async () => {
+  const f = await tmpFactory();
+  const st = await readStatus({ config: config(f), floor: f.floor, env: { OPENROUTER_API_KEY: 'k' }, schedule: { installed: true, mine: true, at: '09:00', loaded: false } });
+  assert.match(st.alerts[0].text, /launchd hasn't got it loaded/);
 });
 
 test('the admin service stays alive through launchd, on the same terms as the shift', async () => {

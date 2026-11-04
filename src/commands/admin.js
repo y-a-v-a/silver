@@ -3,10 +3,9 @@
 import { execFile } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { parseEnv } from 'node:util';
+import { parseEnv, promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { createFactory } from '../factory.js';
-import { createFloor } from '../floor.js';
 import { createPricing } from '../pricing.js';
 import { DEFAULT_CONFIG_PATH, loadConfigFromEnv, loadRawConfig, ROOT } from '../config.js';
 import { OPENROUTER_BASE_URL } from '../llm.js';
@@ -38,7 +37,7 @@ async function serve(opts, ctx, { startPath = '/' } = {}) {
   if (await ensureTaste(config.paths.taste)) ctx.stderr.write(`created ${config.paths.taste}: write what you like at the top\n`);
   const baseUrl = env.OPENROUTER_BASE_URL || OPENROUTER_BASE_URL;
   const pricing = createPricing({ baseUrl });
-  const jobs = createJobs({ config, env, externalShift: () => shiftInProgress(createFloor({ dir: config.paths.floor })) });
+  const jobs = createJobs({ config, env, externalShift: () => shiftInProgress(config) });
   const supervised = typeof process.send === 'function';
 
   let live = config;
@@ -65,19 +64,27 @@ async function serve(opts, ctx, { startPath = '/' } = {}) {
   });
 
   const schedule = {
-    status: (c) => scheduleStatus(c),
+    status: (c) => scheduleStatus(c, { run: promisify(execFile) }),
     /** Point the plist at the current time, but only one that belongs to this checkout. */
     async sync() {
       const c = await getConfig();
       const st = await scheduleStatus(c);
-      if (st.installed && st.mine && st.at !== c.shift.at) await installSchedule({ config: c });
+      if (!st.installed || !st.mine || st.at === c.shift.at) return null;
+      // Replacing the launchd job stops whatever it's running, and that may be today's shift.
+      if (await shiftInProgress(c)) return 'A shift is running, so the schedule moves later: use the button on System when it has ended.';
+      await installSchedule({ config: c });
+      return null;
     },
     install: async () => {
       const c = await getConfig();
+      if (await shiftInProgress(c)) throw Object.assign(new Error('A shift is running, and replacing the schedule would stop it. Try again when it has ended.'), { name: 'ScheduleError' });
       if (c.root !== ROOT) throw Object.assign(new Error('a sandbox can\'t install the real schedule'), { name: 'ScheduleError' });
       return installSchedule({ config: c });
     },
-    remove: () => uninstallSchedule(),
+    remove: async () => {
+      if (await shiftInProgress(await getConfig())) throw Object.assign(new Error('A shift is running, and removing the schedule would stop it. Try again when it has ended.'), { name: 'ScheduleError' });
+      return uninstallSchedule();
+    },
   };
 
   const admin = createAdminServer({

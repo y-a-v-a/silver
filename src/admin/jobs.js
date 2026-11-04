@@ -218,7 +218,8 @@ export function createJobs({ config, env = process.env, cli = CLI, externalShift
       current = await read(id);
     }
     if (current?.status !== 'running') throw new JobError(`${job.title} has already ended`, 409);
-    // The runner leads its own process group, so the headless browser goes with it.
+    // The runner and the CLI share a process group. Playwright closes its browser on the signal;
+    // the runner sees to it that the CLI goes too.
     try {
       process.kill(-current.pid, 'SIGTERM');
     } catch (err) {

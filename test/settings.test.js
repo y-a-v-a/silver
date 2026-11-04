@@ -121,3 +121,11 @@ test('the owner\'s steering files stay out of git and go into the record', async
 test('loadRawConfig gives the file as written', async () => {
   assert.equal((await loadRawConfig()).budget.dailyUsd, shipped.budget.dailyUsd);
 });
+
+test('in a direction only an audience\'s own heading starts a section; other headings are just text', () => {
+  const text = formatDirection({ studio: 'Less text.\n\n## Colour\nOnly grey.', warhol: 'Pick it.' });
+  const back = parseDirection(text);
+  assert.equal(back.studio, 'Less text.\n\n## Colour\nOnly grey.');
+  assert.equal(back.warhol, 'Pick it.');
+});
+

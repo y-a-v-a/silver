@@ -42,6 +42,7 @@ export default async function seriesCommand([subjectRef], opts, ctx) {
       chatter: opts.chatter !== false,
       rng: opts.matrixSeed === undefined ? undefined : seededRng(num(opts.matrixSeed, 'matrix-seed')),
       steer: steerFrom(opts),
+      byHand: true,
     });
   } finally {
     await renderer?.close();

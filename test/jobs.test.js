@@ -173,3 +173,28 @@ test('a log can be followed from an offset', async () => {
   assert.equal((await jobs.logOf(done, { offset: 4 })).text, whole.text.slice(4));
   assert.equal((await jobs.logOf(done, { max: 3 })).truncated, true);
 });
+
+test('a stop ends a job that ignores the signal: Playwright closes its browser and leaves the process running', async () => {
+  const { config, root } = await setup();
+  const stubborn = createJobs({ config, cli: join(root, 'stubborn.mjs') });
+  await writeFile(join(root, 'stubborn.mjs'), `process.on('SIGTERM', () => console.log('closing the browser')); console.log('started'); setInterval(() => console.log('still paying'), 100);`);
+  const job = await stubborn.enqueue('series', { subject: 'S' });
+  for (let i = 0; i < 100 && !(await stubborn.logOf(job)).text.includes('started'); i++) await sleep(25);
+  await stubborn.cancel(job.id);
+  const stopped = await until(stubborn, job.id, ended, 10_000);
+  assert.equal(stopped.status, 'cancelled');
+  assert.equal(stopped.signal, 'SIGKILL');
+  const { text } = await stubborn.logOf(stopped);
+  assert.match(text, /closing the browser/, 'the signal came first, so the browser could close');
+  await sleep(250);
+  assert.equal((await stubborn.logOf(stopped)).text, text, 'nothing runs after it');
+});
+
+test('a process that dies by a signal nobody asked for has failed; it was not cancelled', async () => {
+  const { config, root } = await setup();
+  const dying = createJobs({ config, cli: join(root, 'die.mjs') });
+  await writeFile(join(root, 'die.mjs'), `process.kill(process.pid, 'SIGKILL');`);
+  const done = await until(dying, (await dying.enqueue('scout')).id, ended);
+  assert.equal(done.status, 'failed');
+});
+

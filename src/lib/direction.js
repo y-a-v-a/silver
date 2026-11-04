@@ -1,6 +1,6 @@
 // direction.md: what the human is after right now, in their own words, one section per
 // audience. Taste is what they liked; direction is what they want next. Each process reads it
-// when it needs it, so an edit reaches the very next call with no restart. Local, like
+// when it needs it, so an edit reaches the next shift or job with no restart. Local, like
 // taste.md, and backed up with the record.
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -14,7 +14,12 @@ export const directionPath = (root) => join(root, DIRECTION_FILE);
 const PREAMBLE = `# Direction
 
 What the human is after right now, one section per audience. Leave a section empty for no
-steer. Every call reads this page, so a change counts from the next call on.`;
+steer. Every shift and job reads this page, so a change counts from the next one on.`;
+
+const HEADING = new RegExp(`^##[ \\t]+(${AUDIENCES.join('|')})[ \\t]*$`, 'im');
+
+/** The audience headings in a piece of text: on saving, these would cut it in two. */
+export const audienceHeadings = (text) => [...String(text ?? '').matchAll(new RegExp(HEADING.source, 'gim'))].map((m) => m[0].trim());
 
 /** What the prompts say when the human has nothing to add. */
 export const NO_DIRECTION = '(nothing from the human today)';
@@ -22,11 +27,9 @@ export const NO_DIRECTION = '(nothing from the human today)';
 /** @param {string} text */
 export function parseDirection(text) {
   const out = Object.fromEntries(AUDIENCES.map((a) => [a, '']));
-  const parts = String(text ?? '').split(/^##[ \t]+(.+?)[ \t]*$/m);
-  for (let i = 1; i < parts.length; i += 2) {
-    const key = parts[i].trim().toLowerCase();
-    if (AUDIENCES.includes(key)) out[key] = parts[i + 1].trim();
-  }
+  // Only an audience's own heading starts a section: any other "## ..." is the human's text.
+  const parts = String(text ?? '').split(HEADING);
+  for (let i = 1; i < parts.length; i += 2) out[parts[i].toLowerCase()] = parts[i + 1].trim();
   return out;
 }
 

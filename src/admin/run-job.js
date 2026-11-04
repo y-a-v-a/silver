@@ -7,6 +7,7 @@ import { openSync } from 'node:fs';
 import { readFile, rename, writeFile } from 'node:fs/promises';
 
 const [, , jobPath, cli] = process.argv;
+const KILL_AFTER_MS = 3000;
 
 async function save(changes) {
   const current = JSON.parse(await readFile(jobPath, 'utf8'));
@@ -22,8 +23,12 @@ let child = null;
 let cancelled = false;
 for (const signal of ['SIGTERM', 'SIGINT']) {
   process.on(signal, () => {
+    if (cancelled) return;
     cancelled = true;
     child?.kill('SIGTERM');
+    // Playwright answers SIGTERM by closing its browser and leaves the process running, which
+    // would go on paying for model calls. So the browser gets its moment, then the job ends.
+    setTimeout(() => child?.kill('SIGKILL'), KILL_AFTER_MS).unref();
   });
 }
 
@@ -41,7 +46,9 @@ child.on('error', async (err) => {
   process.exit(1);
 });
 child.on('close', async (code, signal) => {
-  const status = cancelled || signal ? 'cancelled' : code === 0 ? 'done' : 'failed';
+  // A stop signals this process and the CLI together, and either can be seen first, so a CLI
+  // ended by SIGTERM was stopped too. Any other signal (a crash, a kill) means it failed.
+  const status = cancelled || signal === 'SIGTERM' || signal === 'SIGINT' ? 'cancelled' : code === 0 ? 'done' : 'failed';
   await save({ status, finishedAt: new Date().toISOString(), exitCode: code, ...(signal ? { signal } : {}) });
   process.exit(0);
 });

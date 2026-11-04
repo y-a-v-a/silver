@@ -1,10 +1,11 @@
 // Changing the Factory's settings from the admin. Each change is validated against the whole
 // config before anything is written, and recorded on the floor with what it was and what it
 // became, so the diary can say "the human cut the budget" and a change can be traced later.
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { loadRawConfig, validateOverlay } from '../config.js';
 import { getPath, mergeOverlay, readOverlay, setPath, SettingsError, writeOverlay } from '../settings.js';
-import { directionPath, readDirection, writeDirection, AUDIENCES } from '../lib/direction.js';
+import { audienceHeadings, directionPath, readDirection, writeDirection, AUDIENCES } from '../lib/direction.js';
 import { DECISIONS_MARKER, readTaste, writeTasteHeader } from '../lib/taste.js';
 import { recordChange, saveRevision } from './souls.js';
 
@@ -43,10 +44,27 @@ export async function applySettings({ config, floor, rawConfig = () => loadRawCo
   return { changed };
 }
 
+/** A saved text changed on disk while the form was open: nothing is overwritten unseen. */
+export class TextConflict extends Error {
+  constructor() {
+    super('This changed on disk while you were editing it, probably in your text editor. Your text is still in the box; saving again replaces the newer version, which is kept under earlier versions.');
+    this.name = 'TextConflict';
+  }
+}
+
+const hashOf = (text) => createHash('sha256').update(text).digest('hex').slice(0, 16);
+
+/** The version a form was opened on. */
+export const directionHash = async (root) => hashOf(await readFile(directionPath(root), 'utf8').catch(() => ''));
+export const tasteHash = async (config) => hashOf((await readTaste(config.paths.taste)).header);
+
 /** Save the direction. The old text is kept as a revision; an unchanged audience says nothing. */
-export async function saveDirection({ config, floor }, next) {
+export async function saveDirection({ config, floor }, next, { baseHash } = {}) {
+  if (baseHash && baseHash !== (await directionHash(config.root))) throw new TextConflict();
   const current = await readDirection(config.root);
   const merged = Object.fromEntries(AUDIENCES.map((a) => [a, String(next[a] ?? current[a] ?? '').replace(/\r\n/g, '\n').trim()]));
+  const clash = AUDIENCES.flatMap((a) => audienceHeadings(merged[a]));
+  if (clash.length) throw new SettingsError([`"${clash[0]}" can't be in a direction: that line starts a section in direction.md, so what follows it would go to the wrong audience`]);
   const changed = AUDIENCES.filter((a) => merged[a] !== current[a]);
   if (!changed.length) return { changed };
   const old = await readFile(directionPath(config.root), 'utf8').catch(() => null);
@@ -57,7 +75,8 @@ export async function saveDirection({ config, floor }, next) {
 }
 
 /** Save the human's own words at the top of taste.md. The decision log below is never touched. */
-export async function saveTaste({ config, floor }, header) {
+export async function saveTaste({ config, floor }, header, { baseHash } = {}) {
+  if (baseHash && baseHash !== (await tasteHash(config))) throw new TextConflict();
   const { header: current } = await readTaste(config.paths.taste);
   const clean = String(header ?? '').replace(/\r\n/g, '\n').trim();
   if (clean.includes(DECISIONS_MARKER)) throw new SettingsError([`"${DECISIONS_MARKER}" can't be in your words: it's where the log of your decisions starts, and that log can't be written by hand`]);

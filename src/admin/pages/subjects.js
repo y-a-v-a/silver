@@ -1,7 +1,7 @@
 // Subjects: what the Factory is going to work on. Commission your own, push one to the front,
 // take one off the table, or start a series right now with whatever you want to pin.
 import { claimedSubjects, pinnedSubjects, pinSubject, retiredSubjects, retireSubject } from '../../agents/retire.js';
-import { pickSubjects } from '../../shift.js';
+import { nextInLine } from '../status.js';
 import { activeTechniques, techniqueWeight } from '../../settings.js';
 import { action, ago, esc, messages, outLink, shortId, usd } from '../ui.js';
 import { AdminError } from '../server.js';
@@ -25,15 +25,18 @@ function commissionForm() {
   <span class="help">The queue: it gets a series in the next shift, ahead of the Scout's picks. Now: the superstars talk, the assistants make a series, Warhol looks, right away.</span></form>`;
 }
 
-export function subjectsBody({ next, rest, pins, claimed, retired, msg }) {
+export function subjectsBody({ next, rest, pins, claimed, retired, msg, doneToday = false }) {
   const nextIds = new Set(next.map((s) => s.id));
-  return `<div class="top"><div><h1>Subjects</h1><p class="lede">The shift makes a series of the first ${next.length ? `${next.length}` : 'few'} below. Pin anything to move it to the front; older subjects only run when pinned.</p></div>
+  const lede = doneToday
+    ? "Today's shift is done. The next one starts with whatever is pinned or commissioned, then takes what the Scout brings in that morning. Today's other subjects don't run unless you pin them, or make a series now."
+    : "The shift makes a series of whatever is next in line. Pin anything to move it to the front; older subjects only run when pinned. A series you make by hand doesn't take a slot from the shift.";
+  return `<div class="top"><div><h1>Subjects</h1><p class="lede">${esc(lede)}</p></div>
   <div class="row">${action('/jobs/start', 'Send the Scout out', { fields: { kind: 'scout' } })}${action('/jobs/start', 'Let the superstars talk', { fields: { kind: 'chatter' } })}</div></div>
 ${messages(msg)}
 <div class="cols">
   <div>
     <h2>Next in line (${next.length})</h2>
-    ${next.length ? `<div class="table-wrap"><table>${next.map((s, i) => subjectRow(s, { pinned: pins.has(s.id), pos: i + 1 })).join('')}</table></div>` : '<p class="muted">Nothing yet today. The Scout goes out at the start of the shift.</p>'}
+    ${next.length ? `<div class="table-wrap"><table>${next.map((s, i) => subjectRow(s, { pinned: pins.has(s.id), pos: i + 1 })).join('')}</table></div>` : `<p class="muted">Nothing pinned or commissioned. ${doneToday ? "The next shift's series will be" : 'The series will be'} whatever the Scout brings in.</p>`}
     <h2>Also on the floor</h2>
     <div class="table-wrap"><table>${rest.filter((s) => !nextIds.has(s.id)).slice(0, 60).map((s) => subjectRow(s, { pinned: pins.has(s.id), claimed: claimed.has(s.id), retired: retired.has(s.id) })).join('')}</table></div>
   </div>
@@ -83,12 +86,11 @@ export function routes(app) {
   const subjectOf = async (c) => (await c.floor.read({ shift: 'all', type: 'subject.posted' })).find((e) => e.id === c.params.id) ?? null;
 
   app.get('/subjects', async (c) => {
-    const today = c.floor.today();
-    const [next, posted, starts, pins, retired] = await Promise.all([pickSubjects(c.floor, today, c.config.shift?.seriesPerShift ?? 2), c.floor.read({ shift: 'all', type: 'subject.posted' }), c.floor.read({ shift: 'all', type: 'series.started' }), pinnedSubjects(c.floor), retiredSubjects(c.floor)]);
+    const [line, posted, starts, pins, retired] = await Promise.all([nextInLine(c.floor, c.config.shift?.seriesPerShift ?? 2), c.floor.read({ shift: 'all', type: 'subject.posted' }), c.floor.read({ shift: 'all', type: 'series.started' }), pinnedSubjects(c.floor), retiredSubjects(c.floor)]);
+    const next = line.subjects;
     const claimed = claimedSubjects(starts);
     const rest = posted.filter((s) => !s.payload.dryRun).reverse().sort((a, b) => Number(claimed.has(a.id)) - Number(claimed.has(b.id)));
-    const all = await pickSubjects(c.floor, today, Infinity);
-    const body = subjectsBody({ next, rest: [...all.filter((s) => !next.includes(s)), ...rest.filter((s) => !all.some((x) => x.id === s.id))], pins, claimed, retired, msg: c.msg });
+    const body = subjectsBody({ next, rest: [...line.all.filter((s) => !next.some((x) => x.id === s.id)), ...rest.filter((s) => !line.all.some((x) => x.id === s.id))], pins, claimed, retired, msg: c.msg, doneToday: line.doneToday });
     return c.page({ title: 'Subjects', active: 'subjects', body });
   });
 

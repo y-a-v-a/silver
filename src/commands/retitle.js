@@ -22,6 +22,9 @@ export default async function retitleCommand([ref], opts, ctx) {
     deploy: process.env.VERCEL_TOKEN ? (deps) => deployVercel(deps) : null,
   });
   if (result.deployed) ctx.stdout.write(`deployed: ${result.deployed.payload.url}\n`);
-  else if (result.deployError) ctx.stderr.write(`deploy failed: ${result.deployError}\n`);
+  else if (result.deployError) {
+    ctx.stderr.write(`deploy failed: ${result.deployError}\n`);
+    process.exitCode = 1;
+  }
   else ctx.stdout.write(`site rebuilt in ${result.site.dir} (not deployed: VERCEL_TOKEN is not set)\n`);
 }

@@ -34,6 +34,10 @@ export default async function shiftCommand(_args, opts, ctx) {
     ctx.stdout.write(`the shift is paused (shift.paused); nothing ran. Use --force to run it anyway, or unpause it in the admin\n`);
     return;
   }
+  if (result.status === 'busy') {
+    ctx.stdout.write(`a shift is already running (pid ${result.pid}); this one does nothing\n`);
+    return;
+  }
   if (result.status === 'already-done') {
     ctx.stdout.write(`the ${result.shift} shift already ended at ${result.ended.ts}; use --again to run another round\n`);
     return;

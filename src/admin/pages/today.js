@@ -68,12 +68,13 @@ export function todayBody(st, { msg = {}, chatter = [], floorEvents = [], diary 
       : `next at ${clock(st.nextAt)}${st.nextAt.getDate() !== new Date().getDate() ? ' tomorrow' : ''}`;
   const credit = st.credit;
   const credits = credit && typeof credit.remaining === 'number' ? stat('OpenRouter credit', usd(credit.remaining), credit.source === 'key' ? 'on this key' : 'on the account') : '';
-  const runLabel = st.doneToday ? 'Another round' : st.running ? null : "Run today's shift";
+  // After the shift, another round only does something when the day still has series slots.
+  const runLabel = st.running ? null : !st.doneToday ? "Run today's shift" : st.slotsFree ? `Make the ${st.slotsFree} series still open today` : null;
   const runFields = { ...(st.doneToday ? { again: '1' } : {}), force: '1' };
-  const busy = open.some((j) => j.kind === 'shift');
+  const busy = st.running || open.some((j) => j.kind === 'shift');
   const nextList = st.next.length
     ? `<ol class="small" style="margin:0;padding-left:18px">${st.next.map((s) => `<li><a href="/subjects/${esc(s.id)}">${esc(s.payload.title)}</a> <span class="muted">${esc(s.payload.origin)}</span></li>`).join('')}</ol>`
-    : `<p class="small muted">Nothing waiting yet: the Scout goes out at the start of the shift.</p>`;
+    : `<p class="small muted">Nothing pinned or commissioned: the ${st.doneToday ? "next shift's series" : 'series'} will be whatever the Scout brings in.</p>`;
 
   return `<div data-refresh-on-job></div>
 <div class="top"><div><h1>${esc(new Date(`${st.today}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }))}</h1></div>
@@ -81,6 +82,7 @@ export function todayBody(st, { msg = {}, chatter = [], floorEvents = [], diary 
     ${runLabel && !busy ? action('/jobs/start', runLabel, { fields: { kind: 'shift', ...runFields }, cls: 'primary', confirm: `Yes, up to ${usd(st.cap - spent)}` }) : ''}
     ${!busy ? action('/jobs/start', 'Dry run', { fields: { kind: 'shift', dryRun: '1' } }) : ''}
     <a class="btn" href="/subjects#commission">Commission</a>
+    ${st.doneToday && !st.slotsFree ? '<a class="btn" href="/subjects">Make another series</a>' : ''}
   </div></div>
 ${messages(msg)}
 ${alertsHtml(st.alerts)}
@@ -100,7 +102,7 @@ ${alertsHtml(st.alerts)}
     ${diary ? `<h2>The diary <small><a href="/diary/${esc(diary.date)}">${esc(diary.date)}</a></small></h2><p class="quote small">${esc(diary.excerpt)}</p>` : ''}
   </div>
   <aside>
-    <h2>Next in line</h2>
+    <h2>Next in line${st.doneToday ? ' <small>for the next shift</small>' : ''}</h2>
     ${nextList}
     ${chatter.length ? `<h2>On the floor today</h2>${chatter.map((e) => `<p class="floorline"><b>${esc(e.payload.persona ?? e.actor)}</b>: ${esc(e.payload.text)}</p>`).join('')}` : ''}
     <h2>Just now <small><a href="/floor">the floor</a></small></h2>

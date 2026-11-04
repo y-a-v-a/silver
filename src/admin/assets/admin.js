@@ -172,8 +172,19 @@
     show(card);
   });
 
+  const visible = (el) => {
+    const r = el.getBoundingClientRect();
+    return r.bottom > 40 && r.top < innerHeight - 40;
+  };
   const decide = (verdict) => {
     const card = s?.card();
+    // A decision prints and signs, so it only ever lands on a card you can see is the one. With
+    // nothing marked, or the mark scrolled away, the key marks what's on screen and stops there.
+    if (card && !light?.open && (!card.classList.contains('current') || !visible(card))) {
+      const here = s.cards.findIndex(visible);
+      if (here !== -1) s.mark(here, false);
+      return;
+    }
     const button = card?.querySelector(`form.decide button[value="${verdict}"]`);
     if (!button) return;
     const id = card.id;
@@ -289,7 +300,7 @@
       const res = await fetch(editor.dataset.soul, { method: 'POST', body, headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }).catch(() => null);
       if (!res?.ok) return;
       const d = await res.json();
-      out.innerHTML = [...d.errors.map((m) => `<span class="bad">${text(m)}</span>`), ...d.warnings.map((m) => `<span class="warn">${text(m)}</span>`)].join('') || '<span class="fine">Fine. Saving counts from the next call.</span>';
+      out.innerHTML = [...d.errors.map((m) => `<span class="bad">${text(m)}</span>`), ...d.warnings.map((m) => `<span class="warn">${text(m)}</span>`)].join('') || '<span class="fine">Fine. Saved, it counts from the next shift or job.</span>';
       for (const li of $$('.vars li[data-var]')) li.classList.toggle('unused', !d.used.includes(li.dataset.var));
     };
     editor.addEventListener('input', () => {

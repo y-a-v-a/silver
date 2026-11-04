@@ -77,9 +77,10 @@ async function pool(items, limit, fn, stop = () => false) {
  * @param {{call: Function}} deps.llm
  * @param {{render: Function}|null} deps.renderer   null: write sketches but don't render (variants stay unverified)
  * @param {string} subjectRef  id, unique id suffix, or "latest"
- * @param {{variants?: number, dryRun?: boolean, concurrency?: number, rng?: () => number, chatter?: boolean, steer?: import('./studio.js').Steer}} [opts]
+ * @param {{variants?: number, dryRun?: boolean, concurrency?: number, rng?: () => number, chatter?: boolean, steer?: import('./studio.js').Steer, byHand?: boolean}} [opts]
+ *   byHand: made outside the shift, so it doesn't take one of the shift's slots
  */
-export async function runSeries({ config, floor, llm, renderer }, subjectRef, { variants, dryRun = false, concurrency = config.series.concurrency, rng, chatter: withChatter = true, steer } = {}) {
+export async function runSeries({ config, floor, llm, renderer }, subjectRef, { variants, dryRun = false, concurrency = config.series.concurrency, rng, chatter: withChatter = true, steer, byHand = false } = {}) {
   const subject = await findSubject(floor, subjectRef);
   checkSteer(config, steer);
   // The floor's chatter about this subject goes into every prompt, and each variant takes one
@@ -110,6 +111,7 @@ export async function runSeries({ config, floor, llm, renderer }, subjectRef, { 
       chatterLines: chatter.length,
       ...(direction === NO_DIRECTION ? {} : { direction }),
       ...(steer && Object.keys(steer).length ? { steer } : {}),
+      ...(byHand ? { byHand: true } : {}),
     },
   });
   const seriesId = started.id;

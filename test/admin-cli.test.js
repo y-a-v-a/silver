@@ -168,3 +168,21 @@ test('a broken studio.json doesn\'t lock you out of the page that fixes it; fixi
     await stopAdmin(child);
   }
 });
+
+test('a broken studio.json is not blamed on the code: the check the supervisor runs leaves it out', async () => {
+  const root = await tmpRoot();
+  await writeFile(join(root, 'studio.json'), '{ nope');
+  assert.equal((await silver(root, 'config', '--check')).code, 1);
+  assert.equal((await silver(root, 'config', '--check', '--no-overlay')).code, 0);
+});
+
+test('a publish whose deploy failed is a failed job, not a done one', async () => {
+  const root = await tmpRoot();
+  // No token: not deploying is fine, and exits clean.
+  const fine = await silver(root, 'publish');
+  assert.equal(fine.code, 0, fine.stderr);
+  // With one, in a directory the Vercel CLI can't deploy: the exit code carries it.
+  const failed = await exec(process.execPath, [CLI, 'publish'], { env: { ...envFor(root), VERCEL_TOKEN: 'nope', PATH: '/nonexistent' } }).then(() => 0, (err) => err.code);
+  assert.equal(failed, 1);
+});
+

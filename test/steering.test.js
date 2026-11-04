@@ -207,3 +207,43 @@ test('the diary hears about the human\'s steering', () => {
   assert.match(text, /The human told them: "Rain\."/);
   assert.match(text, /the human sends v01 of "a can" back \("Bigger\."\)/);
 });
+
+// ---------- the shift and what the admin does around it ----------
+
+const shiftSetup = async (replies = []) => {
+  const f = await tmpFactory({ roles: { 'superstars/viva.md': await role('superstars/viva'), 'studio-assistant.md': await role('studio-assistant'), 'scout.md': await role('scout') }, replies });
+  const config = { ...f.config, series: { variants: 1, modelsPerSeries: 1, temperatures: [0.7], techniquesPerSeries: 1, concurrency: 1, secondPulls: 0 }, techniques: { halftone: 'Dots.' }, shift: { subjectsPerShift: 1, seriesPerShift: 1, maxArchiveSubjectsPerShift: 0 }, sources: { rss: [], trending: { googleTrendsGeo: 'US', hackernews: false, reddit: false }, itemsPerSource: 1, repeatAfterDays: 1 } };
+  const renderer = { render: async (path) => { const png = path.replace('.html', '.png'); await writeFile(png, Buffer.from([1])); return { ok: true, reason: null, shots: [{ seed: 1, png, colors: 9 }], errors: [], blocked: [], readySignal: true, ms: 1 }; }, close: async () => {} };
+  return { ...f, config, deps: { config, floor: f.floor, llm: f.llm, budget: f.budget, createRenderer: async () => renderer, fetch: async () => new Response('', { status: 500 }) } };
+};
+
+test('only one shift runs at a time: a second process steps aside, and a dead one\'s lock is taken over', async () => {
+  const { shiftLockPath } = await import('../src/shift.js');
+  const { mkdir } = await import('node:fs/promises');
+  const f = await shiftSetup();
+  await mkdir(f.config.paths.archive, { recursive: true });
+  await writeFile(shiftLockPath(f.config), String(process.ppid));
+  assert.deepEqual(await runShift(f.deps), { shift: f.floor.today(), status: 'busy', pid: process.ppid });
+  assert.equal((await f.floor.read()).length, 0, 'it did nothing at all');
+  await writeFile(shiftLockPath(f.config), '999999');
+  assert.notEqual((await runShift(f.deps)).status, 'busy');
+  await assert.rejects(readFile(shiftLockPath(f.config)), /ENOENT/, 'and it let go at the end');
+});
+
+test('a series made by hand doesn\'t take the day\'s slot, and talk from before the Scout doesn\'t stop the shift\'s', async () => {
+  const f = await shiftSetup();
+  const early = await subject(f, 'an early commission');
+  f.fetch.queue.push(completion(SKETCH));
+  await runSeries({ config: f.config, floor: f.floor, llm: f.llm, renderer: null }, early.id, { byHand: true });
+  await f.floor.append({ type: 'chatter.posted', actor: 'superstar.viva', ref: early.id, payload: { persona: 'viva', text: 'At eight in the morning.' } });
+  // The Scout brings in today's subject, then the superstars talk about it, then the series.
+  f.deps.fetch = async () => new Response('', { status: 500 });
+  const scouted = await f.floor.append({ type: 'subject.posted', actor: 'scout', payload: { origin: 'scouted', title: 'the morning news', snapshot: {} } });
+  f.fetch.queue.push(completion(JSON.stringify({ lines: [{ subject: 1, text: 'Boring.' }] })), completion(SKETCH));
+  const r = await runShift(f.deps);
+  const byStep = Object.fromEntries(r.steps.map((s) => [s.step, s]));
+  assert.equal(byStep.superstars.status, 'done', byStep.superstars.reason);
+  assert.equal(byStep.series.status, 'done', byStep.series.reason);
+  assert.deepEqual(r.series.map((s) => s.subjectId), [scouted.id]);
+});
+

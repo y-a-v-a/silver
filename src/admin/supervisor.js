@@ -66,7 +66,8 @@ export async function preflight({ root, cli, files, env }) {
     if (!r.ok && !/ENOENT/.test(r.out)) problems.push(`${file}: ${r.out.split('\n').slice(0, 6).join('\n')}`);
   }
   if (!problems.length) {
-    const r = await run(process.execPath, [cli, 'config', '--check'], { cwd: root, env });
+    // The config file only: a broken studio.json is a settings problem, with its own notice.
+    const r = await run(process.execPath, [cli, 'config', '--check', '--no-overlay'], { cwd: root, env });
     if (!r.ok) problems.push(r.out.split('\n').slice(0, 8).join('\n'));
   }
   return problems;
@@ -109,6 +110,7 @@ export function createSupervisor({ root, cli, childArgs, port, env = process.env
   let exited = null;
   let starting = false;
   let checking = false;
+  let unverified = [];
   let seen = new Map();
   const watchers = [];
 
@@ -205,16 +207,20 @@ export function createSupervisor({ root, cli, childArgs, port, env = process.env
       return;
     }
     checking = true;
-    const files = [...changed];
+    // Everything saved since the last good restart, not just the newest file: a good save on
+    // top of a broken one doesn't make the broken one good.
+    const files = [...unverified, ...changed].filter((f, i, all) => all.indexOf(f) === i);
     changed = new Set();
     try {
       const problems = await preflight({ root, cli, files, env });
       if (stopping) return;
       if (problems.length) {
+        unverified = files;
         log(`not restarting, the code doesn't stand up:\n${problems.join('\n')}`);
         tell({ type: 'preflight', ok: false, problems });
         return;
       }
+      unverified = [];
       tell({ type: 'preflight', ok: true });
       crashes = 0;
       restart(files.join(', '));

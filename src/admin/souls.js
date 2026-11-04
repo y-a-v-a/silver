@@ -1,7 +1,7 @@
 // The role files as the admin sees them: each role's soul. Edits are validated the way the
 // loader validates them, refused rather than half-applied, written atomically, kept in the
 // record as revisions, and announced on the floor. Every shift and job reads the role files
-// from disk when it starts, so a saved soul counts from the next call with no restart.
+// from disk when it starts, so a saved soul counts from the next one with no restart.
 import { createHash } from 'node:crypto';
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, join, relative, sep } from 'node:path';

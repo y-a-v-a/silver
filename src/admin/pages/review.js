@@ -3,6 +3,7 @@ import { isPendingReview } from '../../agents/series-data.js';
 import { closeReview, recordDecision, ReviewError } from '../../agents/review.js';
 import { sayOnFloor } from '../../agents/superstars.js';
 import { readCanon } from '../../canon.js';
+import { shiftInProgress } from '../status.js';
 import { action, esc, fileUrl, greaseMark, messages, outLink, pad3, shortId } from '../ui.js';
 
 const PER_PAGE = 20;
@@ -27,7 +28,7 @@ function row(s) {
   const produced = s.variants.filter((v) => v.ok).length;
   const approved = [...s.decisions.values()].filter((d) => d.payload.verdict === 'approved').length;
   const flag = s.subject?.payload.sensitive?.flag ? ' <span class="warn">sensitive</span>' : '';
-  const warhol = s.shortlist ? `${s.shortlist.payload.picks.length} picked` : '<span class="chip warn">Warhol hasn’t looked</span>';
+  const warhol = !s.completed ? '<span class="chip warn">cut short</span>' : s.shortlist ? `${s.shortlist.payload.picks.length} picked` : '<span class="chip warn">Warhol hasn’t looked</span>';
   const picks = new Set((s.shortlist?.payload.picks ?? []).map((p) => p.variant));
   const frames = stripOf(s).map((v) => {
     const d = s.decisions.get(v.variant)?.payload.verdict;
@@ -49,10 +50,10 @@ function row(s) {
  * @param {{flash?: string, error?: string}} msg
  * @param {{show?: string, q?: string, page?: number}} [opts]
  */
-export function reviewBody(all, msg = {}, { show = 'waiting', q = '', page = 1 } = {}) {
-  const pending = all.filter(isPendingReview);
+export function reviewBody(all, msg = {}, { show = 'waiting', q = '', page = 1, cutShort = [] } = {}) {
+  const pending = [...all.filter(isPendingReview), ...cutShort].sort((a, b) => a.seriesId.localeCompare(b.seriesId));
   const closed = all.filter((s) => s.closed);
-  const unlisted = pending.filter((s) => !s.shortlist && s.variants.some((v) => v.ok));
+  const unlisted = pending.filter((s) => s.completed && !s.shortlist && s.variants.some((v) => v.ok));
   const pool = (show === 'closed' ? closed : show === 'all' ? all : pending).filter((s) => matchesQuery(s, q)).reverse();
   const pages = Math.max(1, Math.ceil(pool.length / PER_PAGE));
   const at = Math.min(Math.max(1, page), pages);
@@ -188,7 +189,12 @@ export function routes(app) {
 
   app.get('/review', async (c) => {
     const page = Number(c.url.searchParams.get('page')) || 1;
-    return c.page({ title: 'Review', active: 'review', body: reviewBody(await c.series(), c.msg, { show: c.url.searchParams.get('show') ?? 'waiting', q: c.url.searchParams.get('q') ?? '', page }) });
+    const all = await c.series();
+    // A stopped job leaves a series without an ending. What it made can still be judged, once
+    // nothing is working on it any more.
+    const working = (await c.jobs?.open())?.some((j) => j.status === 'running' && j.lane === 'studio') || (await shiftInProgress(c.config));
+    const cutShort = working ? [] : all.filter((s) => !s.completed && !s.closed && !s.started.payload.dryRun && s.variants.some((v) => v.ok));
+    return c.page({ title: 'Review', active: 'review', body: reviewBody(all, c.msg, { show: c.url.searchParams.get('show') ?? 'waiting', q: c.url.searchParams.get('q') ?? '', page, cutShort }) });
   });
 
   app.post('/review/close-before', async (c) => {

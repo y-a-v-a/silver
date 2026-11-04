@@ -4,7 +4,7 @@ import { loadConfigFromEnv, ConfigError } from '../config.js';
 export default async function config(_args, opts, ctx) {
   let cfg;
   try {
-    cfg = await loadConfigFromEnv();
+    cfg = await loadConfigFromEnv(process.env, { overlay: opts.overlay !== false });
   } catch (err) {
     if (!(err instanceof ConfigError)) throw err;
     ctx.stderr.write(err.message + '\n');

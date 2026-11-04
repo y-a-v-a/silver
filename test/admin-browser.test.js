@@ -71,8 +71,46 @@ test('the keyboard approves in place: no page load, the mark appears, it moves o
   assert.equal(await page.evaluate(() => window.sameDocument), true, 'the same document, no navigation');
   assert.equal(await page.locator(`#${id} .mark.ok`).count(), 1);
   assert.notEqual(await page.locator('.card.current').getAttribute('id'), id);
-  const view = (await listSeries(floor))[0];
+  const view = (await listSeries(floor)).find((v) => v.seriesId === seeded.seriesId);
   assert.equal(view.decisions.get(id).payload.verdict, 'approved');
+});
+
+test('a key only decides on a card you can see is marked: with the mark scrolled away, it marks what\'s on screen', { skip: SKIP }, async () => {
+  const f = { floor, root };
+  const big = await seedSeries(f, { produced: Array.from({ length: 12 }, (_, i) => `v${String(i + 1).padStart(2, '0')}`), failed: [] });
+  for (let i = 1; i <= 12; i++) await writeFile(join(big.dir, `v${String(i).padStart(2, '0')}.png`), PNG);
+  await page.goto(`${base}/series/${big.seriesId}`);
+  const decided = async () => (await listSeries(floor)).find((s) => s.seriesId === big.seriesId).decisions.size;
+  await page.keyboard.press('a');
+  await page.waitForTimeout(200);
+  assert.equal(await decided(), 0, 'nothing marked: nothing signed');
+  assert.equal(await page.locator('.card.current').count(), 1, 'but now something is');
+  await page.evaluate(() => document.querySelector('.card:last-child').scrollIntoView());
+  await page.waitForTimeout(100);
+  await page.keyboard.press('a');
+  await page.waitForTimeout(200);
+  assert.equal(await decided(), 0, 'the mark was off screen: still nothing signed');
+  const marked = await page.locator('.card.current').boundingBox();
+  assert.ok(marked.y + marked.height > 0 && marked.y < 860, 'the mark came to where you are');
+  await page.keyboard.press('a');
+  await page.waitForFunction(() => document.querySelector('.card.approved'));
+  assert.equal(await decided(), 1);
+});
+
+test('the gallery works in its sandbox: its links, its filter and its way back', { skip: SKIP }, async () => {
+  const { mkdir } = await import('node:fs/promises');
+  const site = config.paths.site;
+  await mkdir(join(site, 'works', 'x'), { recursive: true });
+  await writeFile(join(site, 'index.html'), `<!doctype html><title>wall</title><a id="w" href="works/x/">work</a><script>document.title = 'wall ran';</script>`);
+  await writeFile(join(site, 'works', 'x', 'index.html'), `<!doctype html><title>work</title><iframe src="sketch.html"></iframe>`);
+  await writeFile(join(site, 'works', 'x', 'sketch.html'), `<!doctype html><title>sketch</title>`);
+  const g = await browser.newPage();
+  await g.goto(`${base}/gallery/`);
+  assert.equal(await g.title(), 'wall ran', 'its own script runs');
+  await g.click('#w');
+  await g.waitForURL(/works\/x\/$/);
+  assert.equal(await g.title(), 'work');
+  await g.close();
 });
 
 test('the lightbox opens, moves and closes', { skip: SKIP }, async () => {

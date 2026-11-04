@@ -21,6 +21,7 @@ export const COMMANDS = [
     phase: 0,
     options: [
       ['--check', 'only validate; print "ok" or the errors'],
+      ['--no-overlay', 'leave the settings in studio.json out'],
       ['--json', 'print as JSON'],
     ],
     load: () => import('./config.js'),

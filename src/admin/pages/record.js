@@ -130,7 +130,7 @@ function jobBody(job, log, msg) {
   return `<div class="top"><div><a class="crumb" href="/jobs">← jobs</a><h1>${esc(job.title)}</h1><div class="small muted"><code>silver ${esc(job.args.map((a) => (/\s/.test(a) ? JSON.stringify(a) : a)).join(' '))}</code></div></div>
   <div class="row">${jobState(job)}${open ? action(`/jobs/${job.id}/cancel`, job.status === 'running' ? 'Stop it' : 'Cancel', { confirm: 'Really?' }) : ''}</div></div>
 ${messages(msg)}
-${job.status === 'queued' ? '<p class="muted">Waiting for its turn.</p>' : ''}
+${job.status === 'queued' ? '<p class="muted">Waiting for its turn: one at a time, and a running shift goes first.</p>' : ''}
 ${log.truncated ? '<p class="small muted">The start of the log is cut.</p>' : ''}
 <pre class="log" data-log="/jobs/${esc(job.id)}/log" data-offset="${esc(log.size)}"${open ? ' data-follow="1"' : ''}>${esc(log.text) || (open ? '' : '(no output)')}</pre>
 ${!open && job.status === 'done' ? `<p class="small" style="margin-top:10px"><a href="/review">Review</a> · <a href="/">Today</a> · <a href="/floor">The floor</a></p>` : ''}`;
@@ -248,6 +248,6 @@ export function routes(app) {
   app.post('/jobs/:id/cancel', async (c) => {
     c.back = `/jobs/${c.params.id}`;
     const job = await c.jobs.cancel(c.params.id);
-    return c.redirect(`/jobs/${job.id}`, { done: 'Stopping it. A stopped shift resumes where it stopped the next time it runs.' });
+    return c.redirect(`/jobs/${job.id}`, { done: "Stopping it. What it made so far is kept, and a series cut short can still be reviewed. A shift picks up where it stopped the next time it's run." });
   });
 }

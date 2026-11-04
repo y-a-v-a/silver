@@ -31,7 +31,7 @@ export const DATA_PATHS = Object.freeze(['floor', 'archive', 'canon', 'taste.md'
 async function dataSpecs(config) {
   const present = [];
   for (const p of DATA_PATHS) if (await exists(join(config.root, p))) present.push(p);
-  return present.length ? ['--', ...present, ':(exclude)canon/.publish.lock', ':(exclude,glob)**/*.tmp', ':(exclude,glob)**/.DS_Store'] : null;
+  return present.length ? ['--', ...present, ':(exclude)canon/.publish.lock', ':(exclude)archive/.shift.lock', ':(exclude,glob)**/*.tmp', ':(exclude,glob)**/.DS_Store'] : null;
 }
 
 /** Only the data: everything else in the work tree is invisible to the record. */
@@ -44,6 +44,7 @@ export const EXCLUDE = `# The Silver record: only the Factory's data (see src/re
 !/direction.md
 !/studio.json
 /canon/.publish.lock
+/archive/.shift.lock
 *.tmp
 .DS_Store
 `;

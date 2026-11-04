@@ -1,7 +1,8 @@
 // How the Factory is doing right now. Everything the Today page shows is derived here from the
 // floor and a few plain checks, so a problem shows up as soon as it's on the record.
 import { listSeries, isPendingReview } from '../agents/series-data.js';
-import { pickSubjects } from '../shift.js';
+import { pickSubjects, shiftLockPath } from '../shift.js';
+import { lockHolder } from '../lib/lock.js';
 import { readCanon } from '../canon.js';
 import { createBudget } from '../budget.js';
 import { OPENROUTER_BASE_URL } from '../llm.js';
@@ -9,11 +10,24 @@ import { usd } from './ui.js';
 
 const HOUR = 3_600_000;
 
-/** A shift is on the floor when it has started and not ended. A crash leaves no ending, so old ones don't count. */
-export async function shiftInProgress(floor, { now = new Date(), maxHours = 2 } = {}) {
-  const today = await floor.read({ type: 'shift.*' });
-  const last = today.filter((e) => e.type === 'shift.started' || e.type === 'shift.ended').at(-1);
-  return Boolean(last && last.type === 'shift.started' && now - Date.parse(last.ts) < maxHours * HOUR);
+/** Is a shift running right now, in any process? A stopped or crashed one doesn't count. */
+export const shiftInProgress = async (config) => Boolean(await lockHolder(shiftLockPath(config)));
+
+const localDay = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
+/**
+ * What the next shift would pick up. Once today's real shift has ended, that is tomorrow's:
+ * pins and commissions carry over, and today's scouted leftovers don't (unless pinned).
+ * @returns {Promise<{subjects: object[], all: object[], doneToday: boolean}>}
+ */
+export async function nextInLine(floor, slots, { now = new Date() } = {}) {
+  const today = floor.today();
+  const doneToday = (await floor.read({ shift: today, type: 'shift.ended' })).some((e) => !e.payload.dryRun);
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const day = doneToday ? localDay(tomorrow) : today;
+  const all = await pickSubjects(floor, day, Infinity);
+  return { subjects: all.slice(0, slots), all, doneToday };
 }
 
 /** The next time the schedule will run a shift, as a local Date. */
@@ -82,11 +96,12 @@ export async function readStatus({ config, floor, env = {}, schedule = null, cre
   const shifts = recentLines.filter((e) => e.type === 'shift.ended' && !e.payload.dryRun);
   const lastShift = shifts.at(-1) ?? null;
   const doneToday = lastShift?.shift === today;
-  const running = await shiftInProgress(floor, { now });
+  const running = await shiftInProgress(config);
   const pending = series.filter(isPendingReview);
   const unlisted = pending.filter((s) => !s.shortlist && s.variants.some((v) => v.ok));
   const todaySeries = series.filter((s) => s.started.shift === today && !s.started.payload.dryRun);
-  const next = await pickSubjects(floor, today, config.shift.seriesPerShift);
+  const next = (await nextInLine(floor, config.shift.seriesPerShift, { now })).subjects;
+  const slotsUsed = todaySeries.filter((s) => !s.started.payload.byHand).length;
   const printable = canon.filter((w) => w.edition === null);
 
   const dayAgo = now.getTime() - 24 * HOUR;
@@ -107,6 +122,7 @@ export async function readStatus({ config, floor, env = {}, schedule = null, cre
   if (thin.length) alerts.push({ level: 'warn', text: `Today's series came out thin: ${thin.map((s) => `${s.variants.filter((v) => v.ok).length}/${s.variants.length}`).join(', ')} variants.`, href: `/series/${thin[0].seriesId}`, label: 'Look' });
   if (config.shift.paused) alerts.push({ level: 'info', text: 'The daily shift is paused. The schedule keeps firing, and nothing happens.', href: '/system', label: 'Unpause' });
   if (schedule && !schedule.installed) alerts.push({ level: 'info', text: 'The daily shift is not scheduled on this machine.', href: '/system', label: 'Schedule it' });
+  if (schedule?.installed && schedule.mine && schedule.loaded === false) alerts.push({ level: 'bad', text: "The daily shift's schedule is on disk but launchd hasn't got it loaded: the shift won't run by itself.", href: '/system#schedule', label: 'Fix it' });
   if (schedule?.installed && schedule.mine && schedule.at !== config.shift.at) alerts.push({ level: 'warn', text: `The schedule runs at ${schedule.at}, the settings say ${config.shift.at}.`, href: '/system', label: 'Fix it' });
   const pushed = recentLines.filter((e) => e.type === 'record.pushed').at(-1);
   if (pushed?.payload.error) alerts.push({ level: 'warn', text: `The record's last backup didn't push: ${pushed.payload.error}` });
@@ -127,6 +143,7 @@ export async function readStatus({ config, floor, env = {}, schedule = null, cre
     unlisted,
     todaySeries,
     next,
+    slotsFree: Math.max(0, config.shift.seriesPerShift - slotsUsed),
     canon,
     printable,
     alerts,

@@ -1,5 +1,5 @@
 // Souls: the role files. Each one is a system prompt and a few settings, and this is where
-// they're read and rewritten. A saved soul counts from the next call: every shift and job reads
+// they're read and rewritten. A saved soul counts from the next run: every shift and job reads
 // the files from disk when it starts. The files stay plain markdown in roles/, so an edit in
 // a text editor shows up here, and the two can't overwrite each other.
 import { readFile } from 'node:fs/promises';
@@ -30,7 +30,7 @@ function soulCard(s, config) {
 export function soulsBody({ souls, benched, config, msg }) {
   const stars = souls.filter((s) => s.group === 'superstar');
   const staff = souls.filter((s) => s.group !== 'superstar');
-  return `<div class="top"><div><h1>Souls</h1><p class="lede">Who they are and what they're told. Each is a markdown file in <code>roles/</code>; save one here or in your editor and it counts from the next call.</p></div></div>
+  return `<div class="top"><div><h1>Souls</h1><p class="lede">Who they are and what they're told. Each is a markdown file in <code>roles/</code>; save one here or in your editor and it counts from the next shift or job.</p></div></div>
 ${messages(msg)}
 <h2>The superstars <small>their lines become the briefs</small></h2>
 <div class="soul-grid">${stars.map((s) => soulCard(s, config)).join('')}
@@ -96,7 +96,7 @@ ${!r ? `<form method="post" action="/souls/${esc(soul.id)}" class="editor" data-
       <label class="label" for="body">The soul: their system prompt</label>
       <textarea class="code body" id="body" name="body" spellcheck="false">${esc(text ?? body)}</textarea>
       <div class="check-result" aria-live="polite"></div>
-      <div class="row" style="margin-top:8px"><button class="primary" name="action" value="save">Save</button><span class="small muted"><kbd>⌘S</kbd> counts from the next call; nothing restarts.</span></div>
+      <div class="row" style="margin-top:8px"><button class="primary" name="action" value="save">Save</button><span class="small muted"><kbd>⌘S</kbd> counts from the next shift or job; nothing restarts.</span></div>
     </div>
     <aside>
       <h2 style="margin-top:0">Settings</h2>
@@ -191,8 +191,8 @@ export function routes(app) {
     try {
       const r = await saveSoul(deps(c), soul.id, { raw, baseHash: form.get('baseHash') });
       if (!r.changed) return c.redirect(`/souls/${soul.id}`, { done: 'Nothing changed.' });
-      if (r.warnings.length) return pageFor(c, r.soul, { warnings: r.warnings, msg: { flash: 'Saved. It counts from the next call. But look:' } });
-      return c.redirect(`/souls/${soul.id}`, { done: 'Saved. It counts from the next call.' });
+      if (r.warnings.length) return pageFor(c, r.soul, { warnings: r.warnings, msg: { flash: 'Saved. It counts from the next shift or job. But look:' } });
+      return c.redirect(`/souls/${soul.id}`, { done: 'Saved. It counts from the next shift or job.' });
     } catch (err) {
       // The text stays in the box: nothing typed is ever lost to a refusal.
       if (err.name === 'SoulConflict') return pageFor(c, err.current, { conflict: err.current, text: form.get('body'), rawText: form.get('raw'), settings: typed }, 409);

@@ -1,12 +1,13 @@
 // Studio: how the works get made, and the place to steer it. A standing note per audience,
 // the pace of the shift, the matrix, the hands, the procedures, the dare deck and the sources.
-// Everything here lands in studio.json or direction.md and counts from the next call: there is
+// Everything here lands in studio.json or direction.md and counts from the next shift or job: there is
 // nothing to restart. Next to each control sits what the record says about it.
 import { getPath, activeTechniques, readOverlay, techniqueWeight } from '../../settings.js';
 import { loadRawConfig } from '../../config.js';
 import { listSeries } from '../../agents/series-data.js';
 import { AUDIENCES, readDirection } from '../../lib/direction.js';
-import { applySettings, saveDirection } from '../store.js';
+import { applySettings, directionHash, saveDirection } from '../store.js';
+import { listRevisions } from '../souls.js';
 import { computeStats, shiftCost, variantCost } from '../stats.js';
 import { AdminError } from '../server.js';
 import { esc, field, messages, percent, usd } from '../ui.js';
@@ -30,13 +31,14 @@ const rate = (r) => {
   return total ? `${percent(r.failed, total)}%` : '–';
 };
 
-function directionSection(direction) {
+function directionSection(direction, { baseHash, revisions = [] }) {
   return `<form method="post" action="/studio/direction" data-guard id="direction" class="panel">
-  <h2>Direction <small>what you're after right now, per audience. It reaches the next call.</small></h2>
+  <input type="hidden" name="baseHash" value="${esc(baseHash)}">
+  <h2>Direction <small>what you're after right now, per audience. It counts from the next shift or job.</small></h2>
   <div class="cols four">
   ${AUDIENCES.map((a) => `<div class="field"><label for="d-${a}"><strong>${esc(WHO[a][0])}</strong></label><textarea id="d-${a}" name="${a}" rows="4" placeholder="${esc(WHO[a][2])}">${esc(direction[a])}</textarea><span class="help">${esc(WHO[a][1])}</span></div>`).join('')}
   </div>
-  <button class="primary">Save the direction</button></form>`;
+  <div class="spread"><button class="primary">Save the direction</button>${revisions.length ? `<a class="small muted" href="/history/direction/${esc(revisions[0].id)}">Earlier versions (${revisions.length})</a>` : ''}</div></form>`;
 }
 
 function paceSection(c, set, forecast) {
@@ -160,32 +162,43 @@ export function routes(app) {
   const deps = (c) => ({ config: c.config, floor: c.floor, rawConfig });
   const LIMIT = 256 * 1024;
 
-  app.get('/studio', async (c) => {
+  const studioPage = async (c) => {
     const [views, direction, overlay, raw, catalogue, shifts] = await Promise.all([listSeries(c.floor), readDirection(c.config.root), readOverlay(c.config.root), rawConfig(), catalogueOf(c.extra.pricing), c.floor.read({ shift: 'all', type: 'shift.ended' })]);
     const since = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
     const stats = computeStats(views, { since });
     const set = (path) => getPath(overlay, path) !== undefined;
-    const body = `<div class="top"><div><h1>Studio</h1><p class="lede">How the works get made. Everything here counts from the next call, with nothing to restart. A <span class="set-dot" style="margin:0">●</span> means it differs from <code>silver.config.js</code>. To steer one series, go through <a href="/subjects">Subjects</a>.</p></div></div>
+    const typed = c.typedDirection ?? direction;
+    const body = `<div class="top"><div><h1>Studio</h1><p class="lede">How the works get made. Everything here counts from the next shift or job, with nothing to restart; one already running finishes as it began. A <span class="set-dot" style="margin:0">●</span> means it differs from <code>silver.config.js</code>. To steer one series, go through <a href="/subjects">Subjects</a>.</p></div></div>
 ${messages(c.msg)}
 <div class="tabs" role="navigation"><a href="#direction">Direction</a><a href="#pace">The shift</a><a href="#matrix">The matrix</a><a href="#models">The hands</a><a href="#procedures">Procedures</a><a href="#dares">Dares</a><a href="#sources">Sources</a></div>
-${directionSection(direction)}
+${directionSection(typed, { baseHash: await directionHash(c.config.root), revisions: await listRevisions(c.config, 'direction', 'direction') })}
 ${paceSection(c.config, set, shiftCost(shifts))}
 ${matrixSection(c.config, set, variantCost(stats))}
 ${modelsSection(c.config, set, stats, catalogue)}
 ${techniquesSection(c.config, stats, raw)}
 ${daresSection(c.config, set)}
 ${sourcesSection(c.config, set)}`;
-    return c.page({ title: 'Studio', active: 'studio', body });
-  });
+    return c.page({ title: 'Studio', active: 'studio', body }, c.status ?? 200);
+  };
+  app.get('/studio', studioPage);
 
   app.post('/studio/direction', async (c) => {
     c.back = '/studio#direction';
     const form = await c.form(LIMIT);
-    const { changed } = await saveDirection(deps(c), Object.fromEntries(AUDIENCES.map((a) => [a, form.get(a) ?? ''])));
-    return c.redirect('/studio#direction', { done: changed.length ? `Saved. The ${changed.join(', ')} hear it from the next call.` : 'Nothing changed.' });
+    const typed = Object.fromEntries(AUDIENCES.map((a) => [a, form.get(a) ?? '']));
+    let changed;
+    try {
+      ({ changed } = await saveDirection(deps(c), typed, { baseHash: form.get('baseHash') }));
+    } catch (err) {
+      // What was typed stays in the boxes, whether it was refused or overtaken.
+      if (!['TextConflict', 'SettingsError'].includes(err.name)) throw err;
+      Object.assign(c, { typedDirection: typed, status: 409, msg: { error: err.errors?.join('; ') ?? err.message } });
+      return studioPage(c);
+    }
+    return c.redirect('/studio#direction', { done: changed.length ? `Saved. The ${changed.join(', ')} hear it from the next shift or job.` : 'Nothing changed.' });
   });
 
-  const done = (changed) => (changed.length ? `Saved: ${changed.length} setting${changed.length === 1 ? '' : 's'} changed. Counts from the next call.` : 'Nothing changed.');
+  const done = (changed) => (changed.length ? `Saved: ${changed.length} setting${changed.length === 1 ? '' : 's'} changed. Counts from the next shift or job.` : 'Nothing changed.');
 
   /** @type {Record<string, {paths: string[], read: (form: URLSearchParams, c: object) => Record<string, unknown>}>} */
   const SECTIONS = {
@@ -249,8 +262,15 @@ ${sourcesSection(c.config, set)}`;
     const changes = form.has('reset') ? Object.fromEntries(section.paths.map((p) => [p, undefined])) : section.read(form, c);
     const { changed } = await applySettings(deps(c), changes);
     // The schedule's plist holds the time itself, so it follows the setting.
-    if (changed.includes('shift.at')) await app.extra.schedule?.sync?.().catch(() => {});
-    return c.redirect(`/studio#${anchor}`, { done: done(changed) });
+    let scheduleNote = null;
+    if (changed.includes('shift.at') && app.extra.schedule?.sync) {
+      try {
+        scheduleNote = await app.extra.schedule.sync();
+      } catch (err) {
+        return c.redirect(`/studio#${anchor}`, { error: `Saved, but the schedule didn't move: ${err.message}` });
+      }
+    }
+    return c.redirect(`/studio#${anchor}`, { done: scheduleNote ? `${done(changed)} ${scheduleNote}` : done(changed) });
   });
 
   app.post('/studio/techniques', async (c) => {

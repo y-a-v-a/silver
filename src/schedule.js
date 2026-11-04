@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 export const LABEL = 'com.silver.shift';
 export const ADMIN_LABEL = 'com.silver.admin';
@@ -117,9 +118,9 @@ export async function envHasKey(envFile) {
 /**
  * Is the daily job installed, when does it run, and does it belong to this checkout? Reads the
  * plist instead of asking launchd, so it works the same in a test and costs nothing.
- * @returns {Promise<{installed: boolean, at?: string, root?: string, mine?: boolean, path: string}>}
+ * @returns {Promise<{installed: boolean, at?: string, root?: string, mine?: boolean, loaded?: boolean, path: string}>}
  */
-export async function scheduleStatus(config, { home = homedir(), label = LABEL } = {}) {
+export async function scheduleStatus(config, { home = homedir(), label = LABEL, uid = process.getuid(), run = null } = {}) {
   const path = plistPath(home, label);
   let xmlText;
   try {
@@ -131,10 +132,25 @@ export async function scheduleStatus(config, { home = homedir(), label = LABEL }
   const int = (key) => xmlText.match(new RegExp(`<key>${key}</key>\\s*<integer>(\\d+)</integer>`))?.[1];
   const root = xmlText.match(/<key>WorkingDirectory<\/key>\s*<string>([^<]*)<\/string>/)?.[1];
   const [h, m] = [int('Hour'), int('Minute')];
-  return { installed: true, at: h === undefined ? null : `${h.padStart(2, '0')}:${(m ?? '0').padStart(2, '0')}`, root, mine: root === config.root, path };
+  const status = { installed: true, at: h === undefined ? null : `${h.padStart(2, '0')}:${(m ?? '0').padStart(2, '0')}`, root, mine: root === config.root, path };
+  // A plist on disk doesn't mean launchd has it, so with a way to ask, ask.
+  if (run) status.loaded = await run('launchctl', ['print', `gui/${uid}/${label}`]).then(() => true, () => false);
+  return status;
 }
 
 export const plistPath = (home = homedir(), label = LABEL) => join(home, 'Library', 'LaunchAgents', `${label}.plist`);
+
+/** Load a plist. launchd may refuse for a moment while the old job winds down, so try a few times. */
+async function bootstrap(run, uid, path, { tries = 4, waitMs = 500 } = {}) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await run('launchctl', ['bootstrap', `gui/${uid}`, path]);
+    } catch (err) {
+      if (attempt >= tries) throw new ScheduleError(`launchctl bootstrap failed: ${err.stderr?.trim() || err.message}`);
+      await sleep(waitMs);
+    }
+  }
+}
 
 /**
  * @param {{config: {root: string, paths: {archive: string}, shift: {at: string}}}} deps
@@ -155,11 +171,7 @@ export async function installSchedule({ config }, { home = homedir(), uid = proc
   await writeFile(path, plist);
   // Replace an older version if one is loaded; bootout fails harmlessly when none is.
   await run('launchctl', ['bootout', `gui/${uid}/${LABEL}`]).catch(() => {});
-  try {
-    await run('launchctl', ['bootstrap', `gui/${uid}`, path]);
-  } catch (err) {
-    throw new ScheduleError(`launchctl bootstrap failed: ${err.stderr?.trim() || err.message}`);
-  }
+  await bootstrap(run, uid, path);
   return { path, logDir, at: config.shift.at };
 }
 
@@ -176,11 +188,7 @@ export async function installAdminService({ config }, { home = homedir(), uid = 
   await mkdir(join(home, 'Library', 'LaunchAgents'), { recursive: true });
   await writeFile(path, plist);
   await run('launchctl', ['bootout', `gui/${uid}/${ADMIN_LABEL}`]).catch(() => {});
-  try {
-    await run('launchctl', ['bootstrap', `gui/${uid}`, path]);
-  } catch (err) {
-    throw new ScheduleError(`launchctl bootstrap failed: ${err.stderr?.trim() || err.message}`);
-  }
+  await bootstrap(run, uid, path);
   return { path, logDir };
 }
 

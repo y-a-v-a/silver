@@ -59,7 +59,7 @@ The Factory's back room, on this machine only. It needs no login: it binds to `1
 
 ### What updates by itself
 
-- **Souls, `direction.md`, `taste.md`, settings:** nothing to restart. Every shift and job is a fresh process that reads them when it starts, and the admin reads them on every request. A save counts from the next call.
+- **Souls, `direction.md`, `taste.md`, settings:** nothing to restart. Every shift and job is a fresh process that reads them when it starts, and the admin reads them on every request. A save counts from the next shift or job; one already running finishes as it began.
 - **Code, `silver.config.js`, `package.json`, `.env`:** the admin's supervisor watches them. On a save it checks that the code parses and the config loads, then restarts the server, and open pages reload themselves unless you're in the middle of typing. If the code doesn't stand up, the old server keeps running and says what's wrong; if it can't boot at all, the address answers with the error until a save fixes it. Jobs are separate processes, so a restart doesn't touch them.
 
 ### What can't be edited from the browser, on purpose

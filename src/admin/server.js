@@ -13,7 +13,7 @@ import { readCanon } from '../canon.js';
 import { createBudget } from '../budget.js';
 import { summarizeEvent } from '../lib/format.js';
 import { esc, layout, messages, timeOf } from './ui.js';
-import { pickSubjects } from '../shift.js';
+import { nextInLine } from './status.js';
 import { routes as reviewRoutes } from './pages/review.js';
 import { routes as todayRoutes } from './pages/today.js';
 import { routes as subjectRoutes } from './pages/subjects.js';
@@ -98,7 +98,7 @@ export function createAdminServer({ config: startConfig, floor, jobs = null, get
       createBudget({ floor, dailyUsd: config.budget.dailyUsd, chatterShare: config.budget.chatterShare }).ledger(),
       jobs?.open() ?? [],
       readCanon(floor),
-      pickSubjects(floor, floor.today(), Infinity).then((s) => s.length),
+      nextInLine(floor, Infinity).then((l) => l.all.length),
     ]);
     out.counts.review = series.filter(isPendingReview).length;
     out.counts.subjects = waiting;
@@ -155,9 +155,10 @@ export function createAdminServer({ config: startConfig, floor, jobs = null, get
       if ((await stat(path).catch(() => null))?.isDirectory()) path = join(path, 'index.html');
       if (path.split(sep).includes('.vercel') || !TYPES[extname(path)]) return send(res, 404, 'not found', 'text/plain');
       try {
-        const body = await readFile(path);
-        const csp = path.endsWith('sketch.html') ? SKETCH_CSP : "default-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-src 'self'; frame-ancestors 'self'";
-        return send(res, 200, body, TYPES[extname(path)], { 'Content-Security-Policy': csp });
+        // Every page of the gallery runs in the sandbox, not just the sketches: it's a static site
+        // holding text and code from models, and this is the admin's origin. (A check on the name
+        // wouldn't do: this filesystem also finds "Sketch.html".)
+        return send(res, 200, await readFile(path), TYPES[extname(path)], { 'Content-Security-Policy': SKETCH_CSP });
       } catch {
         if (!parts.slice(1).length) return send(res, 200, await page({ title: 'Gallery', active: 'gallery', body: '<h1>Gallery</h1><p class="muted">Not built yet. Run Publish from Today.</p>' }, config), undefined);
         return send(res, 404, 'not found', 'text/plain');
