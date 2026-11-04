@@ -7,6 +7,7 @@
 // process reads those fresh.
 import { spawn } from 'node:child_process';
 import { watch } from 'node:fs';
+import { stat } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { join, relative } from 'node:path';
 
@@ -37,6 +38,22 @@ function run(cmd, args, opts) {
 }
 
 /**
+ * Parses a module without running it. `node --check` won't do: it lets ES modules with syntax
+ * errors through. Compiling a SourceTextModule catches them, and evaluates nothing.
+ */
+const PARSE_MODULE = `
+import { readFileSync } from 'node:fs';
+import { SourceTextModule } from 'node:vm';
+const file = process.argv[1];
+try {
+  new SourceTextModule(readFileSync(file, 'utf8'), { identifier: file });
+} catch (err) {
+  console.error(err.stack ?? err.message);
+  process.exit(1);
+}
+`;
+
+/**
  * Does this code stand up? Every changed JS file parses, and the config loads.
  * @param {{root: string, cli: string, files: string[], env: NodeJS.ProcessEnv}} o
  * @returns {Promise<string[]>} problems
@@ -44,8 +61,9 @@ function run(cmd, args, opts) {
 export async function preflight({ root, cli, files, env }) {
   const problems = [];
   for (const file of files.filter((f) => /\.m?js$/.test(f))) {
-    const r = await run(process.execPath, ['--check', join(root, file)], { cwd: root, env });
-    if (!r.ok && !/ENOENT|Cannot find module/.test(r.out)) problems.push(`${file}: ${r.out.split('\n').slice(0, 6).join('\n')}`);
+    const r = await run(process.execPath, ['--experimental-vm-modules', '--no-warnings', '--input-type=module', '-e', PARSE_MODULE, join(root, file)], { cwd: root, env });
+    // A file deleted in the same save has nothing to parse.
+    if (!r.ok && !/ENOENT/.test(r.out)) problems.push(`${file}: ${r.out.split('\n').slice(0, 6).join('\n')}`);
   }
   if (!problems.length) {
     const r = await run(process.execPath, [cli, 'config', '--check'], { cwd: root, env });
@@ -76,6 +94,9 @@ export function createSupervisor({ root, cli, childArgs, port, env = process.env
   let timer = null;
   let changed = new Set();
   let exited = null;
+  let starting = false;
+  let checking = false;
+  let watchingSince = 0;
   const watchers = [];
 
   const tell = (message) => {
@@ -109,7 +130,12 @@ export function createSupervisor({ root, cli, childArgs, port, env = process.env
   }
 
   async function start() {
+    // One child at a time: a second one would only find the port taken.
+    if (starting || stopping) return;
+    starting = true;
     await closeFallback();
+    starting = false;
+    if (stopping || child) return;
     let stderr = '';
     const c = spawn(process.execPath, [cli, ...childArgs], { cwd: root, env, stdio: ['ignore', 'inherit', 'pipe', 'ipc'] });
     child = c;
@@ -147,6 +173,7 @@ export function createSupervisor({ root, cli, childArgs, port, env = process.env
   }
 
   function restart(why) {
+    if (stopping || restartWanted) return;
     log(`restarting: ${why}`);
     if (!child) return void start();
     restartWanted = true;
@@ -158,21 +185,36 @@ export function createSupervisor({ root, cli, childArgs, port, env = process.env
   }
 
   async function onChange() {
-    const files = [...changed];
-    changed = new Set();
-    const problems = await preflight({ root, cli, files, env });
-    if (problems.length) {
-      log(`not restarting, the code doesn't stand up:\n${problems.join('\n')}`);
-      tell({ type: 'preflight', ok: false, problems });
+    if (stopping || !changed.size) return;
+    // A save during a check waits for it: the check that counts is the one on the newest code.
+    if (checking) {
+      timer = setTimeout(onChange, debounceMs);
       return;
     }
-    tell({ type: 'preflight', ok: true });
-    crashes = 0;
-    restart(files.join(', '));
+    checking = true;
+    const files = [...changed];
+    changed = new Set();
+    try {
+      const problems = await preflight({ root, cli, files, env });
+      if (stopping) return;
+      if (problems.length) {
+        log(`not restarting, the code doesn't stand up:\n${problems.join('\n')}`);
+        tell({ type: 'preflight', ok: false, problems });
+        return;
+      }
+      tell({ type: 'preflight', ok: true });
+      crashes = 0;
+      restart(files.join(', '));
+    } finally {
+      checking = false;
+    }
   }
 
-  function noticed(rel) {
+  async function noticed(rel) {
     if (!rel || !isCodeChange(rel)) return;
+    // macOS reports changes from just before the watch began too; those are already running.
+    const mtime = await stat(join(root, rel)).then((st) => st.mtimeMs, () => Infinity);
+    if (mtime <= watchingSince) return;
     changed.add(rel);
     clearTimeout(timer);
     timer = setTimeout(onChange, debounceMs);
@@ -180,6 +222,7 @@ export function createSupervisor({ root, cli, childArgs, port, env = process.env
 
   return {
     async start() {
+      watchingSince = Date.now();
       await start();
       const dirs = [['src', true], ['.', false]];
       for (const [dir, recursive] of dirs) {
