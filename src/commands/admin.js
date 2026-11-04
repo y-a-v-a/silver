@@ -105,6 +105,8 @@ async function serve(opts, ctx, { startPath = '/' } = {}) {
     process.once('disconnect', resolve);
   });
   await admin.close();
+  // The IPC channel to the supervisor would keep this process alive by itself.
+  if (supervised) process.exit(0);
 }
 
 export default async function adminCommand(_args, opts, ctx) {

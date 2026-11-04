@@ -94,7 +94,8 @@
     if (!form.matches('form[data-stay]') || e.defaultPrevented) return;
     e.preventDefault();
     const body = new URLSearchParams(new FormData(form, e.submitter));
-    swap(form.action, { method: 'POST', body, headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }).catch(() => form.submit());
+    // getAttribute: a field named "action" would shadow form.action.
+    swap(form.getAttribute('action'), { method: 'POST', body, headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }).catch(() => form.submit());
   });
 
   document.addEventListener('change', (e) => {

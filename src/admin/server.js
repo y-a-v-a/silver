@@ -321,7 +321,9 @@ export function createAdminServer({ config: startConfig, floor, jobs = null, get
         for (const res of clients) res.end();
         clients.clear();
         server.close(() => r());
-        server.closeIdleConnections?.();
+        server.closeIdleConnections();
+        // A request in flight gets a moment to finish; a keep-alive connection doesn't hold us up.
+        setTimeout(() => server.closeAllConnections(), 400).unref();
       }),
   };
 }
