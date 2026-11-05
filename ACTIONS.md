@@ -355,7 +355,7 @@ Also added in Phase 3:
 
 **Done when:** after a shift, `silver review` shows Warhol's shortlist, and approving one emits the decision and grows `taste.md`. ✅ The first live shortlist (NGV series) shows on `silver review` with Warhol's notes, checked in headless Chromium at desktop and phone widths. Approve, veto and close are covered by tests against the real server. **The first real approval is left to you**, since that veto is yours.
 
-## Phase 5: Printer, Fred Hughes, Vercel ✅ (built; deploying waits for a Vercel token)
+## Phase 5: Printer, Fred Hughes, Vercel ✅ (live since 2026-11-05)
 
 - [x] Write `roles/printer.md`. The Printer is mostly code; the LLM is used only for a final "print check" (does the sketch hold up at full size, and does it run for more than 60s without degrading?). It may send the piece back as a floor event, but it cannot un-sign it.
 - [x] `agents/printer.js`, run on `review.decision: approved` (the latest decision per variant counts; nothing is printed twice):
@@ -375,16 +375,17 @@ Also added in Phase 3:
 
 **Done when:** approving a variant in the contact sheet results in a live Vercel URL and a new feed entry. **Partly verified:**
 - **Verified:** approving in `silver review` now triggers the background publish. On 2026-09-25, `silver publish --no-deploy` turned your 20 approvals into **19 editions** (one approval was a duplicate click): printed, print-checked (18 ok, 1 concern), titled by Fred Hughes, and built into `site/` with the feed. That took 6 minutes and cost $0.09. The gallery was checked in headless Chromium at desktop and phone widths.
-- **Open:** the live Vercel URL needs `VERCEL_TOKEN` in `.env` (see the open questions).
+- **Verified live (2026-11-05):** the first real deploy linked `site/` to the Vercel project `silver-factory` and published 29 works at https://silver-factory.vercel.app. With `deploy.siteUrl` set, the live feed and the share images use absolute links.
+- **Note:** `site.deployed` records the URL of that one deployment (`silver-factory-<hash>-…vercel.app`), and the Canon page shows it. Vercel's deployment protection redirects visitors away from those URLs, so share the production address instead.
 
-## Phase 5b: follow-ups from the Phase 5 decisions (2026-09-25) ✅ (except going live: the token is empty)
+## Phase 5b: follow-ups from the Phase 5 decisions (2026-09-25) ✅
 
 - [x] **Poster = later frame:** the gallery and feed use `later.png` as the poster (`posterOf` in `src/canon.js`), falling back to frame 30 when the hold went wrong. It's derived at build time, so the 19 existing editions switched without reprinting; all 19 now use the later frame.
 - [x] **Titles:** Fred Hughes's prompt lists the titles already released for the same subject or series (`{{taken}}`, including ones released earlier in the same run) and asks him to vary them or number them deliberately. The existing repeats (Nos. 002/004, 012/013/015) stay: they're the record.
 - [x] **`silver retitle <No.> [--title …] [--wall …] [--note …]`:** appends a new `edition.released` for the same `canonId` and edition number (`correction: true`, `replaces: <event id>`, actor `human` or `fred-hughes`). The canon, site and feed use the latest label ("label revised <date>" on the work page; the feed entry's `updated` moves, no new entry). Without `--title`/`--wall`, Fred Hughes rewrites it, told what was wrong via `--note`. Afterwards it republishes. **No. 016** is corrected: now "Free Coffee Code (Camouflage) II", with the invented million cups gone.
 - [x] **Dry-run subjects:** `subject.posted` from a dry-run shift (or `silver scout --dry-run`) carries `dryRun: true`. The real shift's "scouted today?" check ignores them, its subject picker skips them, and the real Scout's dedupe ignores them, so it may pick the same headline for real. `silver subjects` marks them `D`. Subjects from earlier dry runs weren't marked and count as real.
 - [x] **Backlog:** by 2026-09-25 only two real series were unshortlisted (Dunkin' `…STFC1P` and sushi `…YHKTYA`; the NGV series already had one). Both are now shortlisted, after your decisions on them, so Warhol's notes are for the record. Signatures of works already printed are unchanged.
-- [ ] **Go live:** blocked. `.env` has a `VERCEL_TOKEN=` line with an empty value. Fill it in, then run `silver publish --redeploy` and set `deploy.siteUrl` to the URL it prints (then `--redeploy` once more for absolute feed/OG links). `silver publish` now deploys whenever the canon changed since the last deploy, corrections included.
+- [x] **Go live** (2026-11-05): https://silver-factory.vercel.app. The steps were: fill in `VERCEL_TOKEN` in `.env`, run `silver publish --redeploy` and set `deploy.siteUrl` to the URL it prints (then `--redeploy` once more for absolute feed/OG links). `silver publish` now deploys whenever the canon changed since the last deploy, corrections included.
 - [ ] Later: the print check on the review page, before the veto.
 
 ## Phase 6: Superstars ✅
@@ -566,7 +567,7 @@ The open questions from Phase 5 and the day shift were answered on 2026-09-25. T
 
 ## Open questions from Phase 5b (2026-09-25)
 
-1. **The Vercel token.** `.env` has `VERCEL_TOKEN=` with no value, so nothing is live yet. Fill it in and run `silver publish --redeploy`.
+1. **The Vercel token.** `.env` has `VERCEL_TOKEN=` with no value, so nothing is live yet. Fill it in and run `silver publish --redeploy`. **Done 2026-11-05.**
 2. **No. 017 carries the same invented number in the artwork itself.** "One Million Free Coffees (Dunkin)" prints "1,000,000 FREE COFFEES" in the sketch, from the same pre-rule Scout note. A retitle only fixes the label.
    - *Options:* (a) leave it, since the label can say what the image claims; (b) retitle the label only; (c) a way to withdraw an edition from the site (a `work.withdrawn` event), keeping its number as a gap in the record.
 
@@ -600,7 +601,7 @@ v1 is built (Phases 0–8). What is left, in order:
 - [x] Check the run. **2026-09-26 09:00, unattended:** 6 subjects scouted, 2 series (Excel multi-value cells, Dolly Parton Day) at 12/12 each, Warhol shortlisted both, the diary was written (331 words), and the record was pushed (`fbff1b9`). $0.72. **Found and fixed:** Brigid and Ondine failed because Qwen was rate-limited and its Gemini fallback rejects `reasoning: off` (the superstars now use `reasoning: 256`; verified live on both models). The diary gave UTC times ("started at 7"); the notes now use local time. The Qwen studio variants fell back to Gemini without trouble.
 
 **Yours:**
-- [ ] **Go live on Vercel:** fill in `VERCEL_TOKEN` in `.env`, run `npx silver publish --redeploy`, then set `deploy.siteUrl` (see Phase 5b).
+- [x] **Go live on Vercel** (2026-11-05): https://silver-factory.vercel.app.
 - [ ] **Write your taste:** a few lines at the top of `taste.md` on what you like and don't. Warhol reads them before every shortlist; until then he has only your approve/veto log.
 - [ ] **Decide on No. 017** (see the open questions from Phase 5b): (a) leave it, (b) correct the label only, (c) a way to withdraw an edition from the site while its number stays in the record.
 

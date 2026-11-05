@@ -215,7 +215,7 @@ export default {
   deploy: {
     provider: 'vercel', // deploys paths.site
     project: 'silver-factory', // Vercel project name
-    siteUrl: null, // public URL once known, e.g. 'https://silver-factory.vercel.app' (absolute links in the feed)
+    siteUrl: 'https://silver-factory.vercel.app', // the production address (absolute links in the feed and share images)
   },
 
   printer: {

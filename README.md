@@ -20,7 +20,7 @@ Everything is recorded, including drafts, chatter and rejects, and the record fe
 
 ## Status
 
-**All phases (0–10) are built.** Phase 9 (2026-10-23) replaced the pop-art studio with a contemporary one, and Phase 10 (2026-11-04) added the admin. The gallery isn't live on Vercel yet.
+**All phases (0–10) are built.** Phase 9 (2026-10-23) replaced the pop-art studio with a contemporary one, and Phase 10 (2026-11-04) added the admin. The gallery has been live since 2026-11-05 at https://silver-factory.vercel.app.
 - The floor (the event log) records everything.
 - The OpenRouter client runs as any role, archives transcripts and costs every call.
 - The daily budget cap is enforced.
