@@ -57,6 +57,14 @@ The Factory's back room, on this machine only. It needs no login: it binds to `1
 | **Floor, Canon, Diary, Gallery** | The record to read: the floor live, the editions and their labels, Andy's diary, the gallery exactly as it would deploy. Any model call can be read in full. |
 | **Jobs, System** | What's running and its log; keys, schedule, pause, the record, the money, model checks and restart. |
 
+### Approve, veto, close
+
+- **Approve is final.** It starts printing at once, then signs the work, adds it to the gallery and deploys the site if deploying is set up. There is no way to withdraw a work yet.
+- **Veto is a "no", not a retract.** It adds the decision and your note to `taste.md`, which Warhol reads before each shortlist, and puts the variant on the reject pile, which the Scout can offer in later shifts. It stops a print only if the work hasn't been printed yet; after that, the work stays in the canon and on the site.
+- **Close this review** takes a series off the waiting list. Your decisions stay, the variants stay in the archive, and any of them can still be approved from the series page.
+
+To be selective, approve one or two, then close the review. You don't need to veto the rest. Veto where you have something to teach, and any of Warhol's picks you want on the reject pile: an undecided pick doesn't go there.
+
 ### What updates by itself
 
 - **Souls, `direction.md`, `taste.md`, settings:** nothing to restart. Every shift and job is a fresh process that reads them when it starts, and the admin reads them on every request. A save counts from the next shift or job; one already running finishes as it began.
