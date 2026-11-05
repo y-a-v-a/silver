@@ -7,6 +7,17 @@ import { summarise } from '../budget.js';
 import { usd, plural } from '../lib/format.js';
 import { seededRng } from '../lib/rng.js';
 
+/** The pins given on the command line, or nothing at all when there are none. */
+export function steerFrom(opts) {
+  const steer = {};
+  if (opts.technique?.length) steer.techniques = opts.technique;
+  if (opts.model?.length) steer.models = opts.model;
+  if (opts.temperature?.length) steer.temperatures = opts.temperature.map(Number);
+  if (opts.dare?.trim()) steer.dare = opts.dare.trim();
+  if (opts.note?.trim()) steer.note = opts.note.trim();
+  return Object.keys(steer).length ? steer : undefined;
+}
+
 export default async function seriesCommand([subjectRef], opts, ctx) {
   const factory = await createFactory({ dryRun: Boolean(opts.dryRun) });
   const llm = await factory.llm();
@@ -30,6 +41,8 @@ export default async function seriesCommand([subjectRef], opts, ctx) {
       dryRun: Boolean(opts.dryRun),
       chatter: opts.chatter !== false,
       rng: opts.matrixSeed === undefined ? undefined : seededRng(num(opts.matrixSeed, 'matrix-seed')),
+      steer: steerFrom(opts),
+      byHand: true,
     });
   } finally {
     await renderer?.close();

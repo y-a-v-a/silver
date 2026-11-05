@@ -62,7 +62,7 @@ export default async function commissionCommand([input], opts, ctx) {
   const renderer = await createRenderer();
   let series;
   try {
-    series = await runSeries({ config: factory.config, floor, llm: studioLlm, renderer }, event.id);
+    series = await runSeries({ config: factory.config, floor, llm: studioLlm, renderer }, event.id, { byHand: true });
   } finally {
     await renderer.close();
   }

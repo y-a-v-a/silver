@@ -118,21 +118,37 @@ export function digest(events, { since = null, maxChars = 24_000 } = {}) {
       case 'subject.retired':
         add(`${time} the human retires "${titleOf(p.subjectId)}"${p.reason ? ` (${clip(p.reason, 100)})` : ''}.`);
         break;
+      case 'subject.pinned':
+        add(`${time} the human ${p.pinned ? 'pins' : 'unpins'} "${titleOf(p.subjectId)}"${p.pinned ? ' to the front of the queue' : ''}.`);
+        break;
+      case 'studio.changed':
+        add(`${time} the human changes ${clip(p.summary ?? p.target ?? 'something in the studio', 200)}.`);
+        break;
       case 'chatter.posted':
         add(`${time} ${p.persona ?? e.actor} on "${titleOf(e.ref)}": ${clip(p.text, 240)}`);
         break;
       case 'series.started':
-        add(`${time} the assistants start a series on "${titleOf(p.subjectId)}": ${p.variants} variants, techniques ${(p.techniques ?? []).join(', ')}.`);
+        add(`${time} the assistants start a series on "${titleOf(p.subjectId)}": ${p.variants} variants, techniques ${(p.techniques ?? []).join(', ')}.${p.steer?.note ? ` The human told them: "${clip(p.steer.note, 200)}"` : ''}`);
         break;
       case 'series.completed': {
-        const produced = recent.filter((x) => x.ref === e.ref && x.type === 'variant.produced').length;
-        const failed = recent.filter((x) => x.ref === e.ref && x.type === 'variant.failed');
+        // Second pulls come later and get their own note.
+        const produced = recent.filter((x) => x.ref === e.ref && x.type === 'variant.produced' && !x.payload.pullOf).length;
+        const failed = recent.filter((x) => x.ref === e.ref && x.type === 'variant.failed' && !x.payload.pullOf);
         const why = [...new Set(failed.map((f) => clip(f.payload.error ?? f.payload.stage, 80)))].slice(0, 3);
         add(`${time} series on "${seriesTitle(e.ref)}" done: ${produced} made, ${failed.length} died${why.length ? ` (${why.join('; ')})` : ''}.`);
         break;
       }
       case 'shortlist.proposed':
         add(`${time} Andy picks ${(p.picks ?? []).map((x) => `${x.variant} ("${clip(x.note, 140)}")`).join(', ') || 'nothing'} from "${seriesTitle(p.seriesId)}". The rest: ${clip(p.rejects, 200)}`);
+        break;
+      case 'variant.produced':
+      case 'variant.failed':
+        if (!p.pullOf) break;
+        add(
+          e.type === 'variant.produced'
+            ? `${time} ${p.humanNote ? `the human sends ${p.pullOf} of "${seriesTitle(p.seriesId)}" back ("${clip(p.humanNote, 120)}")` : `Andy sends ${p.pullOf} of "${seriesTitle(p.seriesId)}" back for a second pull`}; it comes back as ${p.variant}${p.note ? `: ${clip(p.note, 160)}` : ''}.`
+            : `${time} Andy sends ${p.pullOf} of "${seriesTitle(p.seriesId)}" back for a second pull, and it dies (${clip(p.error ?? p.stage, 80)}).`,
+        );
         break;
       case 'review.decision':
         if (p.verdict === 'closed') add(`${time} the human closes the review of "${seriesTitle(p.seriesId)}".`);

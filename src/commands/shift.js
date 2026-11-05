@@ -23,11 +23,19 @@ export default async function shiftCommand(_args, opts, ctx) {
       notify: opts.notify ? (title, message) => notify(title, message) : undefined,
       backup: (await hasRecord(config)) ? (message) => commitRecord(config, { message }) : undefined,
     },
-    { dryRun: Boolean(opts.dryRun), again: Boolean(opts.again) },
+    { dryRun: Boolean(opts.dryRun), again: Boolean(opts.again), force: Boolean(opts.force) },
   );
 
   if (opts.json) {
     ctx.stdout.write(JSON.stringify(result, null, 2) + '\n');
+    return;
+  }
+  if (result.status === 'paused') {
+    ctx.stdout.write(`the shift is paused (shift.paused); nothing ran. Use --force to run it anyway, or unpause it in the admin\n`);
+    return;
+  }
+  if (result.status === 'busy') {
+    ctx.stdout.write(`a shift is already running (pid ${result.pid}); this one does nothing\n`);
     return;
   }
   if (result.status === 'already-done') {
@@ -48,6 +56,8 @@ export default async function shiftCommand(_args, opts, ctx) {
             ? `${s.series.length} series`
             : s.shortlisted
               ? `${s.shortlisted.length} shortlisted`
+              : s.pulls
+                ? `${s.pulls.filter((x) => x.ok).length} of ${s.pulls.length} pulled again`
               : s.manifest
                 ? `${s.diary?.path && !s.diary.skipped ? `diary ${s.diary.path}` : `diary ${s.diary?.skipped ?? 'none'}`}${s.missing ? `, ${s.missing} artifacts missing` : ''}`
                 : '');

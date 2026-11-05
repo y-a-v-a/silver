@@ -8,10 +8,11 @@ import { loadRoles } from './roles.js';
 import { createLlm, OPENROUTER_BASE_URL } from './llm.js';
 
 /**
- * @param {{env?: Record<string, string|undefined>, fetch?: typeof globalThis.fetch, dryRun?: boolean, llm?: object}} [opts]
+ * @param {{env?: Record<string, string|undefined>, fetch?: typeof globalThis.fetch, dryRun?: boolean, llm?: object, overlay?: boolean}} [opts]
+ *   overlay: false leaves the owner's studio.json out (the admin's way back in when it is broken)
  */
-export async function createFactory({ env = process.env, fetch = globalThis.fetch, dryRun = false, llm: llmOpts = {} } = {}) {
-  const config = await loadConfigFromEnv(env);
+export async function createFactory({ env = process.env, fetch = globalThis.fetch, dryRun = false, llm: llmOpts = {}, overlay = true } = {}) {
+  const config = await loadConfigFromEnv(env, { overlay });
   const baseUrl = env.OPENROUTER_BASE_URL || OPENROUTER_BASE_URL;
   const floor = createFloor({ dir: config.paths.floor });
   const budget = createBudget({ floor, dailyUsd: config.budget.dailyUsd, chatterShare: config.budget.chatterShare });

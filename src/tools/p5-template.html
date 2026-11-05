@@ -35,6 +35,30 @@
         return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
       };
     }
+    // p5 1.11.13: remove() on a createGraphics buffer throws in global mode (the buffer's
+    // instance has no element list). Sketches free their buffers often, so make it safe.
+    var removeBuffer = p5.Graphics.prototype.remove;
+    p5.Graphics.prototype.remove = function () {
+      try {
+        return removeBuffer.apply(this, arguments);
+      } catch (err) {
+        if (this.elt && this.elt.parentNode) this.elt.parentNode.removeChild(this.elt);
+      }
+    };
+    // Assistants keep writing fill('#hex', alpha) and fill(someColor, alpha); p5 1.x throws on
+    // both. Read them the way they were meant: that colour, with that alpha.
+    ['color', 'fill', 'stroke', 'background'].forEach(function (name) {
+      var original = p5.prototype[name];
+      p5.prototype[name] = function (c, alpha) {
+        if (arguments.length === 2 && typeof alpha === 'number' && (typeof c === 'string' || c instanceof p5.Color)) {
+          // A copy: color(someColor) returns the same object, and its alpha must not change.
+          var withAlpha = p5.prototype.color.call(this, c instanceof p5.Color ? c.toString() : c);
+          withAlpha.setAlpha(alpha);
+          return name === 'color' ? withAlpha : original.call(this, withAlpha);
+        }
+        return original.apply(this, arguments);
+      };
+    });
     var meta = JSON.parse(document.getElementById('silver-meta').textContent);
     window.SILVER = Object.freeze({ width: {{WIDTH}}, height: {{HEIGHT}}, seed: seed, meta: meta });
     window.__silverReady = false;

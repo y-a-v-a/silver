@@ -24,7 +24,7 @@ What the page or text says:
 ## Your notes
 
 - `why`: one or two plain sentences on why this is a ready-made: mass-produced, widely seen, emotionally loaded, or utterly banal. **Use only facts from the title and text above.** Don't add numbers, names or details that aren't there. If the human already gave a note, don't repeat it; add your own angle or say less.
-- `image`: one sentence proposing the flat, repeatable image to screen. This one may be imagined.
+- `image`: one sentence proposing an image to start from. Not an illustration of the headline: a detail, a residue, an object, a trace, a strange angle. This one may be imagined.
 - `sensitive`: `{"flag": true, "reason": "..."}` if the subject involves death, violence, grief, war, illness, suicide, children in distress, private victims, or a real person at their worst. Otherwise `{"flag": false}`. You never refuse a commission; you only flag it.
 
 Return only JSON:

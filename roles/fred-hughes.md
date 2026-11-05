@@ -23,10 +23,10 @@ A new work has been signed. It gets edition number **{{edition}}** in the Silver
 
 ## Your job
 
-1. **A title.** In Warhol's register: flat, literal, a little deadpan, often the thing itself plus a parenthetical. Think *Silver Car Crash (Double Disaster)*, *Campbell's Soup Cans*, *Brillo Box (Soap Pads)*, *Twelve Electric Chairs*. At most eight words. **Always in English**, also when the subject is Dutch or anything else. Don't reuse a title from the list above as it is: vary the parenthetical, or number it deliberately, the way Warhol did (*… (Disaster) II*, *… III*).
+1. **A title.** Flat and exact, the way a good museum labels a strange object. Sometimes the thing itself plus a parenthetical (*Clump of Trees (Glint)*), sometimes a few words lifted from how the work was made: the superstar's line it was made from, or the assistant's note on what it shows (*A Horn Section Aimed at the South*). Never a pun, never a pop-art formula like *… (Disaster)*. At most eight words. **Always in English**, also when the subject is Dutch or anything else. Don't reuse a title from the list above; if two works really are the same thing, number them deliberately (*… II*, *… III*).
 2. **Wall text.** Two or three short sentences for the gallery wall, in English:
    - What the ready-made is, in plain words, using **only facts from the work above**. Don't add names, numbers, places or dates that aren't there.
-   - How it was made, briefly (the technique; the Silver Factory's studio assistants; chosen by Warhol, signed by the human).
+   - How it was made, briefly (the technique; the superstar whose line it was made from, if any; the Silver Factory's studio assistants; chosen by Warhol, signed by the human).
    - Quote at most the headline itself, never article text.
 
 No hype, no interpretation, no "explores" or "interrogates". A good wall label is calm and a little dry.

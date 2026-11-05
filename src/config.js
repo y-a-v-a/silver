@@ -1,14 +1,17 @@
 // Loads silver.config.js, applies env overrides, validates, resolves paths, freezes.
 import { resolve, isAbsolute } from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
+import { forbiddenPaths, mergeOverlay, readOverlay, OVERLAY_FILE, SettingsError } from './settings.js';
 
 /**
  * @typedef {object} SilverConfig
  * @property {{studio: string[], roles: Record<string, string>, dryRun: string}} models
  * @property {{dailyUsd: number, chatterShare: number}} budget
- * @property {{variants: number, modelsPerSeries: number, temperatures: number[], techniquesPerSeries: number, concurrency: number}} series
+ * @property {{variants: number, modelsPerSeries: number, temperatures: number[], techniquesPerSeries: number, concurrency: number, secondPulls?: number}} series
  * @property {Record<string, string>} techniques
- * @property {{at: string, subjectsPerShift: number, seriesPerShift: number, maxArchiveSubjectsPerShift: number}} shift
+ * @property {string[]} [dares]   the dare deck: one card per variant (optional)
+ * @property {{techniques?: Record<string, number>}} [steering]   the owner's steering: technique weights (0 = benched)
+ * @property {{at: string, paused?: boolean, subjectsPerShift: number, seriesPerShift: number, maxArchiveSubjectsPerShift: number}} shift
  * @property {{rss: string[], trending: {googleTrendsGeo: string, hackernews: boolean, reddit: boolean}, itemsPerSource: number, repeatAfterDays: number}} sources
  * @property {{port: number, tasteEntriesInPrompt: number}} review
  * @property {{provider: 'vercel', project: string, siteUrl: string|null}} deploy
@@ -22,7 +25,9 @@ export const DEFAULT_CONFIG_PATH = resolve(ROOT, 'silver.config.js');
 /** Roles that need a default model. Superstars share one entry. */
 export const ROLES = Object.freeze(['scout', 'superstar', 'warhol', 'printer', 'fred-hughes', 'archivist', 'technician']);
 
-const TOP_LEVEL = ['models', 'budget', 'series', 'techniques', 'shift', 'sources', 'review', 'deploy', 'printer', 'superstars', 'paths'];
+const TOP_LEVEL = ['models', 'budget', 'series', 'techniques', 'dares', 'steering', 'shift', 'sources', 'review', 'deploy', 'printer', 'superstars', 'paths'];
+// Top-level keys that may be left out; every other key must be an object.
+const OPTIONAL_TOP_LEVEL = ['dares', 'steering'];
 const PATH_KEYS = ['roles', 'floor', 'archive', 'canon', 'site', 'taste'];
 const SLUG = /^~?[a-z0-9][\w.-]*\/[\w.:-]+$/i;
 const KEBAB = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -59,10 +64,10 @@ export function validateConfig(c) {
   if (!isObj(c)) return ['config must be an object'];
 
   for (const key of Object.keys(c)) if (!TOP_LEVEL.includes(key)) err(`unknown top-level key "${key}"`);
-  for (const key of TOP_LEVEL) if (!isObj(c[key])) err(`"${key}" must be an object`);
+  for (const key of TOP_LEVEL) if (!OPTIONAL_TOP_LEVEL.includes(key) && !isObj(c[key])) err(`"${key}" must be an object`);
   if (errors.length) return errors;
 
-  const { models, budget, series, techniques, shift, sources, review, deploy, printer, superstars, paths } = c;
+  const { models, budget, series, techniques, dares, steering, shift, sources, review, deploy, printer, superstars, paths } = c;
 
   // models
   if (!Array.isArray(models.studio) || models.studio.length === 0) err('models.studio must be a non-empty array');
@@ -97,6 +102,24 @@ export function validateConfig(c) {
     if (typeof guidance !== 'string' || guidance.trim() === '') err(`technique "${name}" needs a guidance string`);
   }
 
+  // dares
+  if (dares !== undefined) {
+    if (!Array.isArray(dares)) err('dares must be a list of strings');
+    else {
+      dares.forEach((d, i) => (typeof d === 'string' && d.trim()) || err(`dares[${i}] must be a non-empty string`));
+      if (new Set(dares).size !== dares.length) err('dares contains duplicates');
+    }
+  }
+
+  // steering: names no longer on the menu are ignored, so a stale setting can't stop a shift
+  const weights = steering?.techniques;
+  if (steering !== undefined && !isObj(steering)) err('steering must be an object');
+  if (weights !== undefined) {
+    if (!isObj(weights)) err('steering.techniques must be an object: {technique: weight}');
+    else for (const [name, w] of Object.entries(weights)) if (!isInt(w, 0, 3)) err(`steering.techniques["${name}"] must be 0 (benched), 1, 2 or 3`);
+  }
+  const active = techniqueNames.filter((t) => (isObj(weights) ? weights[t] : undefined) !== 0);
+
   // series
   if (!isInt(series.variants, 1)) err('series.variants must be a positive integer');
   if (!isInt(series.modelsPerSeries, 1)) err('series.modelsPerSeries must be a positive integer');
@@ -105,15 +128,17 @@ export function validateConfig(c) {
   if (!Array.isArray(series.temperatures) || series.temperatures.length === 0) err('series.temperatures must be a non-empty array');
   else series.temperatures.forEach((t, i) => isNum(t, 0, 2) || err(`series.temperatures[${i}] must be between 0 and 2`));
   if (!isInt(series.techniquesPerSeries, 1)) err('series.techniquesPerSeries must be a positive integer');
-  else if (series.techniquesPerSeries > techniqueNames.length)
-    err(`series.techniquesPerSeries (${series.techniquesPerSeries}) exceeds the technique menu (${techniqueNames.length})`);
+  else if (series.techniquesPerSeries > active.length)
+    err(`series.techniquesPerSeries (${series.techniquesPerSeries}) exceeds the technique menu (${active.length}${active.length < techniqueNames.length ? ' off the bench' : ''})`);
   if (!isInt(series.concurrency, 1, 64)) err('series.concurrency must be an integer between 1 and 64');
+  if (series.secondPulls !== undefined && !isInt(series.secondPulls, 0, 3)) err('series.secondPulls must be an integer between 0 and 3');
   const cells = series.modelsPerSeries * (series.temperatures?.length ?? 0) * series.techniquesPerSeries;
   if (isInt(series.variants, 1) && isInt(cells, 1) && series.variants % cells !== 0)
     err(`series.variants (${series.variants}) must be a multiple of the matrix size models x temperatures x techniques (${cells})`);
 
   // shift
   if (!HHMM.test(shift.at ?? '')) err('shift.at must be "HH:MM" (24h)');
+  if (shift.paused !== undefined && typeof shift.paused !== 'boolean') err('shift.paused must be true or false');
   if (!isInt(shift.subjectsPerShift, 1)) err('shift.subjectsPerShift must be a positive integer');
   if (!isInt(shift.seriesPerShift, 1)) err('shift.seriesPerShift must be a positive integer');
   if (!isInt(shift.maxArchiveSubjectsPerShift, 0)) err('shift.maxArchiveSubjectsPerShift must be a non-negative integer');
@@ -186,23 +211,47 @@ function deepFreeze(o) {
  * directory that paths resolve against. Both default to this repository.
  * @param {Record<string, string|undefined>} [env]
  */
-export function loadConfigFromEnv(env = process.env) {
-  return loadConfig({ file: env.SILVER_CONFIG || DEFAULT_CONFIG_PATH, env, root: env.SILVER_ROOT ? resolve(env.SILVER_ROOT) : ROOT });
+export function loadConfigFromEnv(env = process.env, { overlay = true } = {}) {
+  return loadConfig({ file: env.SILVER_CONFIG || DEFAULT_CONFIG_PATH, env, root: env.SILVER_ROOT ? resolve(env.SILVER_ROOT) : ROOT, overlay });
+}
+
+/** The config file as written: no overlay, no env, nothing resolved. What "reset" goes back to. */
+export async function loadRawConfig(file = DEFAULT_CONFIG_PATH) {
+  const mod = await import(pathToFileURL(resolve(file)).href);
+  if (!isObj(mod.default)) throw new ConfigError([`${file} must default-export an object`]);
+  return mod.default;
+}
+
+/** Problems an overlay would cause: forbidden paths, then everything validateConfig finds. */
+export function validateOverlay(raw, overlay) {
+  const forbidden = forbiddenPaths(overlay);
+  if (forbidden.length) return forbidden.map((p) => `${p} can't be set from the admin`);
+  return validateConfig(mergeOverlay(raw, overlay));
 }
 
 /**
- * Load, override, validate and freeze. `paths` come back as absolute paths.
- * @param {{file?: string, env?: Record<string, string|undefined>, root?: string}} [opts]
+ * Load, override, validate and freeze. `paths` come back as absolute paths. With `overlay`,
+ * the owner's studio.json in `root` goes over the file (environment variables go over both).
+ * @param {{file?: string, env?: Record<string, string|undefined>, root?: string, overlay?: boolean}} [opts]
  * @returns {Promise<SilverConfig & {root: string}>}
  */
-export async function loadConfig({ file = DEFAULT_CONFIG_PATH, env = process.env, root = ROOT } = {}) {
-  const mod = await import(pathToFileURL(resolve(file)).href);
-  const raw = mod.default;
-  if (!isObj(raw)) throw new ConfigError([`${file} must default-export an object`]);
+export async function loadConfig({ file = DEFAULT_CONFIG_PATH, env = process.env, root = ROOT, overlay = false } = {}) {
+  let raw = await loadRawConfig(file);
+  if (overlay) {
+    try {
+      const settings = await readOverlay(root);
+      const forbidden = forbiddenPaths(settings);
+      if (forbidden.length) throw new SettingsError(forbidden.map((p) => `${p} can't be set in ${OVERLAY_FILE}`));
+      raw = mergeOverlay(raw, settings);
+    } catch (err) {
+      if (err.name === 'SettingsError') throw new ConfigError(err.errors);
+      throw err;
+    }
+  }
 
   const { config, errors: envErrors } = applyEnv(raw, env);
   const errors = [...envErrors, ...validateConfig(config)];
-  if (errors.length) throw new ConfigError(errors);
+  if (errors.length) throw new ConfigError(overlay ? errors.map((e) => `${e} (config file + ${OVERLAY_FILE})`) : errors);
 
   for (const key of PATH_KEYS) config.paths[key] = resolve(root, config.paths[key]);
   config.root = root;

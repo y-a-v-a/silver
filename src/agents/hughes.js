@@ -1,6 +1,7 @@
 // Fred Hughes: gives each signed work its edition number, an English title and wall text,
 // and releases it to the site. If his call fails, the work stays unreleased and is picked
 // up by the next publish, rather than going out with a placeholder title.
+import { HUMAN_PERSONA } from './studio.js';
 import { readCanon, writeCanonJson } from '../canon.js';
 
 export const MAX_TITLE = 80;
@@ -8,9 +9,15 @@ export const MAX_WALL_TEXT = 700;
 
 const clean = (s, max) => {
   if (typeof s !== 'string') return null;
-  const t = s.replace(/\s+/g, ' ').trim().replace(/^["“”']+|["“”']+$/g, '');
+  let t = s.replace(/\s+/g, ' ').trim();
+  // Strip quotes wrapped around the whole text ("Soup Cans"), never the quote that closes a
+  // headline quoted at the end of a wall text.
+  const wrapped = t.match(/^["“'](.*)["”']$/);
+  if (wrapped && !/["“”]/.test(wrapped[1])) t = wrapped[1].trim();
   return t ? (t.length > max ? t.slice(0, max - 1) + '…' : t) : null;
 };
+
+const cap = (s) => String(s).charAt(0).toUpperCase() + String(s).slice(1);
 
 /** The facts Fred Hughes may use, as prompt text. */
 export function describeWork(work, subject) {
@@ -21,6 +28,10 @@ export function describeWork(work, subject) {
     host && `Source: ${host}`,
     (p.why || p.scoutWhy) && `Why it is a ready-made: ${[p.why, p.scoutWhy].filter(Boolean).join(' / ')}`,
     `Technique: ${work.technique}`,
+    work.makerNote && `The assistant's note on what it shows: ${work.makerNote}`,
+    work.brief && `Made from a line ${work.brief.from === HUMAN_PERSONA ? 'the human' : `the Superstar ${cap(work.brief.from)}`} said on the floor${work.brief.stray ? ' about a different subject' : ''}: “${work.brief.text}”`,
+    work.pullOf && `A second pull: Warhol sent the first print (${work.pullOf}) back to the assistant who made it, to be pushed further.`,
+    work.dare && `The assistant's dare: ${work.dare}`,
     work.warholNote && `Warhol's note: ${work.warholNote}`,
     work.humanNote && `The human's note: ${work.humanNote}`,
     `Signed: ${work.publishedAt.slice(0, 10)}`,

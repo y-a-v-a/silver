@@ -3,10 +3,11 @@
 // between them is kept (principle 2). Every variant is recorded, including failures.
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
-import { buildMatrix, extractSketch, sketchVars } from './studio.js';
+import { buildMatrix, dealBriefs, extractNote, extractSketch, sketchVars } from './studio.js';
 import { buildSketchHtml } from '../tools/template.js';
 import { buildContactSheet } from '../tools/contact-sheet.js';
 import { retiredSubjects, claimedSubjects } from './retire.js';
+import { directionFor, NO_DIRECTION, readDirection } from '../lib/direction.js';
 
 export const ASSISTANT_PROMPT = 'Make your variant now. Reply with the JavaScript in one ```js block, nothing else.';
 
@@ -52,6 +53,13 @@ export async function findSubject(floor, ref) {
   return subject;
 }
 
+/** Pins have to name what exists: a typo here would otherwise burn a series on a wrong model id. */
+function checkSteer(config, steer) {
+  for (const t of steer?.techniques ?? []) if (!config.techniques[t]) throw new SeriesError(`no technique "${t}" on the menu`);
+  for (const t of steer?.temperatures ?? []) if (!(Number.isFinite(t) && t >= 0 && t <= 2)) throw new SeriesError(`temperature ${t} must be between 0 and 2`);
+  for (const m of steer?.models ?? []) if (!/^~?[a-z0-9][\w.-]*\/[\w.:-]+$/i.test(m)) throw new SeriesError(`"${m}" is not an OpenRouter model id`);
+}
+
 /** Run `fn` over `items` with at most `limit` in flight. Stops starting new work once `stop()` is true. */
 async function pool(items, limit, fn, stop = () => false) {
   let next = 0;
@@ -69,14 +77,23 @@ async function pool(items, limit, fn, stop = () => false) {
  * @param {{call: Function}} deps.llm
  * @param {{render: Function}|null} deps.renderer   null: write sketches but don't render (variants stay unverified)
  * @param {string} subjectRef  id, unique id suffix, or "latest"
- * @param {{variants?: number, dryRun?: boolean, concurrency?: number, rng?: () => number, chatter?: boolean}} [opts]
+ * @param {{variants?: number, dryRun?: boolean, concurrency?: number, rng?: () => number, chatter?: boolean, steer?: import('./studio.js').Steer, byHand?: boolean}} [opts]
+ *   byHand: made outside the shift, so it doesn't take one of the shift's slots
  */
-export async function runSeries({ config, floor, llm, renderer }, subjectRef, { variants, dryRun = false, concurrency = config.series.concurrency, rng, chatter: withChatter = true } = {}) {
+export async function runSeries({ config, floor, llm, renderer }, subjectRef, { variants, dryRun = false, concurrency = config.series.concurrency, rng, chatter: withChatter = true, steer, byHand = false } = {}) {
   const subject = await findSubject(floor, subjectRef);
-  // The floor's chatter about this subject goes into every prompt; a real series ignores a
-  // dry run's chatter. `chatter: false` leaves it out (the Phase 6 A/B).
-  const chatter = withChatter ? (await floor.read({ shift: 'all', type: 'chatter.posted', ref: subject.id })).filter((e) => dryRun || !e.payload.dryRun).slice(-20) : [];
-  const matrix = buildMatrix(config, { rng, dryRun, variants });
+  checkSteer(config, steer);
+  // The floor's chatter about this subject goes into every prompt, and each variant takes one
+  // line as its brief (topped up with strays about other subjects when there are few). A real
+  // series ignores a dry run's chatter. `chatter: false` leaves it all out (the Phase 6 A/B).
+  const floorLines = withChatter ? (await floor.read({ shift: 'all', type: 'chatter.posted' })).filter((e) => dryRun || !e.payload.dryRun) : [];
+  const chatter = floorLines.filter((e) => e.ref === subject.id).slice(-20);
+  const strays = floorLines.filter((e) => e.ref !== subject.id).slice(-30);
+  const matrix = buildMatrix(config, { rng, dryRun, variants, steer });
+  // The human's standing note to the studio plus any note for this series. Recorded, so a
+  // later second pull reads what the first pull read.
+  const direction = directionFor(await readDirection(config.root), 'studio', steer?.note);
+  dealBriefs(matrix.cells, chatter, rng, { strays });
 
   const started = await floor.append({
     type: 'series.started',
@@ -92,6 +109,9 @@ export async function runSeries({ config, floor, llm, renderer }, subjectRef, { 
       dryRun,
       chatter: withChatter,
       chatterLines: chatter.length,
+      ...(direction === NO_DIRECTION ? {} : { direction }),
+      ...(steer && Object.keys(steer).length ? { steer } : {}),
+      ...(byHand ? { byHand: true } : {}),
     },
   });
   const seriesId = started.id;
@@ -106,7 +126,7 @@ export async function runSeries({ config, floor, llm, renderer }, subjectRef, { 
     matrix.cells,
     concurrency,
     async (cell) => {
-      const base = { seriesId, variant: cell.variant, technique: cell.technique, requestedModel: cell.model, temperature: cell.temperature };
+      const base = { seriesId, variant: cell.variant, technique: cell.technique, requestedModel: cell.model, temperature: cell.temperature, dare: cell.dare, brief: cell.brief };
       const fail = async (stage, error, extra = {}) => {
         const actor = ['error', 'blank', 'no-canvas', 'timeout'].includes(stage) ? 'renderer' : 'studio-assistant';
         await floor.append({ type: 'variant.failed', actor, ref: seriesId, payload: { ...base, stage, error, ...extra } });
@@ -116,7 +136,7 @@ export async function runSeries({ config, floor, llm, renderer }, subjectRef, { 
       let res;
       try {
         res = await llm.call('studio-assistant', {
-          vars: sketchVars({ subject, chatter, cell, techniques: config.techniques }),
+          vars: sketchVars({ subject, chatter, cell, techniques: config.techniques, direction }),
           prompt: ASSISTANT_PROMPT,
           model: cell.model,
           temperature: cell.temperature,
@@ -138,6 +158,7 @@ export async function runSeries({ config, floor, llm, renderer }, subjectRef, { 
         return fail('extract', why, { callId: res.id, model: res.model, reply: rel(replyPath), finishReason: res.finishReason });
       }
 
+      const note = extractNote(sketch);
       const htmlPath = join(dir, `${cell.variant}.html`);
       const meta = {
         title: `${subject.payload.title} (${cell.variant})`,
@@ -145,16 +166,19 @@ export async function runSeries({ config, floor, llm, renderer }, subjectRef, { 
         series: seriesId,
         variant: cell.variant,
         technique: cell.technique,
+        dare: cell.dare,
+        brief: cell.brief,
+        note,
         model: res.model,
         temperature: cell.temperature,
         callId: res.id,
       };
       await writeFile(htmlPath, buildSketchHtml({ sketch, meta }));
-      const made = { callId: res.id, model: res.model, usd: res.usd, path: rel(htmlPath) };
+      const made = { callId: res.id, model: res.model, usd: res.usd, path: rel(htmlPath), note };
 
       if (!renderer) {
         await floor.append({ type: 'variant.produced', actor: 'studio-assistant', ref: seriesId, payload: { ...base, ...made, png: null, seed: null, rendered: false } });
-        results.push({ ...cell, ok: true, html: `${cell.variant}.html`, png: null, model: res.model });
+        results.push({ ...cell, ok: true, html: `${cell.variant}.html`, png: null, model: res.model, note });
         return;
       }
 
@@ -173,7 +197,7 @@ export async function runSeries({ config, floor, llm, renderer }, subjectRef, { 
         ref: seriesId,
         payload: { ...base, ...made, png: rel(png.png), seed: png.seed, rendered: true, render: { ms: shot.ms, colors: png.colors, readySignal: shot.readySignal, blocked: shot.blocked } },
       });
-      results.push({ ...cell, ok: true, html: `${cell.variant}.html`, png: `${cell.variant}.png`, model: res.model });
+      results.push({ ...cell, ok: true, html: `${cell.variant}.html`, png: `${cell.variant}.png`, model: res.model, note });
     },
     () => stoppedEarly !== null,
   );
@@ -181,7 +205,7 @@ export async function runSeries({ config, floor, llm, renderer }, subjectRef, { 
   // Cells never started because the budget ran out are recorded too.
   for (const cell of matrix.cells) {
     if (results.some((r) => r.variant === cell.variant)) continue;
-    await floor.append({ type: 'variant.failed', actor: 'studio-assistant', ref: seriesId, payload: { seriesId, variant: cell.variant, technique: cell.technique, requestedModel: cell.model, temperature: cell.temperature, stage: 'budget', error: 'not started: budget exhausted' } });
+    await floor.append({ type: 'variant.failed', actor: 'studio-assistant', ref: seriesId, payload: { seriesId, variant: cell.variant, technique: cell.technique, requestedModel: cell.model, temperature: cell.temperature, dare: cell.dare, brief: cell.brief, stage: 'budget', error: 'not started: budget exhausted' } });
     results.push({ ...cell, ok: false, reason: 'budget', error: 'not started: budget exhausted' });
   }
   results.sort((a, b) => a.variant.localeCompare(b.variant));

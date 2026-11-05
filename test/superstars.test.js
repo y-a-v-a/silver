@@ -30,6 +30,8 @@ test('validateChatter keeps valid lines, caps them, clips long ones and checks t
   assert.equal(r.problems.length, 3);
   assert.match(validateChatter({ lines: [], propose: { pile: 1 } }, { subjects: 1, maxLines: 3, pileSize: 0 }).problems[0], /not shown/);
   assert.match(validateChatter({}, { subjects: 1, maxLines: 3, pileSize: 0 }).problems[0], /no "lines"/);
+  const bare = validateChatter([{ subject: 1, text: 'The ocean keeps its silver in its mouth.' }], { subjects: 1, maxLines: 3, pileSize: 0 });
+  assert.deepEqual(bare, { lines: [{ subject: 1, text: 'The ocean keeps its silver in its mouth.' }], proposal: null, problems: [] }, 'a bare array is read as the lines');
 });
 
 test('each superstar talks in turn and hears the ones before; chatter is cheap, capped and on the floor', async () => {

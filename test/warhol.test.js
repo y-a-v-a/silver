@@ -47,6 +47,8 @@ test('findSeries: id, suffix, latest, unlisted, and errors', async () => {
 test('describeVariants numbers images in order, without model names', () => {
   const text = describeVariants([{ variant: 'v01', technique: 'halftone', temperature: 0.7, model: 'secret/model' }]);
   assert.equal(text, 'Image 1 = v01 · technique: halftone · temperature 0.7');
+  const made = describeVariants([{ variant: 'v02', technique: 'scratch-film', temperature: 1.1, dare: 'Make it tender.', brief: { from: 'ondine', text: 'A mad scene!' } }]);
+  assert.equal(made, "Image 1 = v02 · technique: scratch-film · temperature 1.1 · dare: Make it tender. · brief: ondine's line");
 });
 
 test('validateShortlist keeps valid, unique picks up to 3', () => {

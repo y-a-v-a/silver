@@ -18,6 +18,9 @@ export default async function publishCommand(_args, opts, ctx) {
     },
     { limit, redeploy: Boolean(opts.redeploy) },
   );
+  // A job's status comes from the exit code: "done" must not cover a stale gallery or a work
+  // left without its label.
+  if (result.deployError || result.failed.length) process.exitCode = 1;
   if (opts.json) {
     ctx.stdout.write(JSON.stringify(result, null, 2) + '\n');
     return;

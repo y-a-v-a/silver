@@ -131,6 +131,31 @@ test('network requests are blocked and reported, not fatal', { skip, timeout: 30
   assert.deepEqual(res.blocked, ['https://example.com/x.json']);
 });
 
+test('freeing a createGraphics buffer with remove() is safe (p5 1.11.13 throws there)', { skip, timeout: 30_000 }, async () => {
+  const sketch = `function setup(){ createCanvas(SILVER.width, SILVER.height); const g = createGraphics(200, 200); g.background(0, 90, 60); image(g, 100, 100); g.remove(); }
+    function draw(){ fill(240, 120, 0); circle(540, 540, 400); }`;
+  const res = await renderer.render(await variant('remove-buffer', sketch));
+  assert.equal(res.ok, true, JSON.stringify(res));
+});
+
+test('fill, stroke, background and color accept a hex string or a colour plus an alpha', { skip, timeout: 30_000 }, async () => {
+  const sketch = `let base;
+    function setup(){
+      createCanvas(SILVER.width, SILVER.height); noLoop();
+      base = color(200, 30, 30);
+      background('#20304a', 255);
+      fill('#ff8800', 128); rect(50, 50, 300, 300);
+      fill(base, 60); stroke(base, 200); strokeWeight(12); rect(400, 50, 300, 300);
+      if (alpha(base) !== 255) throw new Error('the original colour changed');
+      const c = color('#123456', 90);
+      if (Math.round(alpha(c)) !== 90) throw new Error('alpha ' + alpha(c));
+      const g = createGraphics(200, 200); g.background('#00ff00', 100); g.fill(base, 30); g.circle(100, 100, 120);
+      image(g, 700, 600);
+    }`;
+  const res = await renderer.render(await variant('color-alpha', sketch));
+  assert.equal(res.ok, true, JSON.stringify(res));
+});
+
 test('a sketch without draw() still renders', { skip, timeout: 30_000 }, async () => {
   const sketch = 'function setup(){ createCanvas(SILVER.width, SILVER.height); background(255,220,0); fill(0); circle(540,540,600); }';
   const res = await renderer.render(await variant('nodraw', sketch));

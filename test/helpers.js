@@ -112,6 +112,7 @@ export async function mockOpenRouter({ models = [], reply = () => completion('ok
     for await (const chunk of req) raw += chunk;
     res.setHeader('content-type', 'application/json');
     if (req.url.endsWith('/models')) return res.end(JSON.stringify({ data: state.models }));
+    if (req.method === 'GET') return res.end(JSON.stringify({ data: {} }));
     requests.push({ url: req.url, auth: req.headers.authorization, body: JSON.parse(raw) });
     const r = state.reply(JSON.parse(raw));
     res.statusCode = r.status ?? 200;

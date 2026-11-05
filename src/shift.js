@@ -1,4 +1,4 @@
-// One daily shift: scouts -> superstars -> series -> Warhol's shortlists -> archivist.
+// One daily shift: scouts -> superstars -> series -> Warhol's shortlists -> second pulls -> archivist.
 // Idempotent per date: a second run the same day resumes where the first stopped and
 // never duplicates work. A spent budget ends the shift cleanly, with the reason recorded.
 // Printing happens outside the shift, when the human approves (the veto is async).
@@ -6,10 +6,16 @@ import { runScouts } from './agents/scouts.js';
 import { runSuperstars } from './agents/superstars.js';
 import { runSeries } from './agents/assistants.js';
 import { pendingCommissions } from './agents/commissions.js';
-import { retiredSubjects, claimedSubjects } from './agents/retire.js';
+import { pinnedSubjects, retiredSubjects, claimedSubjects } from './agents/retire.js';
 import { listSeries, isPendingReview } from './agents/series-data.js';
 import { shortlistSeries } from './agents/warhol.js';
+import { secondPull, pulled } from './agents/pull.js';
 import { archiveShift } from './agents/archivist.js';
+import { withLock } from './lib/lock.js';
+import { join } from 'node:path';
+
+/** Held for as long as a shift runs, by whichever process runs it: launchd's or the admin's. */
+export const shiftLockPath = (config) => join(config.paths.archive, '.shift.lock');
 
 export class ShiftError extends Error {
   constructor(message) {
@@ -21,21 +27,29 @@ export class ShiftError extends Error {
 const isBudget = (err) => err?.name === 'BudgetExhausted';
 
 /**
- * Choose the subjects for today's series: commissions first (oldest first), then subjects a
- * superstar pushed, then today's scouted subjects in the Scout's order. Retired subjects and subjects that already have
- * a series are never picked (decisions 2026-09-24 and 2026-09-25). A real shift never
- * picks a dry run's subjects; a dry run may use either.
+ * Choose the subjects for today's series: whatever the human pinned (from any day), then
+ * commissions (oldest first), then subjects a superstar pushed, then today's scouted subjects
+ * in the Scout's order. Retired subjects and subjects that already have a series are never
+ * picked (decisions 2026-09-24 and 2026-09-25). A real shift never picks a dry run's subjects;
+ * a dry run may use either.
  * @returns {Promise<import('./floor.js').FloorEvent[]>}
  */
 export async function pickSubjects(floor, shift, slots, { dryRun = false } = {}) {
   if (slots <= 0) return [];
   const retired = await retiredSubjects(floor);
   const claimed = claimedSubjects(await floor.read({ shift: 'all', type: 'series.started' }));
-  const commissions = (await pendingCommissions(floor)).filter((s) => !claimed.has(s.id));
-  const scouted = (await floor.read({ shift, type: 'subject.posted' })).filter((s) => s.payload.origin !== 'commission' && (dryRun || !s.payload.dryRun) && !claimed.has(s.id) && !retired.has(s.id));
+  const pinIds = [...(await pinnedSubjects(floor)).keys()].filter((id) => !claimed.has(id) && !retired.has(id));
+  const pinned = [];
+  if (pinIds.length) {
+    const byId = new Map((await floor.read({ shift: 'all', type: 'subject.posted' })).map((s) => [s.id, s]));
+    for (const id of pinIds) if (byId.has(id) && (dryRun || !byId.get(id).payload.dryRun)) pinned.push(byId.get(id));
+  }
+  const isPinned = (s) => pinIds.includes(s.id);
+  const commissions = (await pendingCommissions(floor)).filter((s) => !claimed.has(s.id) && !isPinned(s));
+  const scouted = (await floor.read({ shift, type: 'subject.posted' })).filter((s) => s.payload.origin !== 'commission' && (dryRun || !s.payload.dryRun) && !claimed.has(s.id) && !retired.has(s.id) && !isPinned(s));
   // A subject a superstar pushed onto the floor jumps the Scout's queue: that's the point of it.
   const pushed = scouted.filter((s) => s.payload.origin === 'superstar');
-  return [...commissions, ...pushed, ...scouted.filter((s) => s.payload.origin !== 'superstar')].slice(0, slots);
+  return [...pinned, ...commissions, ...pushed, ...scouted.filter((s) => s.payload.origin !== 'superstar')].slice(0, slots);
 }
 
 /**
@@ -50,9 +64,25 @@ export async function pickSubjects(floor, shift, slots, { dryRun = false } = {})
  * @param {() => Promise<object>} [deps.reconcile]          best-effort ledger check
  * @param {(title: string, message: string) => Promise<boolean>} [deps.notify]
  * @param {(message: string) => Promise<object>} [deps.backup]  commit (and push) the record
- * @param {{dryRun?: boolean, again?: boolean}} [opts]
+ * @param {{dryRun?: boolean, again?: boolean, force?: boolean}} [opts]
+ *   force: run even though the owner paused the daily shift
  */
-export async function runShift({ config, floor, llm, budget, createRenderer, fetch, reconcile, notify, backup }, { dryRun = false, again = false } = {}) {
+export async function runShift(deps, opts = {}) {
+  const { config, floor } = deps;
+  // Paused by the owner (the schedule keeps firing, so a pause needs no launchd change).
+  // A dry run or a shift started by hand is a deliberate act, and goes ahead.
+  if (config.shift.paused && !opts.dryRun && !opts.force) return { shift: floor.today(), status: 'paused' };
+  // Two shifts side by side would take the same slots and subjects and overshoot the budget,
+  // whose reservations only hold inside one process.
+  try {
+    return await withLock(shiftLockPath(config), () => shiftBody(deps, opts));
+  } catch (err) {
+    if (err.name === 'LockBusy') return { shift: floor.today(), status: 'busy', pid: err.pid };
+    throw err;
+  }
+}
+
+async function shiftBody({ config, floor, llm, budget, createRenderer, fetch, reconcile, notify, backup }, { dryRun = false, again = false }) {
   const shift = floor.today();
   const today = await floor.read({ shift });
   // A dry run never stands in for the real shift, and vice versa.
@@ -92,7 +122,10 @@ export async function runShift({ config, floor, llm, budget, createRenderer, fet
   // 2. Superstars: once per day, per kind, about the subjects waiting for a series. They may
   // stop on their own budget share (chatter), which never stops the shift.
   if (!stoppedReason) {
-    const talkedToday = today.some((e) => e.type === 'chatter.posted' && e.actor.startsWith('superstar.') && sameKind(e));
+    // Talk from before the Scout came in (the human asking them earlier today) doesn't count:
+    // it can't be about today's subjects.
+    const scoutedAt = (await floor.read({ shift, type: 'subject.posted', actor: 'scout' })).filter(sameKind).at(-1)?.id ?? '';
+    const talkedToday = today.some((e) => e.type === 'chatter.posted' && e.actor.startsWith('superstar.') && sameKind(e) && e.id > scoutedAt);
     const waiting = await pickSubjects(floor, shift, Infinity, { dryRun });
     if (!(llm.roles?.superstars?.() ?? []).length) record('superstars', 'skipped', { reason: 'no superstars cast (roles/superstars/)' });
     else if (talkedToday) record('superstars', 'skipped', { reason: 'already talked today' });
@@ -116,7 +149,8 @@ export async function runShift({ config, floor, llm, budget, createRenderer, fet
   // 3. Series: fill today's remaining slots.
   const seriesMade = [];
   if (!stoppedReason) {
-    const startedToday = (await floor.read({ shift, type: 'series.started' })).filter(sameKind).length;
+    // A series made by hand is extra: it doesn't take a slot from the day's shift.
+    const startedToday = (await floor.read({ shift, type: 'series.started' })).filter((e) => sameKind(e) && !e.payload.byHand).length;
     const slots = config.shift.seriesPerShift - startedToday;
     const picks = await pickSubjects(floor, shift, slots, { dryRun });
     if (slots <= 0) record('series', 'skipped', { reason: `${startedToday} series already started today` });
@@ -159,6 +193,35 @@ export async function runShift({ config, floor, llm, budget, createRenderer, fet
       }
     }
     if (!steps.some((s) => s.step === 'shortlist')) record('shortlist', todo.length ? 'done' : 'skipped', todo.length ? { shortlisted } : { reason: 'nothing new to shortlist' });
+  }
+  // 4b. Second pulls: Warhol's first pick(s) of each of today's series go back to the hand
+  // that made them, to be pushed further (decision 2026-10-23). Once per pick, even if it failed.
+  const pulls = [];
+  if (!stoppedReason && config.series.secondPulls > 0) {
+    const todo = (await listSeries(floor)).filter((s) => s.started.shift === shift && sameKind(s.started) && s.shortlist);
+    let renderer = null;
+    try {
+      for (const s of todo) {
+        const done = pulled(s);
+        for (const pick of s.shortlist.payload.picks.slice(0, config.series.secondPulls)) {
+          if (done.has(pick.variant)) continue;
+          renderer ??= await createRenderer();
+          try {
+            const r = await secondPull({ config, floor, llm, renderer }, s.seriesId, { variant: pick.variant });
+            pulls.push({ seriesId: s.seriesId, variant: r.variant, pullOf: r.pullOf, ok: r.ok });
+          } catch (err) {
+            if (isBudget(err)) throw err;
+            pulls.push({ seriesId: s.seriesId, pullOf: pick.variant, ok: false, error: err.message });
+          }
+        }
+      }
+    } catch (err) {
+      if (isBudget(err)) stop(err);
+      else record('second-pull', 'failed', { error: err.message });
+    } finally {
+      await renderer?.close();
+    }
+    if (!steps.some((s) => s.step === 'second-pull')) record('second-pull', pulls.length ? 'done' : 'skipped', pulls.length ? { pulls } : { reason: 'nothing to pull again' });
   }
   if (stoppedReason) record('stopped', 'budget', { reason: stoppedReason });
 

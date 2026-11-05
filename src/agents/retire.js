@@ -25,6 +25,25 @@ export async function retiredSubjects(floor) {
 }
 
 /**
+ * Subjects the human has pinned to the front of the queue, oldest pin first. The latest event
+ * per subject counts, so a pin can be taken back.
+ * @returns {Promise<Map<string, import('../floor.js').FloorEvent>>}
+ */
+export async function pinnedSubjects(floor) {
+  const pins = new Map();
+  for (const e of await floor.read({ shift: 'all', type: 'subject.pinned' })) {
+    pins.delete(e.payload.subjectId);
+    if (e.payload.pinned) pins.set(e.payload.subjectId, e);
+  }
+  return pins;
+}
+
+/** Pin a subject to the front of the queue, or take the pin back. */
+export function pinSubject(floor, subject, pinned = true) {
+  return floor.append({ type: 'subject.pinned', actor: 'human', ref: subject.id, payload: { subjectId: subject.id, title: subject.payload.title, pinned: Boolean(pinned) } });
+}
+
+/**
  * Retire a subject. Retiring twice is refused, so the reason on record stays the first one.
  * @param {ReturnType<import('../floor.js').createFloor>} floor
  * @param {import('../floor.js').FloorEvent} subject  a subject.posted event

@@ -23,6 +23,19 @@ test('describeWork gives only the facts: headline, source host, notes, technique
     { payload: { why: 'The can.', scoutWhy: null } },
   );
   assert.equal(text, 'Headline / subject: campbell soup\nSource: bbc.co.uk\nWhy it is a ready-made: The can.\nTechnique: halftone\nWarhol\'s note: Flat.\nSigned: 2026-09-25');
+  const made = describeWork({ subjectTitle: 'horns', technique: 'rorschach', makerNote: 'A blot.', brief: { from: 'nico', text: 'The sea keeps its face.' }, dare: 'Make it tender.', pullOf: 'v05', publishedAt: '2026-10-23T10:00:00Z' }, null);
+  assert.match(made, /The assistant's note on what it shows: A blot\./);
+  assert.match(made, /Made from a line the Superstar Nico said on the floor: “The sea keeps its face\.”/);
+  assert.match(made, /The assistant's dare: Make it tender\./);
+  assert.match(made, /A second pull: Warhol sent the first print \(v05\) back/);
+});
+
+test('a wall text that ends on a quoted headline keeps its closing quote; wrapping quotes go', async () => {
+  const f = await signedWorks([completion(JSON.stringify({ title: '“Soup”', wallText: 'A can. After the headline "Campbell soup."' })), completion(JSON.stringify({ title: 'Can', wallText: '"A can of soup."' }))]);
+  const { released } = await releaseEditions({ config: f.config, floor: f.floor, llm: f.llm });
+  assert.equal(released[0].payload.title, 'Soup');
+  assert.equal(released[0].payload.wallText, 'A can. After the headline "Campbell soup."');
+  assert.equal(released[1].payload.wallText, 'A can of soup.');
 });
 
 test('releaseEditions numbers works in signing order, with an English title and wall text', async () => {
@@ -80,7 +93,7 @@ test('Fred Hughes sees the titles already used for the subject, including earlie
   const [first, second] = f.fetch.requests.map((r) => r.body.messages[0].content);
   assert.match(first, /Titles already on the wall for this subject\n\n\(none yet\)/);
   assert.match(second, /- Soup \(Disaster\) \(No\. 001\)/);
-  assert.match(second, /number it deliberately/);
+  assert.match(second, /number them deliberately/);
 });
 
 test('retitle: a correction keeps the number, the canon shows the latest label, the old one stays on the floor', async () => {

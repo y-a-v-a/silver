@@ -1,5 +1,6 @@
 // Checks every configured model against OpenRouter's live catalogue: does it exist,
 // what does it cost, and can it see images where a role needs to.
+import { STUDIO_ROLES } from './roles.js';
 
 /** Config roles that always send images (ACTIONS.md: Warhol reviews screenshots, the Printer checks prints). */
 export const VISION_ROLES = Object.freeze(['warhol', 'printer']);
@@ -31,9 +32,14 @@ export async function auditModels(config, roleList, lookup) {
     ...Object.entries(config.models.fallbacks ?? {}).flatMap(([m, list]) => list.map((model) => ({ use: `fallback for ${m}`, model, needsVision: false }))),
   ];
   for (const role of roleList) {
-    // A role file matters here only when it sets its own model or needs vision.
+    // A role file matters here only when it sets its own model or needs vision. A studio role
+    // that sends images (the second pull) may run on any studio model, so each must see.
+    if (!role.model && role.vision && STUDIO_ROLES.includes(role.id)) {
+      for (const model of config.models.studio) uses.push({ use: `file ${role.file}`, model, needsVision: true });
+      continue;
+    }
     const configured = role.group === 'superstar' ? config.models.roles.superstar : config.models.roles[role.modelRole ?? role.id];
-    const model = role.model ?? configured ?? (role.id === 'studio-assistant' ? config.models.studio[0] : undefined);
+    const model = role.model ?? configured ?? (STUDIO_ROLES.includes(role.id) ? config.models.studio[0] : undefined);
     if (!model) continue;
     if (role.model || role.vision) uses.push({ use: `file ${role.file}`, model, needsVision: role.vision });
   }

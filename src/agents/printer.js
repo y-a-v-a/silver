@@ -60,6 +60,12 @@ export async function printApproved({ config, floor, llm, renderer }, { limit = 
         sourceUrl: series.subject?.payload.url ?? null,
         technique: variant.technique,
         model: variant.model,
+        // How it was made (decision 2026-10-23): the dare card, the superstar's line it took
+        // as its brief, and the assistant's own note. Older series have none of these.
+        dare: variant.dare ?? null,
+        brief: variant.brief ?? null,
+        makerNote: variant.note ?? null,
+        pullOf: variant.pullOf ?? null,
         approvalId: approval.id,
         humanNote: approval.payload.note ?? null,
         warholNote: pick?.note ?? null,

@@ -6,6 +6,7 @@ import { dedupe, subjectKeys } from '../lib/dedupe.js';
 import { snapshotPage } from '../lib/snapshot.js';
 import { clip } from '../sources/http.js';
 import { shiftOf } from '../floor.js';
+import { directionFor, readDirection } from '../lib/direction.js';
 
 /** How many candidates the Scout sees at most (keeps the prompt bounded). */
 export const MAX_CANDIDATES = 160;
@@ -117,7 +118,7 @@ export async function runScouts({ config, floor, llm, fetch = globalThis.fetch }
 
   const recent = history.slice(-RECENT_SUBJECTS).map((e) => `- ${e.payload.title}`).join('\n') || '(none yet)';
   const res = await llm.call('scout', {
-    vars: { today: shiftOf(), count: String(count), recent, candidates: formatCandidates(shown), archive_max: String(archiveMax) },
+    vars: { today: shiftOf(), count: String(count), recent, candidates: formatCandidates(shown), archive_max: String(archiveMax), direction: directionFor(await readDirection(config.root), 'scouts') },
     prompt: `Choose up to ${count} ready-mades from the candidates. Reply with JSON only.`,
   });
   result.callId = res.id;

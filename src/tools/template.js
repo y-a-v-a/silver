@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 export const P5_VERSION = '1.11.13';
 export const P5_URL = `https://cdn.jsdelivr.net/npm/p5@${P5_VERSION}/lib/p5.min.js`;
 export const CANVAS = Object.freeze({ width: 1080, height: 1080 });
-export const READY_FRAMES = 30;
+export const READY_FRAMES = 60;
 
 export const TEMPLATE_PATH = new URL('./p5-template.html', import.meta.url);
 const TEMPLATE = readFileSync(TEMPLATE_PATH, 'utf8');
@@ -46,4 +46,10 @@ export function buildSketchHtml({ sketch, meta }) {
 export function readSketchMeta(html) {
   const m = html.match(/<script type="application\/json" id="silver-meta">([\s\S]*?)<\/script>/);
   return m ? JSON.parse(m[1]) : null;
+}
+
+/** Read the sketch code back out of a built variant, undoing the script escaping. */
+export function readSketchCode(html) {
+  const m = html.match(/<script>\n\/\/ SKETCH: [^\n]*\n([\s\S]*)\n<\/script>\n<\/body>/);
+  return m ? m[1].replace(/<\\\/(script)/gi, '</$1').replace(/<\\!--/g, '<!--') : null;
 }

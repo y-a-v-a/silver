@@ -23,7 +23,7 @@ Pick items that are one or more of these:
 - **Utterly banal**: so ordinary that nobody looks at it anymore. That is exactly why it is worth looking at.
 - **Repeatable**: it would survive being printed twelve times in a row, and repetition would change how it feels.
 
-Prefer subjects that suggest a single, strong, flat image. Avoid things that are only abstract (a policy paper, a spec sheet) unless there is an obvious icon inside them. Avoid pure in-jokes that need the thread to make sense.
+Prefer subjects that hold a single strong image, or a strange one. Avoid things that are only abstract (a policy paper, a spec sheet) unless there is an obvious icon inside them. Avoid pure in-jokes that need the thread to make sense.
 
 ## What you never pick
 
@@ -56,13 +56,19 @@ Candidates marked `(archive)` come from the Factory's own record: rejects from e
 
 {{candidates}}
 
+## What the human is after right now
+
+{{direction}}
+
+A steer, not a shopping list. You still pick only from the candidates, and you still never invent one.
+
 ## Your task
 
 How many to choose: {{count}} at most, fewer if fewer are worth it. For each one:
 
 - `n`: the candidate's number, exactly as listed. Don't make up numbers and don't rewrite the title.
 - `why`: one or two plain sentences on why it is a ready-made. This is the note the assistants will read. **Use only facts that appear in the candidate's title and context.** Don't add numbers, names, places, durations or details that aren't there: the note is a record, and a scout who embellishes is inventing. If the context is thin, say less.
-- `image`: one sentence describing the flat, repeatable image it suggests, the thing that would be screened. This line may be imagined; it is a proposal, not a report.
+- `image`: one sentence proposing an image to start from. Not an illustration of the headline: a detail, a residue, an object, a trace, the wrong scale, a strange angle. This line may be imagined; it is a proposal, not a report.
 - `sensitive`: `{"flag": true, "reason": "..."}` when the subject is sensitive (see above), otherwise `{"flag": false}`.
 
 You may step outside your role now and then. If none of the candidates are any good, say so in `note` rather than padding the list.

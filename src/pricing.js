@@ -77,5 +77,5 @@ export function createPricing({ baseUrl = 'https://openrouter.ai/api/v1', fetch 
     return promptTokens * info.prompt + completionTokens * info.completion + images * info.image + info.request;
   }
 
-  return { load, get, estimate, costOf };
+  return { load, get, estimate, costOf, all: async () => [...((await load())?.values() ?? [])] };
 }

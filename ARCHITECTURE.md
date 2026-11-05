@@ -81,6 +81,9 @@ sequenceDiagram
 4. **One narrow gate.** Only the Warhol role writes to the canon. Everything upstream is cheap and disposable.
 5. **Source from mass media, not imagination.** The ready-made subject is the point. Scouts find; they do not invent.
 6. **Blurry roles.** Any agent may occasionally step outside its role (a superstar proposes a subject, an assistant argues with Warhol). Role boundaries are defaults, not walls.
+7. **Warhol's method, not Warhol's look.** The Factory borrows how Warhol worked (delegation, series, cheap machines, one gate) and never how his work looked. Pop-art pastiche is the one thing it doesn't make. Today's cheap image machines (the inkjet, the fax, the codec, the plotter, machine vision) and the hand that scratches and rubs out are its silkscreen, and the superstars' lines, taken literally, are its briefs. (Added 2026-10-23; see ACTIONS.md, Phase 9.)
+
+8. **Steered from the back room, gated at the front.** The human steers through the admin (direction, pins, the bench, a line on the floor) and every change is on the record, but the making stays delegated and the one gate stays theirs. No setting can open it. The Factory's work always runs as fresh processes, so an edited soul or a saved setting counts from the next call, and restarting the admin never touches a shift. (Added 2026-11-04; see ACTIONS.md, Phase 10.)
 
 ## Floor event types (draft)
 
@@ -94,6 +97,8 @@ sequenceDiagram
 | `review.decision` | Warhol | series/variant id, selected or rejected, note |
 | `work.published` | Printer | canon id, URL, render hash |
 | `edition.released` | Fred Hughes | work id, channel, edition number |
+| `studio.changed` | **human** | what the human changed in the admin (a soul, a setting, the direction, their taste), with what it was |
+| `subject.pinned` | **human** | a subject moved to the front of the queue, or the pin taken back |
 
 ## Decisions
 

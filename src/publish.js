@@ -1,13 +1,13 @@
 // Publishing: print approved variants, release their editions, rebuild the gallery and
 // deploy it. One publish at a time (a lock file in canon/), because the review server
 // triggers it on every approval and `silver publish` can run it by hand.
-import { mkdir, open, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { printApproved } from './agents/printer.js';
 import { releaseEditions } from './agents/hughes.js';
 import { approvalsToPrint } from './canon.js';
 import { listSeries } from './agents/series-data.js';
 import { buildSite } from './site.js';
+import { withLock } from './lib/lock.js';
 
 export class PublishBusy extends Error {
   constructor(pid) {
@@ -16,37 +16,14 @@ export class PublishBusy extends Error {
   }
 }
 
-const alive = (pid) => {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (err) {
-    return err.code === 'EPERM';
-  }
-};
-
 /** Hold canon/.publish.lock while `fn` runs. A lock left by a dead process is taken over. */
 export async function withPublishLock(config, fn) {
-  await mkdir(config.paths.canon, { recursive: true });
-  const path = join(config.paths.canon, '.publish.lock');
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const fh = await open(path, 'wx');
-      await fh.writeFile(String(process.pid));
-      await fh.close();
-      try {
-        return await fn();
-      } finally {
-        await rm(path, { force: true });
-      }
-    } catch (err) {
-      if (err.code !== 'EEXIST') throw err;
-      const pid = Number(await readFile(path, 'utf8').catch(() => '0'));
-      if (pid && alive(pid)) throw new PublishBusy(pid);
-      await rm(path, { force: true }); // stale
-    }
+  try {
+    return await withLock(join(config.paths.canon, '.publish.lock'), fn);
+  } catch (err) {
+    if (err.name === 'LockBusy') throw new PublishBusy(err.pid);
+    throw err;
   }
-  throw new PublishBusy('?');
 }
 
 /**

@@ -9,7 +9,7 @@ import { trendsUrl } from '../src/sources/google-trends.js';
 import { notify, appleString } from '../src/lib/notify.js';
 
 const role = (name) => readFile(new URL(`../roles/${name}.md`, import.meta.url), 'utf8');
-const ROLES = { 'scout.md': await role('scout'), 'studio-assistant.md': await role('studio-assistant'), 'warhol.md': await role('warhol'), 'archivist.md': await role('archivist') };
+const ROLES = { 'scout.md': await role('scout'), 'studio-assistant.md': await role('studio-assistant'), 'second-pull.md': await role('second-pull'), 'warhol.md': await role('warhol'), 'archivist.md': await role('archivist') };
 const fixture = (name) => readFile(new URL(`./fixtures/${name}`, import.meta.url), 'utf8');
 
 /** Answers by role: the Scout picks, assistants sketch, Warhol shortlists. */
@@ -17,6 +17,7 @@ function replyFor(body) {
   const system = body.messages[0].content;
   if (system.startsWith('You are the Scout')) return completion(JSON.stringify({ picks: [{ n: 1, why: 'The can.' }, { n: 2, why: 'Glasses.' }] }), { cost: 0.001 });
   if (system.startsWith('You are a Studio assistant')) return completion('```js\nfunction setup(){ createCanvas(SILVER.width, SILVER.height); }\n```', { cost: 0.002 });
+  if (system.startsWith('You are the Studio assistant who made')) return completion('```js\n// WORK: Again, bigger.\nfunction setup(){ createCanvas(SILVER.width, SILVER.height); }\n```', { cost: 0.003 });
   if (system.startsWith('You are the Archivist')) return completion('# The day\n\nIt was a big day. Gee.', { cost: 0.02 });
   if (system.startsWith('You are Andy Warhol')) return completion(JSON.stringify({ picks: [{ variant: 'v01', note: 'Flat.' }], rejects: 'Busy.' }), { cost: 0.01, model: 'test/vision' });
   throw new Error(`unexpected role: ${system.slice(0, 40)}`);
@@ -40,13 +41,13 @@ function fakeRenderer() {
   return create;
 }
 
-async function shiftSetup({ dailyUsd = 5 } = {}) {
+async function shiftSetup({ dailyUsd = 5, secondPulls } = {}) {
   const f = await tmpFactory({ roles: ROLES, replies: [], dailyUsd });
   f.fetch.queue.push(...Array.from({ length: 200 }, () => (body) => replyFor(body)));
   const config = {
     ...f.config,
     shift: { subjectsPerShift: 2, seriesPerShift: 2, maxArchiveSubjectsPerShift: 1 },
-    series: { variants: 2, modelsPerSeries: 1, temperatures: [0.7], techniquesPerSeries: 2, concurrency: 2 },
+    series: { variants: 2, modelsPerSeries: 1, temperatures: [0.7], techniquesPerSeries: 2, concurrency: 2, secondPulls },
     techniques: { halftone: 'Dots.', 'grid-repeat': 'Grid.' },
     sources: { rss: [], trending: { googleTrendsGeo: 'US', hackernews: false, reddit: false }, itemsPerSource: 20, repeatAfterDays: 7 },
   };
@@ -94,6 +95,21 @@ test('a full shift: scouts, series (commissions first), shortlists, shift.ended 
   assert.ok(ended.payload.spentUsd > 0);
   assert.deepEqual(ended.payload.reconcile, { day: { ledger: 0.05, billed: 0.05, gap: 0 } });
   assert.deepEqual(s.notes, [{ title: 'Silver Factory', message: '2 new series, 2 waiting for review.' }]);
+});
+
+test("with secondPulls, Warhol's first pick of each new series is pulled again, once, after the shortlists", async () => {
+  const s = await shiftSetup({ secondPulls: 1 });
+  const r = await runShift(s.deps);
+  assert.deepEqual(r.steps.map((x) => [x.step, x.status]), [['scouts', 'done'], ['superstars', 'skipped'], ['series', 'done'], ['shortlist', 'done'], ['second-pull', 'done'], ['archivist', 'done']]);
+  const pulls = r.steps.find((x) => x.step === 'second-pull').pulls;
+  assert.deepEqual(pulls.map((p) => [p.variant, p.pullOf, p.ok]), [['v03', 'v01', true], ['v03', 'v01', true]]);
+  const produced = (await s.floor.read({ type: 'variant.produced' })).filter((e) => e.payload.pullOf);
+  assert.equal(produced.length, 2);
+  assert.ok(produced.every((e) => e.payload.note === 'Again, bigger.' && e.payload.warholNote === 'Flat.'));
+  assert.deepEqual(s.createRenderer.stats(), { opened: 2, closed: 2 }, 'the pulls get their own renderer, closed too');
+
+  const again = await runShift(s.deps, { again: true });
+  assert.ok(!again.steps.some((x) => x.step === 'second-pull' && x.status === 'done'), 'never pulled twice');
 });
 
 test('a second run the same day does nothing; --again adds a round without redoing work', async () => {

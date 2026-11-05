@@ -52,6 +52,18 @@ The build plan for the Silver Factory in Node.js, derived from [ARCHITECTURE.md]
 | Model fallbacks | **Qwen 3.8 Flash falls back to Gemini 3.8 Flash** (2026-09-25) via OpenRouter's `models` list (`models.fallbacks`). |
 | Superstar-pushed subjects | **Ahead of the Scout's picks** (2026-09-25), after commissions. |
 | Gossip on the work | **The human veto is enough** (2026-09-25): chatter printed on a work goes public only through an approval. |
+| The look | **Not Warhol's** (2026-10-23, the owner: "far more strange, scratchy, weird, unique, but esthetical at the same time"; no "warholian rip offs"). The Factory keeps Warhol's way of working (delegation, series, one gate) and drops his surface. See Phase 9. |
+| Technique menu | **Procedures, not pop-art styles** (2026-10-23). 35 procedures (scratch film, inkjet failure, asemic ledger, compression rot, fax transmission, Rorschach, xerox generations, spectrogram, thermal camera, sun-bleach, …) replace the six 1964 techniques. No artist names in the guidance: they produced copies of the named artist. |
+| The dare deck | **One card per variant** (2026-10-23): 44 oblique constraints in `dares` ("Make it tender.", "It has been left out in the rain."), dealt without repeats in a series. |
+| Superstar lines as briefs | **Every variant takes one line literally** (2026-10-23). The floor's lines are dealt across the series, about evenly and shuffled. A subject with fewer than three lines is topped up with *strays*, lines overheard about other subjects, marked as such (cross-contamination, principle 1). Only with no chatter on the floor at all is the Scout's proposed image the brief. The superstars are told the assistants overhear them. |
+| Studio pool | **Sonnet 5.5, Opus 5.5, Gemini 4 Argon, Kimi K3, GPT-6 Luna Pro** (2026-10-23), after a bake-off of 12 models on the new brief. Out: Qwen 3.8 Flash, Gemini 3.8 Flash, Sonnet 5. Not cast: Grok 4.7 (hung), MiniMax M3.1 Flash, Mistral Large 4. About $0.07 a variant, ~$2.20 a day. |
+| Nico | **A fourth superstar** (2026-10-23), after Christa Päffgen: she talks in images, not gossip, so her lines make the strangest briefs. |
+| The second pull | **Warhol's first pick goes back to its maker** (2026-10-23), with his note, its image and its own code, to be pushed further. It joins the series as the next variant (`v13`) and is reviewed next to the first. `series.secondPulls` (default 1, 0 = off); `silver pull` by hand. |
+| Screenshot frame | **Frame 60** (2026-10-23), up from 30, so works that accumulate marks have built up. |
+| The admin | **`silver admin`, on this machine, no login** (2026-11-04, the owner's brief). It replaces the bare review page. It binds to 127.0.0.1 and refuses other hosts and origins; sketches are served in a sandbox. See Phase 10. |
+| What the browser may edit | **Souls, direction, taste, settings; not secrets, the record, paths or code** (2026-11-04). Settings go in `studio.json`, over the commented `silver.config.js`. Every edit is on the floor; everything overwritten is kept in `archive/revisions/`. |
+| Soul files | **`roles/*.md` are the souls** (2026-11-04): the owner asked for "soul.md files", and the role files are what that means here. They stay plain markdown, editable in either place, and neither side can overwrite the other unseen. |
+| Picking up changes | **Fresh processes, plus a supervisor for the server itself** (2026-11-04). All work runs as new `silver` processes, so souls, settings and code count from the next one. The supervisor restarts the admin on a code save, after checking that it parses and that the config loads. |
 
 ## Stack
 
@@ -76,6 +88,7 @@ silver/
   roles/                    # the "system prompts": one markdown file per role
     scout.md
     studio-assistant.md
+    second-pull.md          # Phase 9: Warhol's pick goes back to its maker
     warhol.md
     printer.md
     fred-hughes.md
@@ -85,6 +98,7 @@ silver/
       brigid.md
       ondine.md
       viva.md
+      nico.md               # Phase 9
   taste.md                  # append-only log of human approve/veto notes; read by Warhol (local only)
   process-log.jsonl         # build progress, one line per finished task
   bin/                      # setup.sh, log-progress.js
@@ -108,6 +122,7 @@ silver/
       superstars.js
       assistants.js
       warhol.js
+      pull.js               # Phase 9: the second pull
       printer.js
       hughes.js
       archivist.js
@@ -188,7 +203,7 @@ Event types, extending the draft list in ARCHITECTURE.md:
 | `chatter.posted` | superstar | persona id, text, ref |
 | `tool.released` | technician | tool name, version (in v1, emitted manually when a template changes) |
 | `series.started` | assistant | `subjectId` (this claims the subject; commissions without one are pending), technique list, model matrix |
-| `variant.produced` | assistant | series id, path, model, temperature, technique, seed |
+| `variant.produced` | assistant | series id, path, model, temperature, technique, seed; since Phase 9 also `dare`, `brief` (`{from, text, eventId}`: the superstar line it was made from), `note` (the sketch's `// WORK:` line), and for a second pull `pullOf` and `warholNote` |
 | `variant.failed` | renderer | series id, error (kept in the archive, since failures are material) |
 | `series.completed` | orchestrator | series id, variant ids, contact-sheet path |
 | `shortlist.proposed` | Warhol agent | picks with notes, reject note |
@@ -202,6 +217,8 @@ Event types, extending the draft list in ARCHITECTURE.md:
 | `record.pushed` | archivist | the private record's commit, whether it was pushed, and the error if not (retried next shift) |
 | `site.deployed` | fred-hughes | url, number of works, provider (Phase 5) |
 | `subject.retired` | **human** | `subjectId`, reason. Hides the subject from `latest`, `subjects --open` and the shift; the subject itself stays on the floor (Phase 3b). |
+| `subject.pinned` | **human** | `subjectId`, `pinned`. The latest per subject counts; a pinned subject from any day goes first in the next shift (Phase 10). |
+| `studio.changed` | **human** | `what` (`role`, `settings`, `direction`, `taste`), `target`, `summary`, `path` to the revision it replaced, `changes` with from and to for settings (Phase 10). |
 
 ---
 
@@ -414,6 +431,39 @@ Also added in Phase 3:
 - **Open:** the unattended run needs `silver install-schedule`, which I didn't run: it schedules daily spending, and `.env` doesn't hold the key yet (see the open questions).
 - **Open:** "publish" is Phase 5, so for now the morning flow ends at approval.
 
+## Phase 9: the contemporary studio ✅ (night shift, 2026-10-23)
+
+The owner's brief: the outputs were Warhol rip-offs (flat clip-art icons in grids, headline posters, hot pink and yellow), because every part of the pipeline asked for exactly that: the technique menu was Warhol's greatest hits, the assistant's brief demanded flat silkscreen logic and logos-as-type, the Scout proposed "flat, repeatable images to screen", Warhol selected for "looks like a print of the thing", Fred Hughes titled in the *(Disaster)* register, and `taste.md`'s placeholder examples liked "flat colour, hard repetition, brand type". The inputs (subjects, chatter) were fine; the outputs had to go wilder.
+
+- [x] **The studio brief** (`roles/studio-assistant.md`): it's 2026, pop-art pastiche is the one thing the Factory no longer makes. Sideways, not illustrated; marks, not clip-art; not the generative-art screensaver either; still beautiful; colour is a decision (beige paper is the new cliché); hold from across the room; type is material. Each sketch starts with a `// WORK:` line saying what it shows, kept as the variant's `note`.
+- [x] **35 procedures** replace the six techniques, described as processes without artist names.
+- [x] **The dare deck**: `dares` in the config, one card per variant (`buildMatrix`).
+- [x] **Briefs from the floor**: `dealBriefs` gives every variant one superstar line to take literally, topping a thin subject up with strays about other subjects; `formatBrief` falls back to the Scout's image.
+- [x] **Warhol's eye**: bored by copies of himself; picks the strange one that still holds, leaves illustration, posters, clip-art and tasteful beige. He sees each variant's dare and whose line it came from.
+- [x] **Fred Hughes** may title from the superstar's line or the assistant's note; the wall text names the superstar. The canon keeps `dare`, `brief` and `makerNote`; the gallery's work page shows the line and the dare.
+- [x] **The Scout's `image`** proposes a detail, a residue, a strange angle, not a flat image to screen.
+- [x] **The review page and contact sheet** show each variant's note, brief and dare.
+- [x] **Template fixes** (found in the bake-off; they killed about a third of the stronger models' variants): `buffer.remove()` on a `createGraphics` buffer throws in p5 1.11.13 global mode, and `fill('#hex', alpha)` / `fill(color, alpha)` throws too. Both are now handled in the template; the brief also warns about top-level p5 calls and shadowing p5 names. Screenshot at frame 60.
+- [x] **Studio pool re-cast** after a bake-off (see the decisions table).
+- [x] **Nico** (`roles/superstars/nico.md`). Superstar replies that are a bare array are read as the lines.
+- [x] **The second pull** (`src/agents/pull.js`, `roles/second-pull.md`, `silver pull`, shift step 4b). The Archivist's diary notes it.
+- [x] `taste.md` (local): the Likes/Dislikes placeholders now hold the owner's own words from the brief; the default header's examples no longer recommend pop.
+
+## Phase 10: the admin ✅ (2026-11-04)
+
+The owner's brief: make the web interface better; a real admin; no login, since it runs locally; edit the souls from the browser; restart the agent, or have it pick up edited code and markdown by itself; decide what's editable; steer how the works get made.
+
+- [x] **The back room** (`src/admin/`): Today, Review, Subjects, Studio, Souls, Taste, Floor, Canon, Diary, Gallery, Jobs, System. Server-rendered forms with no framework or build step; everything works with JavaScript off, and the script adds the keyboard, a lightbox, forms that keep your place, and live updates. The look is a darkroom: film rebate, amber frame numbers, grease pencil for decisions. `silver review` still works and opens at the contact sheet.
+- [x] **Steering**: `direction.md` per audience (Scout, superstars, assistants, Warhol); pins for one series (`steer`: procedures, models, temperatures, dare, note); procedures benched or favoured (`steering.techniques`, 0–3); a line said by the human on the floor, dealt as a brief like anyone's; `subject.pinned` to move any subject to the front; a second pull with a note, of any variant, again; `shift.paused`.
+- [x] **Settings** (`src/settings.js`, `studio.json`): an overlay validated as a whole by `validateConfig` before anything is written. Paths, the port and the deploy provider can't be set. A broken one stops the shift with the reason, rather than spending money on settings nobody chose; the admin still starts, to fix it.
+- [x] **Souls** (`src/admin/souls.js`, `contract.js`): `{{placeholders}}` a role isn't given are refused (they would stop it on its next call), dropped ones warned about, a save based on an old version refused, a file that doesn't load opened whole. Superstars can be cast, benched and recalled. `silver audition` hears one without touching the floor.
+- [x] **Jobs** (`src/admin/jobs.js`, `run-job.js`): every piece of work is a fresh CLI process with its own runner, a JSON file and a log in `archive/jobs/`. They survive an admin restart. One per lane, because budget reservations only hold inside a process; printing has its own lane; a shift from launchd holds the studio lane.
+- [x] **The supervisor** (`src/admin/supervisor.js`, `silver install-admin`): watches code, `silver.config.js`, `package.json` and `.env`; restarts on a change that parses and loads; keeps the old server otherwise; serves the error if the server can't boot. `node --check` is no use here: it lets ES modules with syntax errors through, so modules are compiled with `vm.SourceTextModule`.
+- [x] **Evidence next to the controls** (`src/admin/stats.js`, `status.js`): made, died, picked and approved per procedure, hand and superstar, with refusals for lack of credit kept out of a model's failure rate. Today says what's wrong: no credit, thin series, unseen series, a failed backup.
+- [x] **The gallery** (`src/site.js`): a wall of works with a filter by procedure, a work page with its label beside it, arrow keys, an About page, a 404. Relative links, so the admin can preview the real build.
+- [x] **An independent review, and what it found** (a fresh reviewer on the diff, then each finding fixed and tested): Stop didn't stop a job (Playwright takes SIGTERM and leaves the process running, so the runner now follows up with SIGKILL); launchd could start a shift alongside one from the admin, and a crashed shift blocked the queue for hours (`archive/.shift.lock`, held only while the process lives); moving the time could kill a running shift or leave the schedule unloaded without a word; a sketch could leave its sandbox by asking for `Sketch.html` on this case-insensitive disk (every gallery page is sandboxed now); talking or making a series by hand before 09:00 shrank that day's shift (`byHand`; talk from before the Scout doesn't count); the `a` key could sign a card you couldn't see; a publish whose deploy failed said "done"; "Another round" and "Next in line" described things that wouldn't happen; a `##` heading in a direction lost text; preflight only checked the newest save and blamed code for a broken `studio.json`; taste and direction could overwrite a newer edit.
+- [x] **Fixed on the way**: gray-matter's cache (it never shrinks, and hid a broken role's real error on a second read); a `javascript:` URL from a feed becoming a link; a second pull of a variant whose procedure has left the menu; bulk closing the backlog (open question 6 of 2026-10-23).
+
 ## Later (not v1)
 
 - The Technician goes live: an agent that proposes and writes new techniques and templates, gated by `tool.released`
@@ -564,3 +614,43 @@ v1 is built (Phases 0–8). What is left, in order:
 3. **More sources:** product catalogues (the soup cans), Wikipedia most-read.
 4. **Social channels for Fred Hughes** (Bluesky/Mastodon), after Vercel is live.
 5. **Continuous tempo:** floor subscribers instead of one sequential shift.
+
+## Where things stand (2026-10-23, after the night shift)
+
+Phase 9 is built on the branch `night-shift/wilder` (local, not pushed). The 09:00 launchd job runs from this working tree, so today's shift is the first real one with the new studio.
+
+**How it was checked**
+- A bake-off of 12 models on one subject (the Amelia Earhart "debris" that was a clump of trees), then 8 sandbox series on real subjects with real chatter, on a copy of the floor (`SILVER_ROOT`), never the real one.
+- A full shift rehearsal on a fresh sandbox at the real $5 cap: 6 subjects, 11 lines from 4 superstars, 2 series (23/24 produced), 2 shortlists, 2 second pulls, the diary. **$1.92.** With the dearest trio (Opus, Sonnet, Gemini 4) twice, a shift is about $2.80.
+- 319 tests pass, including the browser tests.
+- The real floor got one event tonight: the Technician's `tool.released` note for the new template.
+- Tonight's experiments cost about $7.60 on the shared OpenRouter key, so the 09:00 reconcile will show a gap for the UTC day.
+
+**Open questions**
+1. **Merge `night-shift/wilder` into `main`?** It's already what runs; merging and pushing is yours.
+2. **The cost.** About $2–2.80 a shift now, against ~$0.60 before, still inside the $5 cap. To make it cheaper, drop Opus 5.5 from `models.studio` (it costs about twice as much per variant as the others); the cheapest strong pool is Sonnet 5.5, Gemini 4 Argon, Kimi K3 and GPT-6 Luna Pro.
+3. **Nico.** A fourth persona after a real person, like the others. Keep her?
+4. **The second pull.** `series.secondPulls: 1`. Keep it, raise it to 2–3, or set 0.
+5. **`taste.md`.** The Likes/Dislikes lines now quote your brief to the night shift, so Warhol reads them. Rewrite them in your own words whenever you like.
+6. **The backlog.** 54 pop-era series are still waiting for review. Leave them, or should there be a way to close old reviews in bulk (`silver review --close-before <date>`)?
+7. **Next for the look:** non-square formats (tall film strips and receipts, wide spectrograms and seismographs). It touches the renderer, review page, site and Printer, so I left it for a day shift.
+8. **Sandbox works into the canon.** The night's ~100 works live in the scratchpad, not on the floor. Their subjects are still open on the real floor, so `silver series KFYMM1W8` (loudspeakers), `RY5JX2EK` (Earhart), `2XW9HJX5` (pink diamond), `TSB4A37W` (checkers), `7Y2VF4S9` (satellites) or `N3SYZE87` (cheese receipt) makes a real series of any of them. Each uses a series slot and about $1 of that day's budget.
+9. **Four labels lost a closing quote.** A bug in Fred Hughes's label cleaning (fixed tonight, `0fc3d6d`) cut the closing quote off wall texts ending on a quoted headline: No. 001, 003, 004 and 020. A correction is a new `edition.released` on your floor, so I left it to you. Each command below restores the quote:
+
+   ```sh
+   npx silver retitle 1 --wall "A ready-made built from a headline: 70,000 free opera tickets given away over the season, 10,000 a month, by lottery, seats in every section of the house. Rendered as a screen-test-portrait by the Factory's studio assistants, chosen by Warhol, signed by the human. Wall quote: \"Every New Yorker should have the opportunity... no matter what's in their bank account.\""
+   npx silver retitle 3 --wall "The ready-made is a public giveaway: a mayor and an opera house offering 70,000 free tickets in a monthly lottery, seats in every section. Rendered as a screen-test-portrait by the Silver Factory's studio assistants, chosen by Warhol, signed by the human. Headline: \"Every New Yorker should have the opportunity... no matter what's in their bank account.\""
+   npx silver retitle 4 --wall "The ready-made is a mayor's giveaway of opera tickets, distributed by lottery, ten thousand a month, seats in every section of the house. Rendered in grid-repeat by the Silver Factory studio assistants, chosen by Warhol, signed by the human. Headline: \"Every New Yorker should have the opportunity... no matter what's in their bank account.\""
+   npx silver retitle 20 --wall "This ready-made is a corporate software update: Microsoft's announcement that a spreadsheet cell can now hold more than one value. Rendered in halftone by Factory assistants, chosen by Warhol and signed by the human. The headline reads, \"Excel now supports multiple values in a single cell.\""
+   ```
+
+## Where things stand (2026-11-04, after the admin)
+
+Phase 10 is on `night-shift/wilder` (local, not pushed), which is also what the 09:00 job runs. 462 tests pass, browser tests included. It was driven in a real browser against a clone of the record and a mock OpenRouter, including a full dry-run shift through the job queue. On the real record, a read-only crawl of 700 pages found no errors and left the floor byte for byte the same. One real model call was made from the sandbox (`silver audition nico`, $0.00041), so the new prompt path has met a real model once; a full series on the new prompts hasn't, because the account is out of credit.
+
+**Open questions**
+1. **Start the admin for good?** `npx silver install-admin` keeps it running at `http://silver.localhost:4747`. It wasn't installed, because that's a new always-on service on a machine shared with your other agents.
+2. **OpenRouter credit.** The shifts have been failing on HTTP 402 since about 2026-11-01 (today 9 of 24 variants, and Warhol looked at none). Today shows it first. The key is shared, so another agent may be what's draining it.
+3. **The backlog.** 82 series were waiting on 2026-11-04, and no decision has been made since 2026-09-26. Review now has "Clear the backlog" by date; 2026-10-23 is the day the pop-art studio ended.
+4. **Superstars and the new note.** The personas' files aren't touched: the human's standing note reaches them in the user message next to the house rules, not in the soul.
+
