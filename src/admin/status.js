@@ -90,7 +90,7 @@ export async function readStatus({ config, floor, env = {}, schedule = null, cre
   const [series, canon, recentLines, ledger] = await Promise.all([
     listSeries(floor),
     readCanon(floor),
-    floor.read({ shift: 'all', type: ['shift.started', 'shift.ended', 'llm.failed', 'record.pushed'] }),
+    floor.read({ shift: 'all', type: ['shift.started', 'shift.ended', 'llm.failed', 'record.pushed', 'cost.recorded'] }),
     createBudget({ floor, dailyUsd: config.budget.dailyUsd, chatterShare: config.budget.chatterShare }).ledger(),
   ]);
   const shifts = recentLines.filter((e) => e.type === 'shift.ended' && !e.payload.dryRun);
@@ -115,6 +115,18 @@ export async function readStatus({ config, floor, env = {}, schedule = null, cre
     alerts.push({ level: 'bad', text: `OpenRouter refused ${noCredit.length} call${noCredit.length === 1 ? '' : 's'} in the last day for lack of credits${typeof credit?.remaining === 'number' ? ` (${usd(credit.remaining)} left)` : ''}: variants die and Warhol can't look. The account needs topping up (the key is shared with your other agents).`, href: 'https://openrouter.ai/settings/credits', label: 'Add credits' });
   } else if (failures.length >= 5) {
     alerts.push({ level: 'warn', text: `${failures.length} model calls failed in the last day.`, href: '/floor?type=llm.failed&shift=all', label: 'See them' });
+  }
+  // Claude calls that Anthropic wouldn't take, and that went out through OpenRouter instead.
+  const detours = recentLines.filter((e) => e.type === 'cost.recorded' && e.payload.fallback?.from === 'anthropic' && Date.parse(e.ts) >= dayAgo);
+  if (detours.length) {
+    const why = detours.at(-1).payload.fallback.error ?? '';
+    const broke = /credit balance/i.test(why);
+    alerts.push({
+      level: 'warn',
+      text: `Anthropic turned down ${detours.length} call${detours.length === 1 ? '' : 's'} in the last day, so ${detours.length === 1 ? 'it' : 'they'} went through OpenRouter on its credit. The last reason: ${why.replace(/^Anthropic request failed: /, '').slice(0, 200)}`,
+      href: broke ? 'https://platform.claude.com/settings/billing' : '/floor?type=cost.recorded&shift=all',
+      label: broke ? 'Add credits' : 'See the calls',
+    });
   }
   const remaining = credit?.remaining;
   if (typeof remaining === 'number' && remaining < config.budget.dailyUsd && !noCredit.length) alerts.push({ level: 'warn', text: `Only ${usd(remaining)} of OpenRouter credit left, less than one day's cap.`, href: 'https://openrouter.ai/settings/credits', label: 'Add credits' });

@@ -1,16 +1,22 @@
-// OpenRouter client. Every call runs as a role: the role file supplies the system prompt,
+// The model client. Every call runs as a role: the role file supplies the system prompt,
 // model and settings. Every completed exchange is archived as a transcript and costed
 // on the floor (`cost.recorded`, same id as the transcript). Failures are recorded
 // (`llm.failed`) and thrown, so the caller can move on.
+//
+// Two lines go out. Claude models take the direct line to Anthropic when ANTHROPIC_API_KEY is
+// set (src/anthropic.js); when that line gives up, the same call goes out again through
+// OpenRouter. Every other model goes through OpenRouter, as does everything without the key.
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { extname, join, relative } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { monotonicFactory } from 'ulid';
 import { render } from './roles.js';
+import { ANTHROPIC_BASE_URL, anthropicModelId, createAnthropicTransport } from './anthropic.js';
 
 export const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
 const RETRYABLE = new Set([408, 429, 500, 502, 503, 504, 520, 522, 524, 529]);
+const LINE = { anthropic: 'Anthropic', openrouter: 'OpenRouter' };
 const MIME = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif' };
 
 export const REPAIR_PROMPT =
@@ -116,8 +122,10 @@ export function redactImages(value, sources = new Map()) {
  * @param {Awaited<ReturnType<import('./roles.js').loadRoles>>} deps.roles
  * @param {ReturnType<import('./budget.js').createBudget>} deps.budget
  * @param {ReturnType<import('./pricing.js').createPricing>} deps.pricing
- * @param {string} [deps.apiKey]
- * @param {string} [deps.baseUrl]
+ * @param {string} [deps.apiKey]            OpenRouter key
+ * @param {string} [deps.baseUrl]           OpenRouter base URL
+ * @param {string} [deps.anthropicKey]      turns on the direct line for Claude models
+ * @param {string} [deps.anthropicBaseUrl]
  * @param {typeof globalThis.fetch} [deps.fetch]
  * @param {(ms: number) => Promise<void>} [deps.sleep]
  * @param {number} [deps.maxRetries]
@@ -133,6 +141,8 @@ export function createLlm({
   pricing,
   apiKey,
   baseUrl = OPENROUTER_BASE_URL,
+  anthropicKey,
+  anthropicBaseUrl = ANTHROPIC_BASE_URL,
   fetch = globalThis.fetch,
   sleep = (ms) => delay(ms),
   maxRetries = 3,
@@ -143,50 +153,97 @@ export function createLlm({
   const transcriptsDir = join(config.paths.archive, 'transcripts');
   const nextId = monotonicFactory();
 
-  /** POST once per attempt; retry transient failures. Returns the parsed body and attempt log. */
-  async function post(body) {
+  const anthropic = anthropicKey ? createAnthropicTransport({ apiKey: anthropicKey, baseUrl: anthropicBaseUrl, fetch, timeoutMs }) : null;
+
+  /** Does this model take the direct line to Anthropic? */
+  const isDirect = (model) => Boolean(anthropic && anthropicModelId(model));
+
+  /** One POST to OpenRouter. Resolves to `{data}` or `{failure}`. */
+  async function openRouterOnce(body) {
+    const started = Date.now();
+    let res;
+    try {
+      res = await fetch(`${baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://github.com/y-a-v-a/silver',
+          'X-Title': 'Silver Factory',
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+    } catch (err) {
+      return { failure: { status: null, message: `${err.name}: ${err.message}`, retryable: true, retryAfter: null } };
+    }
+    const retryAfter = res.headers?.get?.('retry-after') ?? null;
+    let bodyError = null;
+    const data = await res.json().catch((err) => {
+      // Headers arrived but the body didn't: a slow generation hitting the timeout, or a cut connection.
+      bodyError = err;
+      return null;
+    });
+    if (bodyError) {
+      const secs = Math.round((Date.now() - started) / 1000);
+      const why = bodyError.name === 'TimeoutError' || bodyError.name === 'AbortError' ? `timed out after ${secs}s` : `${bodyError.name}: ${bodyError.message}`;
+      return { failure: { status: res.status, message: `response body unreadable (${why})`, retryable: true, retryAfter } };
+    }
+    // OpenRouter may return 200 with an error body when the upstream provider fails.
+    const status = data?.error ? Number(data.error.code) || res.status : res.status;
+    if (res.ok && !data?.error && data) return { data, status };
+    return { failure: { status, message: data?.error?.message ?? `HTTP ${res.status}`, retryable: RETRYABLE.has(status), retryAfter } };
+  }
+
+  /**
+   * Send on one line, once per attempt; retry transient failures. Returns the parsed reply and
+   * the attempt log.
+   * @param {'anthropic'|'openrouter'} via
+   */
+  async function sendVia(via, body) {
+    const once = via === 'anthropic' ? anthropic.once : openRouterOnce;
     const attempts = [];
     for (let attempt = 0; ; attempt++) {
       const started = Date.now();
-      let res;
-      let data;
-      let failure;
+      let result;
       try {
-        res = await fetch(`${baseUrl}/chat/completions`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-            'HTTP-Referer': 'https://github.com/y-a-v-a/silver',
-            'X-Title': 'Silver Factory',
-          },
-          body: JSON.stringify(body),
-          signal: AbortSignal.timeout(timeoutMs),
-        });
-        let bodyError = null;
-        data = await res.json().catch((err) => {
-          // Headers arrived but the body didn't: a slow generation hitting the timeout, or a cut connection.
-          bodyError = err;
-          return null;
-        });
-        if (bodyError) {
-          const secs = Math.round((Date.now() - started) / 1000);
-          const why = bodyError.name === 'TimeoutError' || bodyError.name === 'AbortError' ? `timed out after ${secs}s` : `${bodyError.name}: ${bodyError.message}`;
-          failure = { status: res.status, message: `response body unreadable (${why})`, retryable: true };
-        } else {
-          // OpenRouter may return 200 with an error body when the upstream provider fails.
-          const status = data?.error ? Number(data.error.code) || res.status : res.status;
-          if (res.ok && !data?.error && data) return { data, attempts: [...attempts, { status, ms: Date.now() - started }] };
-          failure = { status, message: data?.error?.message ?? `HTTP ${res.status}`, retryable: RETRYABLE.has(status) };
-        }
+        result = await once(body);
       } catch (err) {
-        failure = { status: null, message: `${err.name}: ${err.message}`, retryable: true };
+        // A line never throws for what the provider did, so this is our own request being wrong.
+        result = { failure: { status: null, message: `${err.name}: ${err.message}`, retryable: false, retryAfter: null } };
       }
-      attempts.push({ status: failure.status, error: failure.message, ms: Date.now() - started });
+      const ms = Date.now() - started;
+      if (!result.failure) return { ...result, via, attempts: [...attempts, { via, status: result.status ?? 200, ms }] };
+      const { failure } = result;
+      attempts.push({ via, status: failure.status, error: failure.message, ms });
       if (!failure.retryable || attempt >= maxRetries) {
-        throw new LlmError(`OpenRouter request failed: ${failure.message}`, { status: failure.status, attempts });
+        throw new LlmError(`${LINE[via]} request failed: ${failure.message}`, { status: failure.status, via, attempts });
       }
-      await sleep(backoffMs(attempt, res?.headers?.get?.('retry-after') ?? null));
+      await sleep(backoffMs(attempt, failure.retryAfter));
+    }
+  }
+
+  /**
+   * Send a request on the line its model takes. A Claude model that Anthropic won't answer
+   * (no credit, a model id it doesn't know, rate limits or an outage that outlast the retries)
+   * goes out again through OpenRouter; the reply then says so (`fallback`).
+   */
+  async function post(body) {
+    if (!isDirect(body.model)) return sendVia('openrouter', body);
+    let refused;
+    try {
+      return await sendVia('anthropic', body);
+    } catch (err) {
+      if (!(err instanceof LlmError) || !apiKey) throw err;
+      refused = err;
+    }
+    const fallback = { from: 'anthropic', status: refused.status ?? null, error: refused.message };
+    try {
+      const result = await sendVia('openrouter', body);
+      return { ...result, attempts: [...refused.attempts, ...result.attempts], fallback };
+    } catch (err) {
+      if (err instanceof LlmError) err.attempts = [...refused.attempts, ...(err.attempts ?? [])];
+      throw err;
     }
   }
 
@@ -202,7 +259,7 @@ export function createLlm({
       type: 'llm.failed',
       actor: role.actor,
       ref,
-      payload: { role: role.id, model, error: error.message, status: error.status ?? null, attempts: error.attempts ?? [], ...extra },
+      payload: { role: role.id, model, error: error.message, status: error.status ?? null, ...(error.via ? { via: error.via } : {}), attempts: error.attempts ?? [], ...extra },
     });
   }
 
@@ -225,20 +282,22 @@ export function createLlm({
         await recordFailure(role, model, ref, err);
         throw err;
       }
-      const { data, attempts } = result;
+      const { data, attempts, via, native, fallback } = result;
       const id = nextId(now().getTime());
       const usage = data.usage ?? {};
       const promptTokens = usage.prompt_tokens ?? 0;
       const completionTokens = usage.completion_tokens ?? 0;
       let usd = typeof usage.cost === 'number' ? usage.cost : null;
       const estimated = usd === null;
-      if (estimated) usd = (await pricing.costOf(data.model ?? model, { promptTokens, completionTokens, images: imageCount })) ?? estimate;
+      // Anthropic sends no bill with the reply, so the direct line is costed from the price list.
+      // It counts images as prompt tokens, where OpenRouter's list prices them apiece.
+      if (estimated) usd = (await pricing.costOf(data.model ?? model, { promptTokens, completionTokens, images: via === 'anthropic' ? 0 : imageCount })) ?? estimate;
       const choice = data.choices?.[0] ?? {};
       const content = typeof choice.message?.content === 'string' ? choice.message.content : '';
 
       const transcript = await saveTranscript(
         id,
-        { id, startedAt, finishedAt: now().toISOString(), role: role.id, actor: role.actor, ref, request: body, response: data, attempts },
+        { id, startedAt, finishedAt: now().toISOString(), role: role.id, actor: role.actor, ref, via, request: body, response: data, ...(native ? { native } : {}), attempts },
         imageSources,
       );
       await floor.append({
@@ -251,6 +310,8 @@ export function createLlm({
           group: role.group,
           model: data.model ?? model,
           requestedModel: model,
+          via,
+          ...(fallback ? { fallback } : {}),
           provider: data.provider ?? null,
           generationId: data.id ?? null,
           promptTokens,
@@ -262,7 +323,7 @@ export function createLlm({
           transcript,
         },
       });
-      return { id, content, data, usd, model: data.model ?? model, finishReason: choice.finish_reason ?? null, transcript };
+      return { id, content, data, usd, model: data.model ?? model, via, finishReason: choice.finish_reason ?? null, transcript };
     } finally {
       release();
     }
@@ -283,9 +344,12 @@ export function createLlm({
    * @param {boolean} [opts.strict]                   missing vars throw (default) or render as [name]
    */
   async function call(roleId, { vars = {}, prompt, messages = [], images = [], model, temperature, maxTokens, ref = null, strict = true } = {}) {
-    if (!apiKey) throw new LlmError('OPENROUTER_API_KEY is not set (put it in .env or your shell)');
+    const noKey = () => new LlmError('OPENROUTER_API_KEY is not set (put it in .env or your shell)');
+    if (!apiKey && !anthropic) throw noKey();
     const role = roles.get(roleId);
     const chosenModel = dryRun ? config.models.dryRun : (model ?? roles.modelFor(role));
+    // With only the Anthropic key, Claude models still run; the others have no line to take.
+    if (!apiKey && !isDirect(chosenModel)) throw noKey();
     if (images.length && !role.vision) throw new LlmError(`role "${role.id}" sends images but its frontmatter lacks vision: true`);
 
     const convo = [...messages];
@@ -332,6 +396,13 @@ export function createLlm({
       }
     }
 
+    // A reply the provider's safety filter stopped (Anthropic's `refusal`) is no reply, even
+    // when a few words got out first.
+    if (first.finishReason === 'content_filter') {
+      const err = new LlmOutputError('the model declined to answer (finish_reason: content_filter)', { rounds });
+      await recordFailure(role, chosenModel, first.id, err, { reason: 'refused', finishReason: first.finishReason });
+      throw err;
+    }
     if (!first.content.trim()) {
       const err = new LlmOutputError(`empty reply (finish_reason: ${first.finishReason ?? 'unknown'})`, { rounds });
       await recordFailure(role, chosenModel, first.id, err, { reason: 'empty', finishReason: first.finishReason });

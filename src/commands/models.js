@@ -1,4 +1,5 @@
-// `silver models`: audit configured models against OpenRouter's live catalogue.
+// `silver models`: audit configured models against OpenRouter's live catalogue, and the
+// Claude models against Anthropic when its key is set.
 import { createFactory } from '../factory.js';
 import { auditModels } from '../model-audit.js';
 import { table } from '../lib/format.js';
@@ -12,17 +13,18 @@ export default async function modelsCommand(_args, opts, ctx) {
     return;
   }
   const roles = await factory.roles();
-  const { rows, problems } = await auditModels(factory.config, roles.list(), factory.pricing.get);
+  const { rows, problems } = await auditModels(factory.config, roles.list(), factory.pricing.get, { direct: factory.direct });
 
   if (opts.json) {
     ctx.stdout.write(JSON.stringify({ rows, problems }, null, 2) + '\n');
   } else {
     const money = (n) => (n === null ? '-' : n.toFixed(2));
     const vision = (r) => (r.vision === null ? '-' : r.vision ? 'yes' : r.needsVision ? 'NO' : 'no');
-    const header = ['use', 'model', 'found', 'images', '$/M in', '$/M out'];
-    const body = rows.map((r) => [r.use, r.model, r.exists ? 'yes' : 'NO', vision(r), money(r.promptPerM), money(r.completionPerM)]);
+    const header = ['use', 'model', 'found', 'images', '$/M in', '$/M out', 'line'];
+    const body = rows.map((r) => [r.use, r.model, r.exists ? 'yes' : 'NO', vision(r), money(r.promptPerM), money(r.completionPerM), r.line]);
     ctx.stdout.write(table([header, ...body], { indent: '' }) + '\n');
     ctx.stdout.write(problems.length ? `\n${problems.map((p) => `problem: ${p}`).join('\n')}\n` : '\nall models found; image roles are on vision models\n');
+    if (!factory.direct) ctx.stdout.write('no ANTHROPIC_API_KEY: Claude models run through OpenRouter too\n');
   }
   if (problems.length) process.exitCode = 1;
 }

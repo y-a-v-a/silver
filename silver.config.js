@@ -1,5 +1,7 @@
 // Silver Factory configuration. Validated by src/config.js on load.
 // Model slugs are OpenRouter ids: https://openrouter.ai/models
+// With ANTHROPIC_API_KEY in .env, the anthropic/ models are called on the Anthropic API itself
+// (anthropic/claude-opus-5.5 becomes claude-opus-5-5) and fall back to OpenRouter.
 // A role file's frontmatter `model:` overrides models.roles for that role.
 
 /** @type {import('./src/config.js').SilverConfig} */

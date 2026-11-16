@@ -22,7 +22,7 @@ Everything is recorded, including drafts, chatter and rejects, and the record fe
 
 **All phases (0–10) are built.** Phase 9 (2026-10-23) replaced the pop-art studio with a contemporary one, and Phase 10 (2026-11-04) added the admin. The gallery has been live since 2026-11-05 at https://silver-factory.vercel.app.
 - The floor (the event log) records everything.
-- The OpenRouter client runs as any role, archives transcripts and costs every call.
+- The model client runs as any role, archives transcripts and costs every call. Claude models go straight to the Anthropic API when `ANTHROPIC_API_KEY` is set, with OpenRouter as their fallback; every other model goes through OpenRouter.
 - The daily budget cap is enforced.
 - The Scouts pull ready-made subjects from Google Trends, Hacker News, Reddit and news RSS, and you can commission your own.
 - The Studio assistants turn a subject into a series of 12 p5.js sketches across models, temperatures and procedures. Every variant draws a card from the dare deck and takes one superstar line literally as its brief, and names what it made in a `// WORK:` line. Each sketch is rendered headless and checked for errors and blank canvases, and every series gets a contact sheet.
@@ -84,7 +84,7 @@ npx silver admin [--no-supervise] # the back room above (`silver review` opens i
 npx silver install-admin          # keep it running with launchd (uninstall-admin removes it)
 npx silver audition <superstar> [subject]  # hear a persona; nothing reaches the floor but the cost
 npx silver config [--check]      # resolved configuration / validate it
-npx silver models                # every configured model: on OpenRouter? price? can it see images?
+npx silver models                # every configured model: on OpenRouter? price? can it see images? which line does it take?
 npx silver ping technician       # one real call as a role: prints the reply, cost and transcript path
 npx silver floor [-f]            # today's events (or --shift YYYY-MM-DD|all, --type, --actor, --json)
 npx silver cost                  # spend by role and by model against the $5/day cap
@@ -108,13 +108,13 @@ npx silver publish --redeploy    # deploy even when the canon hasn't changed
 npm run preview                  # build site/ exactly as it would deploy, and serve it on localhost:3000
 npx silver retitle 16 --note "…" # correct an edition's label (or --title/--wall by hand); same number
 npx silver retract 17 --reason "…"  # take a work off the gallery and out of the feed; its number stays empty (--undo puts it back, --list shows them)
-npx silver cost --reconcile      # the ledger against what OpenRouter actually billed
+npx silver cost --reconcile      # the ledger against what OpenRouter actually billed (calls that went straight to Anthropic are listed apart)
 npx silver subjects --retire <id> --reason "..."   # take a subject off the table
 ```
 
 ## Running the daily shift
 
-1. Put your key in `.env`: `OPENROUTER_API_KEY=...`. The scheduled job doesn't see your shell's variables.
+1. Put your keys in `.env`: `OPENROUTER_API_KEY=...`, and `ANTHROPIC_API_KEY=...` if Claude models should run on your Anthropic credits. The scheduled job doesn't see your shell's variables.
 2. Try a cheap round first: `npx silver shift --dry-run`.
 3. Install the schedule: `npx silver install-schedule` (`--print` shows the launchd plist first).
 
@@ -127,6 +127,7 @@ Decisions taken so far are in the table at the top of [ACTIONS.md](ACTIONS.md#de
 - Node.js 24 or newer
 - macOS, for the launchd schedule. Everything else is cross-platform.
 - An [OpenRouter](https://openrouter.ai/keys) API key and a [Vercel](https://vercel.com/account/tokens) token (not used until later phases)
+- Optional: an [Anthropic](https://platform.claude.com/settings/keys) API key, to run the Claude models on Anthropic credits
 
 ## Getting started
 
@@ -158,13 +159,23 @@ Environment variables:
 
 | Variable | Purpose |
 |---|---|
-| `OPENROUTER_API_KEY` | Required for any LLM call |
+| `OPENROUTER_API_KEY` | Required: every model that isn't Claude runs through OpenRouter, and Claude models fall back to it |
+| `ANTHROPIC_API_KEY` | Optional: Claude models (`anthropic/...`) are called on the Anthropic API directly |
 | `VERCEL_TOKEN` | Deploys (Phase 5) |
 | `SILVER_BUDGET_DAILY_USD` | Overrides `budget.dailyUsd` |
 | `SILVER_REVIEW_PORT` | Overrides `review.port` |
 | `SILVER_ROOT` | Directory that `paths` resolve against (default: this repo) |
 | `SILVER_CONFIG` | Alternative config file |
-| `OPENROUTER_BASE_URL` | Alternative API endpoint (used by the tests' mock server) |
+| `OPENROUTER_BASE_URL`, `ANTHROPIC_BASE_URL` | Alternative API endpoints (used by the tests' mock servers) |
+
+### The two lines
+
+A model is always named by its OpenRouter slug. When `ANTHROPIC_API_KEY` is set, a slug that starts with `anthropic/claude-` takes the direct line: `anthropic/claude-opus-5.5` is called on the Anthropic API as `claude-opus-5-5` (dots become dashes). Everything else, and everything when the key is missing, goes through OpenRouter.
+
+- **Fallback.** If Anthropic won't answer (no credit, a bad key, a model id it doesn't know, or rate limits and outages that outlast the retries), the same call goes out again through OpenRouter. The call's `cost.recorded` event then carries `fallback`, and the admin's Today page says so. A reply that Anthropic's safety filter stopped is a failed call, not a reason to try the other line.
+- **What differs on the direct line.** `temperature` isn't sent, because current Claude models reject sampling parameters. A role's `reasoning` becomes an effort level: `low`, `medium` and `high` pass as they are, a token budget becomes the level nearest to its share of `max_tokens`, and `off` becomes `low` (these models can't stop thinking).
+- **Money.** Anthropic sends no bill with a reply, so a direct call is costed from its token counts and the list price (`~` on the floor). `silver cost` splits the day by line, and `silver cost --reconcile` compares only the OpenRouter line with OpenRouter's bill.
+- **Checking.** `npx silver models` shows the line each model takes and asks Anthropic whether it knows the Claude ones. `npx silver ping warhol` makes one real call and says which line answered.
 
 Roles are markdown files in `roles/`: the body is the role's system prompt, and the frontmatter holds its model and settings (temperature, `max_tokens`, `output: json|text`, `vision`, `reasoning`). Files in `roles/superstars/` are superstars. See [ACTIONS.md → Role file format](ACTIONS.md#role-file-format).
 
@@ -191,7 +202,8 @@ src/config.js      config loader and validator
 src/floor.js       the event log: append, read, tail
 src/events.js      event types and envelope validation
 src/roles.js       role file loader and {{placeholder}} rendering
-src/llm.js         OpenRouter client: transcripts, costing, retries, JSON repair
+src/llm.js         the model client: two lines out (Anthropic direct, OpenRouter), transcripts, costing, retries, fallback, JSON repair
+src/anthropic.js   the direct line: translates a request for the Anthropic API and the reply back
 src/budget.js      daily ledger and caps
 src/pricing.js     model prices and capabilities from OpenRouter
 src/factory.js     wires the parts together for commands
@@ -199,7 +211,7 @@ src/sources/       scout sources: Google Trends, Hacker News, Reddit, RSS, and t
 src/agents/        scouts, commissions, superstars, studio assistants, technician, Warhol, the second pull, review, retire, printer, Fred Hughes, retract, archivist
 src/shift.js       the daily shift
 src/schedule.js    the launchd job
-src/reconcile.js   ledger vs OpenRouter billing
+src/reconcile.js   ledger vs OpenRouter billing (the Anthropic line is on another bill)
 src/canon.js       the canon (signed works, and which are retracted), derived from the floor
 src/publish.js     print → editions → site → deploy
 src/site.js        the static gallery and feed

@@ -1,6 +1,8 @@
 // Checks every configured model against OpenRouter's live catalogue: does it exist,
-// what does it cost, and can it see images where a role needs to.
+// what does it cost, and can it see images where a role needs to. With an Anthropic key,
+// Claude models are also checked on the direct line: does Anthropic know the id we derive?
 import { STUDIO_ROLES } from './roles.js';
+import { anthropicModelId } from './anthropic.js';
 
 /** Config roles that always send images (ACTIONS.md: Warhol reviews screenshots, the Printer checks prints). */
 export const VISION_ROLES = Object.freeze(['warhol', 'printer']);
@@ -12,6 +14,7 @@ export const VISION_ROLES = Object.freeze(['warhol', 'printer']);
  * @property {boolean} exists
  * @property {boolean|null} vision  null when the model is unknown
  * @property {boolean} needsVision
+ * @property {'anthropic'|'openrouter'} line   the line its calls take first
  * @property {number|null} promptPerM      USD per million prompt tokens
  * @property {number|null} completionPerM  USD per million completion tokens
  * @property {string[]} problems
@@ -21,9 +24,12 @@ export const VISION_ROLES = Object.freeze(['warhol', 'printer']);
  * @param {{models: {studio: string[], roles: Record<string, string>, dryRun: string}}} config
  * @param {import('./roles.js').Role[]} roleList   loaded role files (may be empty)
  * @param {(model: string) => Promise<import('./pricing.js').ModelInfo|null>} lookup
+ * @param {{direct?: ((model: string) => Promise<boolean|null>)|null}} [opts]
+ *   direct: asks Anthropic whether it knows a Claude model (null: couldn't ask). Leave it out
+ *   when there is no Anthropic key: every model then runs through OpenRouter.
  * @returns {Promise<{rows: AuditRow[], problems: string[]}>}
  */
-export async function auditModels(config, roleList, lookup) {
+export async function auditModels(config, roleList, lookup, { direct = null } = {}) {
   /** @type {{use: string, model: string, needsVision: boolean}[]} */
   const uses = [
     ...config.models.studio.map((model) => ({ use: 'studio', model, needsVision: false })),
@@ -45,17 +51,26 @@ export async function auditModels(config, roleList, lookup) {
   }
 
   const rows = [];
+  /** @type {Map<string, Promise<boolean|null>>} one question per model, however many roles use it */
+  const asked = new Map();
   for (const { use, model, needsVision } of uses) {
     const info = await lookup(model);
     const problems = [];
+    // OpenRouter stays in the picture for Claude models too: it is their fallback and their price list.
     if (!info) problems.push(`${use}: "${model}" is not on OpenRouter`);
     else if (needsVision && !info.vision) problems.push(`${use}: "${model}" cannot take images, but this role sends them`);
+    const id = direct ? anthropicModelId(model) : null;
+    if (id) {
+      if (!asked.has(model)) asked.set(model, direct(model));
+      if ((await asked.get(model)) === false) problems.push(`${use}: Anthropic has no model "${id}" (from "${model}"), so these calls will fall back to OpenRouter`);
+    }
     rows.push({
       use,
       model,
       exists: Boolean(info),
       vision: info ? info.vision : null,
       needsVision,
+      line: id ? 'anthropic' : 'openrouter',
       promptPerM: info ? info.prompt * 1e6 : null,
       completionPerM: info ? info.completion * 1e6 : null,
       problems,

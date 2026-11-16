@@ -656,6 +656,7 @@ test('settings can all be reset; secrets are never on a page', async () => {
   const { html } = await page('/system');
   assert.match(html, /&quot;dailyUsd&quot;: 1/);
   assert.match(html, /OpenRouter key/);
+  assert.match(html, /Anthropic key<\/td><td><span class="chip">not set<\/span>/, 'optional, so not an error');
   assert.doesNotMatch(html, /OPENROUTER_API_KEY=/);
   assert.match(told(await post('/system/reset-settings', {})), /Everything comes from silver\.config\.js again/);
   assert.deepEqual(await readOverlay(root), {});

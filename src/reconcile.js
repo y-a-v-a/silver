@@ -1,6 +1,8 @@
 // Reconciliation: what OpenRouter billed this key vs what reached our ledger
 // (cost.recorded). A gap means billed calls we never recorded, such as replies that timed
 // out after the provider had already generated them (decision 2026-09-25).
+// Calls that took the direct line to Anthropic are on another bill, so they are left out of
+// the comparison and reported beside it (`direct`).
 import { OPENROUTER_BASE_URL } from './llm.js';
 
 export class ReconcileError extends Error {
@@ -34,18 +36,19 @@ export const utcDayStart = (now = new Date()) => Date.UTC(now.getUTCFullYear(), 
 /**
  * Compare billed usage with the ledger.
  * @param {import('./floor.js').FloorEvent[]} costEvents  every cost.recorded event
- * @param {{total: number, daily: number}} billed
+ * @param {{total: number, daily: number}} billed       what OpenRouter billed
  * @param {Date} [now]
  */
 export function reconcile(costEvents, billed, now = new Date()) {
   const since = utcDayStart(now);
-  let ledgerTotal = 0;
-  let ledgerDay = 0;
+  const ledger = { day: 0, total: 0 };
+  const direct = { day: 0, total: 0 };
   for (const e of costEvents) {
     const usd = e.payload?.usd ?? 0;
-    ledgerTotal += usd;
-    if (Date.parse(e.ts) >= since) ledgerDay += usd;
+    const sum = e.payload?.via === 'anthropic' ? direct : ledger;
+    sum.total += usd;
+    if (Date.parse(e.ts) >= since) sum.day += usd;
   }
-  const row = (ledger, bill) => ({ ledger, billed: bill, gap: bill - ledger });
-  return { utcDay: new Date(since).toISOString().slice(0, 10), day: row(ledgerDay, billed.daily), total: row(ledgerTotal, billed.total) };
+  const row = (recorded, bill) => ({ ledger: recorded, billed: bill, gap: bill - recorded });
+  return { utcDay: new Date(since).toISOString().slice(0, 10), day: row(ledger.day, billed.daily), total: row(ledger.total, billed.total), direct };
 }

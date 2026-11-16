@@ -68,7 +68,8 @@ export default async function shiftCommand(_args, opts, ctx) {
   if (p.reconcile?.day) {
     // OpenRouter's usage lags by a few minutes, so a small negative gap just means "not billed yet".
     const gap = p.reconcile.day.gap < 0 ? 'billing still catching up' : `gap ${usd(p.reconcile.day.gap)}`;
-    ctx.stdout.write(`reconcile (UTC day): ${usd(p.reconcile.day.ledger)} recorded vs ${usd(p.reconcile.day.billed)} billed (${gap})\n`);
+    const direct = p.reconcile.direct?.day ? `; ${usd(p.reconcile.direct.day)} more went straight to Anthropic` : '';
+    ctx.stdout.write(`reconcile (UTC day, OpenRouter): ${usd(p.reconcile.day.ledger)} recorded vs ${usd(p.reconcile.day.billed)} billed (${gap})${direct}\n`);
   }
   if (p.reconcile?.error) ctx.stderr.write(`reconcile unavailable: ${p.reconcile.error}\n`);
   if (result.backup) ctx.stdout.write(`record: ${result.backup.committed ? `committed ${String(result.backup.commit).slice(0, 7)}` : 'nothing new'}${result.backup.pushed ? `, pushed to ${result.backup.remote}` : result.backup.error ? ` (not pushed: ${result.backup.error})` : result.backup.remote ? '' : ' (local only: no remote)'}\n`);

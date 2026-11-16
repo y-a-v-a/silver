@@ -12,6 +12,7 @@ export const MODELS_LIST = [
   { id: 'test/text', pricing: { prompt: '0.000001', completion: '0.000002' }, architecture: { input_modalities: ['text'] } },
   { id: 'test/vision', pricing: { prompt: '0.000002', completion: '0.000004', image: '0.001' }, architecture: { input_modalities: ['text', 'image'] } },
   { id: 'test/cheap', pricing: { prompt: '0', completion: '0.0000001' }, architecture: { input_modalities: ['text'] } },
+  { id: 'anthropic/claude-test-1.5', pricing: { prompt: '0.000003', completion: '0.000015', image: '0.0048' }, architecture: { input_modalities: ['text', 'image'] } },
 ];
 
 /** A role file as a string. */
@@ -33,15 +34,50 @@ export function completion(content, { cost = 0.001, model = 'test/text', finish 
 }
 
 /**
- * A fake fetch. `/models` serves MODELS_LIST; `/chat/completions` replies from a queue
- * whose entries are bodies, {status, body, headers}, Errors (thrown), or functions.
+ * A successful Messages API reply, streamed as Anthropic streams it. Returns a function (a
+ * queue entry for fakeFetch), because a Response can only be read once.
+ * @param {string} text
+ * @param {{stop?: string, model?: string, thinking?: number, usage?: object, breakAfterStart?: object}} [opts]
+ *   thinking: thinking tokens to report (a thinking block comes first); breakAfterStart: an
+ *   error event sent in place of the reply, once the stream has started
+ */
+export function anthropicReply(text, { stop = 'end_turn', model = 'claude-test-1-5', thinking = 0, usage = {}, breakAfterStart = null } = {}) {
+  const outputTokens = 20 + thinking;
+  const events = [
+    ['message_start', { message: { id: 'msg_test', type: 'message', role: 'assistant', model, content: [], stop_reason: null, stop_sequence: null, usage: { input_tokens: 100, output_tokens: 0, ...usage } } }],
+  ];
+  if (breakAfterStart) events.push(['error', { error: breakAfterStart }]);
+  else {
+    const blocks = [...(thinking ? [[{ type: 'thinking', thinking: '', signature: '' }, { type: 'signature_delta', signature: 'sig' }]] : []), ...(text ? [[{ type: 'text', text: '' }, { type: 'text_delta', text }]] : [])];
+    blocks.forEach(([block, delta], index) => {
+      events.push(['content_block_start', { index, content_block: block }], ['content_block_delta', { index, delta }], ['content_block_stop', { index }]);
+    });
+    events.push(
+      ['message_delta', { delta: { stop_reason: stop, stop_sequence: null }, usage: { output_tokens: outputTokens, ...(thinking ? { output_tokens_details: { thinking_tokens: thinking } } : {}) } }],
+      ['message_stop', {}],
+    );
+  }
+  const sse = events.map(([type, data]) => `event: ${type}\ndata: ${JSON.stringify({ type, ...data })}\n\n`).join('');
+  return () => new Response(sse, { status: 200, headers: { 'content-type': 'text/event-stream', 'request-id': 'req_test' } });
+}
+
+/** An Anthropic error reply, as a fakeFetch queue entry. */
+export const anthropicError = (status, type, message, headers = {}) => ({ status, body: { type: 'error', error: { type, message } }, headers });
+
+/**
+ * A fake fetch. `/models` serves MODELS_LIST; every other request (OpenRouter's
+ * `/chat/completions`, Anthropic's `/v1/messages`) replies from one queue whose entries are
+ * bodies, {status, body, headers}, Errors (thrown), or functions.
  */
 export function fakeFetch(queue = []) {
   const requests = [];
   const fn = async (url, init = {}) => {
+    url = String(url);
     if (url.endsWith('/models')) return Response.json({ data: MODELS_LIST });
     const body = init.body ? JSON.parse(init.body) : null;
-    requests.push({ url, headers: init.headers, body });
+    // The Anthropic SDK hands over a Headers object; plain lookups work on a plain one.
+    const headers = init.headers instanceof Headers ? Object.fromEntries(init.headers) : init.headers;
+    requests.push({ url, headers, body });
     if (!queue.length) throw new Error('fakeFetch: no queued reply');
     let next = queue.shift();
     if (typeof next === 'function') next = await next(body);
@@ -121,6 +157,40 @@ export async function mockOpenRouter({ models = [], reply = () => completion('ok
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   return {
     baseUrl: `http://127.0.0.1:${server.address().port}/api/v1`,
+    requests,
+    state,
+    close: () => new Promise((r) => server.close(r)),
+  };
+}
+
+/**
+ * A local mock of Anthropic's HTTP API for end-to-end CLI tests. `reply()` answers each
+ * Messages request with an anthropicReply() or an anthropicError(); `models` are the ids
+ * GET /v1/models/:id knows.
+ */
+export async function mockAnthropic({ models = [], reply = () => anthropicReply('ok') } = {}) {
+  const { createServer } = await import('node:http');
+  const requests = [];
+  const state = { models, reply };
+  const server = createServer(async (req, res) => {
+    let raw = '';
+    for await (const chunk of req) raw += chunk;
+    if (req.method === 'GET') {
+      const id = decodeURIComponent(req.url.split('/').pop());
+      res.setHeader('content-type', 'application/json');
+      res.statusCode = state.models.includes(id) ? 200 : 404;
+      return res.end(JSON.stringify(res.statusCode === 200 ? { type: 'model', id, display_name: id } : { type: 'error', error: { type: 'not_found_error', message: `model: ${id}` } }));
+    }
+    requests.push({ url: req.url, auth: req.headers.authorization, body: JSON.parse(raw) });
+    const r = state.reply(JSON.parse(raw));
+    const response = typeof r === 'function' ? r() : Response.json(r.body, { status: r.status, headers: r.headers ?? {} });
+    res.statusCode = response.status;
+    res.setHeader('content-type', response.headers.get('content-type'));
+    res.end(await response.text());
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  return {
+    baseUrl: `http://127.0.0.1:${server.address().port}`,
     requests,
     state,
     close: () => new Promise((r) => server.close(r)),

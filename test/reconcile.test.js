@@ -24,3 +24,15 @@ test('reconcile splits the ledger by UTC day and reports the gaps', () => {
   assert.deepEqual({ l: +r.day.ledger.toFixed(2), b: r.day.billed, g: +r.day.gap.toFixed(2) }, { l: 0.05, b: 0.07, g: 0.02 });
   assert.equal(+r.total.gap.toFixed(2), 0.05);
 });
+
+test('reconcile leaves calls that went straight to Anthropic out of the OpenRouter comparison', () => {
+  const now = new Date('2026-11-16T10:00:00Z');
+  const ev = (ts, usd, via) => ({ ts, payload: { usd, ...(via ? { via } : {}) } });
+  const r = reconcile(
+    [ev('2026-11-15T12:00:00Z', 0.5), ev('2026-11-15T12:00:00Z', 0.4, 'anthropic'), ev('2026-11-16T09:00:00Z', 0.03, 'openrouter'), ev('2026-11-16T09:30:00Z', 0.25, 'anthropic')],
+    { total: 0.53, daily: 0.03 },
+    now,
+  );
+  assert.deepEqual({ day: +r.day.gap.toFixed(4), total: +r.total.gap.toFixed(4) }, { day: 0, total: 0 }, 'no phantom gap from the other bill');
+  assert.deepEqual({ day: r.direct.day, total: +r.direct.total.toFixed(2) }, { day: 0.25, total: 0.65 });
+});

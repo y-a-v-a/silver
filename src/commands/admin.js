@@ -97,6 +97,7 @@ async function serve(opts, ctx, { startPath = '/' } = {}) {
     extra: {
       env,
       pricing,
+      direct: start.direct,
       credit: createCreditWatch({ apiKey: env.OPENROUTER_API_KEY, baseUrl }),
       schedule,
       rawConfig: () => loadRawConfig(env.SILVER_CONFIG || DEFAULT_CONFIG_PATH),

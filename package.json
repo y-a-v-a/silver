@@ -29,6 +29,7 @@
     "log:list": "node bin/log-progress.js --list"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.9.0",
     "commander": "^15.0.0",
     "gray-matter": "^4.0.3",
     "p5": "^1.11.13",

@@ -46,7 +46,9 @@ async function gitInfo(root) {
 function moneyTable(ledger) {
   const rows = Object.entries(ledger.byRole).sort((a, b) => b[1].usd - a[1].usd);
   if (!rows.length) return '<p class="muted">No calls today.</p>';
-  return `<div class="table-wrap"><table><thead><tr><th>Role</th><th class="num">Calls</th><th class="num">Spent</th></tr></thead><tbody>${rows.map(([role, r]) => `<tr><td><a href="/souls/${esc(role)}">${esc(role)}</a></td><td class="num">${r.calls}</td><td class="num">${usd(r.usd)}</td></tr>`).join('')}</tbody></table></div>`;
+  // Two bills: what went straight to Anthropic, and what went through OpenRouter.
+  const lines = ledger.byLine.anthropic ? `<p class="small muted" style="margin-top:8px">${usd(ledger.byLine.anthropic.usd)} straight to Anthropic, ${usd(ledger.byLine.openrouter?.usd ?? 0)} through OpenRouter.</p>` : '';
+  return `<div class="table-wrap"><table><thead><tr><th>Role</th><th class="num">Calls</th><th class="num">Spent</th></tr></thead><tbody>${rows.map(([role, r]) => `<tr><td><a href="/souls/${esc(role)}">${esc(role)}</a></td><td class="num">${r.calls}</td><td class="num">${usd(r.usd)}</td></tr>`).join('')}</tbody></table></div>${lines}`;
 }
 
 /** @param {import('../server.js').App} app */
@@ -84,6 +86,7 @@ ${messages(c.msg)}
   <div class="panel"><h2>Connections</h2>
     <table><tbody>
       <tr><td>OpenRouter key</td><td>${check(Boolean(env.OPENROUTER_API_KEY), 'set', 'missing')}</td><td class="small muted">${credit && typeof credit.remaining === 'number' ? `${usd(credit.remaining)} left${credit.source === 'key' ? ' on this key' : ''}` : 'in .env'}</td></tr>
+      <tr><td>Anthropic key</td><td>${env.ANTHROPIC_API_KEY ? check(true, 'set', '') : '<span class="chip">not set</span>'}</td><td class="small muted">${env.ANTHROPIC_API_KEY ? 'Claude models go straight to Anthropic; OpenRouter is their fallback' : 'optional: with ANTHROPIC_API_KEY in .env, Claude models run on your Anthropic credits'}</td></tr>
       <tr><td>Vercel token</td><td>${check(Boolean(env.VERCEL_TOKEN), 'set', 'missing')}</td><td class="small muted">${env.VERCEL_TOKEN ? `project ${esc(config.deploy.project)}` : 'the gallery stays local until it\'s in .env'}</td></tr>
       <tr><td>Headless browser</td><td>${check(chromium, 'installed', 'missing')}</td><td class="small muted">${chromium ? 'renders the sketches' : 'run npm run setup'}</td></tr>
       <tr><td>The record</td><td>${check(Boolean(record?.exists), 'kept', 'not set up')}</td><td class="small muted wrap">${record?.exists ? `${esc(record.commits)} commits${record.remote ? `, pushed to ${esc(record.remote.replace(/^.*:/, ''))}` : ', local only'}${record.dirty ? ', changes since the last shift' : ''}` : 'silver init-record'}</td></tr>
@@ -104,7 +107,7 @@ ${messages(c.msg)}
     <div class="row" style="margin-top:8px">${action('/system/reconcile', 'Compare with what OpenRouter billed', { cls: 'quiet' })}</div></div>
   <div class="panel" id="audit"><h2>The models <small>do they exist, and can they see?</small></h2>
     ${audit ? (audit.problems.length ? `<ul class="failed">${audit.problems.map((p) => `<li class="warn">${esc(p)}</li>`).join('')}</ul>` : `<p><span class="chip ok">all ${audit.rows.length} fine</span> <span class="small muted">checked ${esc(ago(audit.at))}</span></p>`) : '<p class="small muted">Not checked since this admin started.</p>'}
-    ${action('/system/audit', 'Check them against OpenRouter', { cls: 'quiet' })}</div>
+    ${action('/system/audit', env.ANTHROPIC_API_KEY ? 'Check them against OpenRouter and Anthropic' : 'Check them against OpenRouter', { cls: 'quiet' })}</div>
 </div>
 <div class="panel"><h2>What changes where</h2>
   <div class="table-wrap"><table><tbody>${WHERE.map(([what, where, how]) => `<tr><td>${esc(what)}</td><td>${where}</td><td class="small muted">${esc(how)}</td></tr>`).join('')}</tbody></table></div>
@@ -155,7 +158,7 @@ ${messages(c.msg)}
     c.back = '/system#audit';
     const pricing = app.extra.pricing;
     const roles = await loadRoles({ dir: c.config.paths.roles, models: c.config.models });
-    const result = await auditModels(c.config, roles.list(), (m) => pricing.get(m));
+    const result = await auditModels(c.config, roles.list(), (m) => pricing.get(m), { direct: app.extra.direct });
     if (!(await pricing.all()).length) throw new AdminError("couldn't reach OpenRouter's catalogue");
     audit = { ...result, at: new Date().toISOString() };
     return c.redirect('/system#audit', result.problems.length ? { error: `${result.problems.length} problem${result.problems.length === 1 ? '' : 's'} with the models.` } : { done: 'All the models check out.' });
@@ -171,6 +174,6 @@ ${messages(c.msg)}
       throw new AdminError(err.message);
     }
     const r = reconcile(await c.floor.read({ shift: 'all', type: 'cost.recorded' }), billed);
-    return c.redirect('/system#money', { done: `UTC day ${r.utcDay}: ${usd(r.day.ledger)} recorded, ${usd(r.day.billed)} billed. All time: ${usd(r.total.ledger)} recorded, ${usd(r.total.billed)} billed. The key is shared with your other agents, so the billed figure can be higher.` });
+    return c.redirect('/system#money', { done: `UTC day ${r.utcDay}: ${usd(r.day.ledger)} recorded, ${usd(r.day.billed)} billed. All time: ${usd(r.total.ledger)} recorded, ${usd(r.total.billed)} billed.${r.direct.total ? ` Left out: ${usd(r.direct.total)} that went straight to Anthropic.` : ''} The key is shared with your other agents, so the billed figure can be higher.` });
   });
 }

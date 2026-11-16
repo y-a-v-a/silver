@@ -20,7 +20,7 @@ export class BudgetExhausted extends Error {
  * @param {import('./floor.js').FloorEvent[]} events
  */
 export function summarise(events) {
-  const ledger = { total: 0, chatter: 0, calls: 0, promptTokens: 0, completionTokens: 0, byRole: {}, byModel: {} };
+  const ledger = { total: 0, chatter: 0, calls: 0, promptTokens: 0, completionTokens: 0, byRole: {}, byModel: {}, byLine: {} };
   const bump = (bucket, key, p) => {
     const row = (bucket[key] ??= { calls: 0, usd: 0, promptTokens: 0, completionTokens: 0 });
     row.calls += 1;
@@ -37,6 +37,8 @@ export function summarise(events) {
     if (p.group === 'superstar') ledger.chatter += p.usd ?? 0;
     bump(ledger.byRole, p.role ?? 'unknown', p);
     bump(ledger.byModel, p.model ?? 'unknown', p);
+    // Which bill the call is on. Calls from before the direct line all went through OpenRouter.
+    bump(ledger.byLine, p.via ?? 'openrouter', p);
   }
   return ledger;
 }

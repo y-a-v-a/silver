@@ -106,7 +106,7 @@ after(() => new Promise((r) => server.close(r)));
 async function silver(root, args) {
   try {
     // No API key: annotation fails fast and offline. Never inherit the real key in tests.
-    const r = await exec(process.execPath, [CLI, ...args], { env: { ...process.env, SILVER_ROOT: root, OPENROUTER_API_KEY: '' } });
+    const r = await exec(process.execPath, [CLI, ...args], { env: { ...process.env, SILVER_ROOT: root, OPENROUTER_API_KEY: '', ANTHROPIC_API_KEY: '' } });
     return { code: 0, ...r };
   } catch (err) {
     return { code: err.code, stdout: err.stdout, stderr: err.stderr };

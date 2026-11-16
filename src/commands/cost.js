@@ -1,4 +1,4 @@
-// `silver cost`: spend per role and per model against the daily cap.
+// `silver cost`: spend per role, per model and per line (Anthropic direct, OpenRouter) against the daily cap.
 import { createFactory } from '../factory.js';
 import { summarise } from '../budget.js';
 import { usd, int, plural, table } from '../lib/format.js';
@@ -15,6 +15,7 @@ async function printReconcile(floor, ctx, opts) {
   }
   const line = (label, x) => [label, usd(x.ledger), usd(x.billed), usd(x.gap)];
   ctx.stdout.write(`${table([['', 'ledger', 'billed', 'gap'], line(`UTC day ${r.utcDay}`, r.day), line('all time', r.total)], { indent: '' })}\n`);
+  if (r.direct.total) ctx.stdout.write(`\nNot in this comparison: ${usd(r.direct.total)} (${usd(r.direct.day)} this UTC day) went straight to Anthropic, on its own bill.\n`);
   ctx.stdout.write('\nThe gap is billed spend that never reached the ledger: replies that timed out after\n' +
     'generation, calls made outside Silver with the same key, or requests made before the ledger existed.\n' +
     'A small negative gap means OpenRouter has not billed the latest calls yet (it lags a few minutes).\n');
@@ -46,7 +47,7 @@ export default async function costCommand(_args, opts, ctx) {
       .sort(([, a], [, b]) => b.usd - a.usd)
       .map(([name, r]) => [name, plural(r.calls, 'call'), `${int(r.promptTokens)} in`, `${int(r.completionTokens)} out`, usd(r.usd)]);
   if (ledger.calls) {
-    lines.push('', 'by role', table(rows(ledger.byRole)), '', 'by model', table(rows(ledger.byModel)));
+    lines.push('', 'by role', table(rows(ledger.byRole)), '', 'by model', table(rows(ledger.byModel)), '', 'by line', table(rows(ledger.byLine)));
   }
   ctx.stdout.write(lines.join('\n') + '\n');
 }

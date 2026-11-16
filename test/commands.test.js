@@ -7,7 +7,7 @@ import { mkdtemp, mkdir, writeFile, readFile, readdir, cp } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { roleFile, completion, mockOpenRouter } from './helpers.js';
+import { roleFile, completion, mockOpenRouter, mockAnthropic, anthropicReply, anthropicError } from './helpers.js';
 
 const exec = promisify(execFile);
 const CLI = fileURLToPath(new URL('../src/cli.js', import.meta.url));
@@ -34,7 +34,7 @@ async function tmpRoot() {
 
 async function silver(root, args, env = {}) {
   // VERCEL_TOKEN empty: never the real one from this checkout's .env.
-  const fullEnv = { ...process.env, SILVER_ROOT: root, OPENROUTER_BASE_URL: baseUrl, OPENROUTER_API_KEY: 'test-key', VERCEL_TOKEN: '', ...env };
+  const fullEnv = { ...process.env, SILVER_ROOT: root, OPENROUTER_BASE_URL: baseUrl, OPENROUTER_API_KEY: 'test-key', ANTHROPIC_API_KEY: '', VERCEL_TOKEN: '', ...env };
   try {
     const { stdout, stderr } = await exec(process.execPath, [CLI, ...args], { env: fullEnv });
     return { code: 0, stdout, stderr };
@@ -48,7 +48,7 @@ test('ping makes one call, prints the reply and records cost + transcript (Phase
   const { code, stdout, stderr } = await silver(root, ['ping', 'technician']);
   assert.equal(code, 0, stderr);
   assert.match(stdout, /^Wires, lights, projector\. That is me\./);
-  assert.match(stdout, /anthropic\/claude-sonnet-5 via TestProvider: \$0\.00042/);
+  assert.match(stdout, /anthropic\/claude-sonnet-5 via OpenRouter \(TestProvider\): \$0\.00042/);
 
   const req = requests.at(-1);
   assert.equal(req.auth, 'Bearer test-key');
@@ -61,6 +61,38 @@ test('ping makes one call, prints the reply and records cost + transcript (Phase
   assert.equal(event.type, 'cost.recorded');
   const transcript = JSON.parse(await readFile(join(root, event.payload.transcript), 'utf8'));
   assert.equal(transcript.id, event.id);
+});
+
+test('with ANTHROPIC_API_KEY, ping takes the direct line for a Claude role, and falls back to OpenRouter', async () => {
+  const anthropic = await mockAnthropic({ reply: () => anthropicReply('Wires, straight from the source.') });
+  const env = { ANTHROPIC_API_KEY: 'sk-ant-test', ANTHROPIC_BASE_URL: anthropic.baseUrl };
+  try {
+    const root = await tmpRoot();
+    const before_ = requests.length;
+    let r = await silver(root, ['ping', 'technician'], env);
+    assert.equal(r.code, 0, r.stderr);
+    assert.match(r.stdout, /^Wires, straight from the source\./);
+    assert.match(r.stdout, /anthropic\/claude-sonnet-5 via Anthropic, direct: \$\d/);
+    assert.equal(requests.length, before_, 'OpenRouter saw nothing');
+    assert.deepEqual([anthropic.requests[0].auth, anthropic.requests[0].body.model, anthropic.requests[0].body.system], ['Bearer sk-ant-test', 'claude-sonnet-5', 'You are the Technician. Tool: [tool].']);
+    assert.deepEqual(anthropic.requests[0].body.output_config, { effort: 'low' }, 'reasoning: off is the lowest effort there');
+
+    // A role on another model stays on OpenRouter.
+    r = await silver(root, ['ping', 'technician', '--model', 'openai/gpt-6-luna', '--json'], env);
+    assert.equal(JSON.parse(r.stdout).via, 'openrouter');
+    assert.equal(anthropic.requests.length, 1);
+
+    anthropic.state.reply = () => anthropicError(400, 'invalid_request_error', 'Your credit balance is too low to access the Anthropic API.');
+    r = await silver(root, ['ping', 'technician'], env);
+    assert.equal(r.code, 0, r.stderr);
+    assert.match(r.stdout, /^Wires, lights, projector\. That is me\./);
+    assert.match(r.stdout, /via OpenRouter \(TestProvider\), after Anthropic gave up: Anthropic request failed: Your credit balance is too low/);
+
+    r = await silver(root, ['cost']);
+    assert.match(r.stdout, /by line\n\s+openrouter\s+2 calls.*\n\s+anthropic\s+1 call\b/);
+  } finally {
+    await anthropic.close();
+  }
 });
 
 test('ping options: --model, --dry-run, --prompt, --json', async () => {

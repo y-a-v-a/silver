@@ -15,11 +15,11 @@ export default async function pingCommand([roleId], opts, ctx) {
   const cost = (await factory.floor.read({ type: 'cost.recorded' })).find((e) => e.id === res.id);
   const p = cost?.payload ?? {};
   const out = opts.json
-    ? JSON.stringify({ id: res.id, content: res.content, model: res.model, usd: res.usd, transcript: res.transcript }) + '\n'
+    ? JSON.stringify({ id: res.id, content: res.content, model: res.model, via: res.via, usd: res.usd, transcript: res.transcript }) + '\n'
     : [
         res.content.trim(),
         '',
-        `-- ${res.model} via ${p.provider ?? '?'}: ${usd(res.usd)}${p.estimated ? ' (estimated)' : ''},` +
+        `-- ${res.model} via ${p.via === 'anthropic' ? 'Anthropic, direct' : `OpenRouter (${p.provider ?? '?'})`}${p.fallback ? `, after Anthropic gave up: ${p.fallback.error}` : ''}: ${usd(res.usd)}${p.estimated ? ' (estimated)' : ''},` +
           ` ${int(p.promptTokens)} in / ${int(p.completionTokens)} out` +
           (p.reasoningTokens ? ` (${int(p.reasoningTokens)} reasoning)` : ''),
         `-- event ${res.id}, transcript ${res.transcript}`,

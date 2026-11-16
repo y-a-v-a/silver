@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { auditModels, VISION_ROLES } from '../src/model-audit.js';
 import { toModelInfo } from '../src/pricing.js';
-import { mockOpenRouter, roleFile } from './helpers.js';
+import { mockAnthropic, mockOpenRouter, roleFile } from './helpers.js';
 import shipped from '../silver.config.js';
 
 const exec = promisify(execFile);
@@ -67,6 +67,31 @@ test('role files that set a model or need vision are audited too', async () => {
   assert.ok(!rows.some((r) => r.use === 'file archivist.md'));
 });
 
+test('with an Anthropic key, Claude models are checked on the direct line too', async () => {
+  const claude = [...new Set([...shipped.models.studio, ...Object.values(shipped.models.roles)])].filter((m) => m.startsWith('anthropic/'));
+  assert.ok(claude.length >= 2, 'the shipped config casts Claude models');
+  const asked = [];
+  const direct = (known) => async (m) => (asked.push(m), known(m));
+
+  let { rows, problems } = await auditModels(shipped, [], lookupFrom(allShipped()), { direct: direct(() => true) });
+  assert.deepEqual(problems, []);
+  assert.deepEqual(asked.sort(), [...claude].sort(), 'each Claude model is asked about once, and no other model');
+  for (const r of rows) assert.equal(r.line, r.model.startsWith('anthropic/') ? 'anthropic' : 'openrouter', r.model);
+
+  // A model Anthropic doesn't know still runs (through OpenRouter), which is exactly what the key was meant to avoid.
+  ({ problems } = await auditModels(shipped, [], lookupFrom(allShipped()), { direct: direct((m) => m !== shipped.models.roles.warhol) }));
+  assert.ok(problems.length >= 1);
+  assert.match(problems.find((p) => p.startsWith('role warhol:')), /Anthropic has no model "claude-opus-5-5" \(from "anthropic\/claude-opus-5\.5"\), so these calls will fall back to OpenRouter/);
+
+  // Couldn't ask (offline, a key without that permission): no verdict, no problem.
+  ({ problems } = await auditModels(shipped, [], lookupFrom(allShipped()), { direct: direct(() => null) }));
+  assert.deepEqual(problems, []);
+
+  // No key: everything is on OpenRouter's line.
+  ({ rows } = await auditModels(shipped, [], lookupFrom(allShipped())));
+  assert.ok(rows.every((r) => r.line === 'openrouter'));
+});
+
 // ---------- CLI ----------
 
 let mock;
@@ -75,12 +100,12 @@ before(async () => {
 });
 after(() => mock.close());
 
-async function silver(args) {
+async function silver(args, env = {}) {
   const root = await mkdtemp(join(tmpdir(), 'silver-models-'));
   await mkdir(join(root, 'roles'), { recursive: true });
   await writeFile(join(root, 'roles', 'technician.md'), roleFile('technician'));
   try {
-    const r = await exec(process.execPath, [CLI, ...args], { env: { ...process.env, SILVER_ROOT: root, OPENROUTER_BASE_URL: mock.baseUrl } });
+    const r = await exec(process.execPath, [CLI, ...args], { env: { ...process.env, SILVER_ROOT: root, OPENROUTER_BASE_URL: mock.baseUrl, ANTHROPIC_API_KEY: '', ...env } });
     return { code: 0, ...r };
   } catch (err) {
     return { code: err.code, stdout: err.stdout, stderr: err.stderr };
@@ -94,6 +119,23 @@ test('silver models prints the table and passes on a complete catalogue', async 
   assert.match(r.stdout, /^use\s+model\s+found\s+images\s+\$\/M in\s+\$\/M out/);
   assert.match(r.stdout, /role warhol\s+\S+\s+yes\s+yes\s+1\.00\s+2\.00/);
   assert.match(r.stdout, /all models found/);
+  assert.match(r.stdout, /no ANTHROPIC_API_KEY: Claude models run through OpenRouter too/);
+});
+
+test('silver models asks Anthropic about the Claude models when its key is set', async () => {
+  mock.state.models = allShipped();
+  const anthropic = await mockAnthropic({ models: ['claude-sonnet-5-5', 'claude-sonnet-5'] });
+  try {
+    const r = await silver(['models'], { ANTHROPIC_API_KEY: 'sk-ant-test', ANTHROPIC_BASE_URL: anthropic.baseUrl });
+    assert.equal(r.code, 1);
+    assert.match(r.stdout, /role warhol\s+anthropic\/claude-opus-5\.5\s+.*\s+anthropic\n/);
+    assert.match(r.stdout, /role scout\s+\S+\s+.*\s+openrouter\n/);
+    assert.match(r.stdout, /problem: role warhol: Anthropic has no model "claude-opus-5-5"/);
+    assert.doesNotMatch(r.stdout, /Anthropic has no model "claude-sonnet-5"/);
+    assert.doesNotMatch(r.stdout, /no ANTHROPIC_API_KEY/);
+  } finally {
+    await anthropic.close();
+  }
 });
 
 test('silver models exits 1 and names the problem', async () => {

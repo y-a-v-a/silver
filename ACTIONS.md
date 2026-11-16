@@ -8,7 +8,7 @@ The build plan for the Silver Factory in Node.js, derived from [ARCHITECTURE.md]
 |---|---|
 | Who is Warhol? | A **Warhol agent shortlists and signs; the human holds a veto**. Nothing enters the canon without human approval. |
 | Medium | **Generative p5.js sketches**, one self-contained HTML file per variant |
-| Runtime | **OpenRouter API** (OpenAI-compatible `/chat/completions`) via native `fetch`, so every role can run on a different model |
+| Runtime | **OpenRouter API** (OpenAI-compatible `/chat/completions`) via native `fetch`, so every role can run on a different model. Since 2026-11-16, Claude models go to the **Anthropic API** first (Phase 11) |
 | Tempo | **One daily shift**, triggered by macOS `launchd` |
 | User input | **Two paths**: `silver commission "<text or URL>"` for the human's own subjects, plus autonomous scouting during the shift |
 | Scout sources | **Trending lists** (Google Trends RSS, Hacker News, Reddit r/all) and **news RSS** (configurable feed list) |
@@ -50,6 +50,7 @@ The build plan for the Silver Factory in Node.js, derived from [ARCHITECTURE.md]
 | Dry-run subjects | **Marked as dry run** (2026-09-25). The real shift scouts anyway, and real series ignore dry-run subjects. |
 | Record backup remote | **Private GitHub repo `y-a-v-a/silver-record`** (2026-09-25), pushed over SSH after every shift. |
 | Model fallbacks | **Qwen 3.8 Flash falls back to Gemini 3.8 Flash** (2026-09-25) via OpenRouter's `models` list (`models.fallbacks`). |
+| Claude models | **Straight to Anthropic, OpenRouter as fallback** (2026-11-16), when `.env` has `ANTHROPIC_API_KEY`, so they spend Anthropic credit. Every other model stays on OpenRouter. |
 | Superstar-pushed subjects | **Ahead of the Scout's picks** (2026-09-25), after commissions. |
 | Gossip on the work | **The human veto is enough** (2026-09-25): chatter printed on a work goes public only through an approval. |
 | The look | **Not Warhol's** (2026-10-23, the owner: "far more strange, scratchy, weird, unique, but esthetical at the same time"; no "warholian rip offs"). The Factory keeps Warhol's way of working (delegation, series, one gate) and drops his surface. See Phase 9. |
@@ -74,10 +75,11 @@ The build plan for the Silver Factory in Node.js, derived from [ARCHITECTURE.md]
   - `rss-parser`: news and Google Trends feeds
   - `commander`: the CLI
   - `ulid`: event ids
+  - `@anthropic-ai/sdk`: the direct line to Anthropic for Claude models
   - `playwright`: headless render and screenshot of sketches
   - `vercel`: deploy CLI, as a dev dependency
 - No database. The floor is JSONL and everything else is files on local disk (runtime data is not in git).
-- Secrets in `.env`: `OPENROUTER_API_KEY`, `VERCEL_TOKEN`.
+- Secrets in `.env`: `OPENROUTER_API_KEY`, `VERCEL_TOKEN`, and optionally `ANTHROPIC_API_KEY`.
 
 ## Repository layout
 
@@ -110,7 +112,8 @@ silver/
     factory.js              # wires config, floor, budget, pricing, roles, llm
     events.js               # event types + envelope validation
     floor.js                # append/read/subscribe to the event log
-    llm.js                  # OpenRouter client, cost tracking, transcript capture
+    llm.js                  # model client: Anthropic direct or OpenRouter, fallback, cost tracking, transcript capture
+    anthropic.js            # the direct line: request and reply translation for the Anthropic API
     pricing.js              # model prices/capabilities from OpenRouter /models
     model-audit.js          # `silver models`
     roles.js                # loads roles/*.md → { meta, systemPrompt }
@@ -483,6 +486,19 @@ The owner's brief: make the web interface better; a real admin; no login, since 
 - [x] **An independent review, and what it found** (a fresh reviewer on the diff, then each finding fixed and tested): Stop didn't stop a job (Playwright takes SIGTERM and leaves the process running, so the runner now follows up with SIGKILL); launchd could start a shift alongside one from the admin, and a crashed shift blocked the queue for hours (`archive/.shift.lock`, held only while the process lives); moving the time could kill a running shift or leave the schedule unloaded without a word; a sketch could leave its sandbox by asking for `Sketch.html` on this case-insensitive disk (every gallery page is sandboxed now); talking or making a series by hand before 09:00 shrank that day's shift (`byHand`; talk from before the Scout doesn't count); the `a` key could sign a card you couldn't see; a publish whose deploy failed said "done"; "Another round" and "Next in line" described things that wouldn't happen; a `##` heading in a direction lost text; preflight only checked the newest save and blamed code for a broken `studio.json`; taste and direction could overwrite a newer edit.
 - [x] **Fixed on the way**: gray-matter's cache (it never shrinks, and hid a broken role's real error on a second read); a `javascript:` URL from a feed becoming a link; a second pull of a variant whose procedure has left the menu; bulk closing the backlog (open question 6 of 2026-10-23).
 
+## Phase 11: Claude models on the Anthropic API ✅ (2026-11-16)
+
+The owner's brief: call the Anthropic models through the Anthropic API instead of OpenRouter, with OpenRouter as their fallback, to spend Anthropic credit where possible and keep OpenRouter for the other models.
+
+- [x] **The direct line** (`src/anthropic.js`, on `@anthropic-ai/sdk`). With `ANTHROPIC_API_KEY` set, a slug starting with `anthropic/claude-` is called on the Messages API (`anthropic/claude-opus-5.5` → `claude-opus-5-5`), streamed and read whole. Without the key nothing changes. A dry run stays on its cheap OpenRouter model.
+- [x] **One dialect inside.** Roles, agents, transcripts and the ledger keep OpenRouter's request and reply shape; the direct line translates both ways. A transcript says which line it took (`via`) and keeps Anthropic's own reply and parameters under `native`.
+- [x] **What can't cross.** `temperature` is not sent (current Claude models reject sampling parameters), so on these models the series' temperature axis is a second sample, not a different setting. `reasoning` becomes an effort level: a token budget maps to the level nearest its share of `max_tokens`, `off` to `low`.
+- [x] **Fallback.** Retries first, as on OpenRouter (429, 5xx, 529, dropped connections, broken streams; `Retry-After` and `x-should-retry` are honoured). When Anthropic gives up or refuses (no credit, bad key, unknown model id), the same request goes through OpenRouter. `cost.recorded` carries `via` and, after a detour, `fallback: {from, status, error}`; Today warns when calls took the detour in the last day. A failure on both lines is one `llm.failed` with every attempt.
+- [x] **Refusals.** A reply stopped by a safety filter (`finish_reason: content_filter`, Anthropic's `refusal`) is a failed call with `reason: refused`, on either line, and is not retried on the other line.
+- [x] **Money.** Anthropic returns no cost, so a direct call is costed from its token counts and the price list (`estimated: true`); images cost their tokens only. `silver cost` adds "by line"; reconcile compares the OpenRouter line alone and reports the direct line beside it.
+- [x] **Checks.** `silver models` shows each model's line and asks Anthropic whether it knows the Claude models (a model it doesn't know is a problem: it would always fall back). `silver ping` says which line answered. System shows whether the key is set.
+- [x] Verified live on 2026-11-16 in a throwaway root: Sonnet 5, Sonnet 5.5 and Opus 5.5 answered on the direct line, one call with an image, and a deliberately wrong Anthropic key fell back to OpenRouter.
+
 ## Later (not v1)
 
 - The Technician goes live: an agent that proposes and writes new techniques and templates, gated by `tool.released`
@@ -681,3 +697,13 @@ Phase 5c is on `main`. All tests pass, browser tests included.
 **Open questions**
 1. **No. 017.** The way to take it down exists now; nothing real was retracted. `npx silver retract 17 --reason "…"` (or *Retract it* on Canon) takes it off the live gallery on the publish that follows.
 2. **Older Vercel deployments.** A retracted work is gone from the production site, but each older deployment (`silver-factory-<hash>-….vercel.app`) still serves the site as it was. They sit behind Vercel's deployment protection; if a work must be gone from those too, delete the old deployments in Vercel. Automating that (`vercel remove`) is possible, but it deletes things on Vercel, so it wasn't done without asking.
+
+## Where things stand (2026-11-16, after the direct line)
+
+Phase 11 is on `main`. All tests pass.
+
+**Open questions**
+1. **The key in `.env`.** Add `ANTHROPIC_API_KEY=...` to `.env`. The 09:00 job reads only that file; a key that lives in your shell reaches the commands you type, not the shift.
+2. **Temperature on Claude.** The Anthropic API rejects `temperature` on the current Claude models, so the direct line leaves it out. Of the 12 variants in a series, the two temperatures of a Claude hand are now two samples of the same setting. If that axis should mean something for them, it needs another lever (effort, or a second dare).
+3. **Refusals.** Anthropic can re-run a refused request on another of its models (a beta, `fallbacks`). It isn't switched on: a refused variant is one failed variant among twelve, and a quiet change of model would blur which hand made what.
+4. **OpenRouter credit.** Still needed: the Scout, the Printer and the superstars run on other providers, and it is the Claude models' fallback.

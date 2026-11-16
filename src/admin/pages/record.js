@@ -53,7 +53,7 @@ function transcriptBody(t, msg) {
   const res = t.response ?? {};
   const choice = res.choices?.[0] ?? {};
   return `<div class="top"><div><a class="crumb" href="/floor?type=cost.*">← costs</a><h1>A call from ${esc(t.role)}</h1>
-  <div class="small muted">${esc(t.startedAt)} · ${esc(res.model ?? req.model)} · t${esc(req.temperature)} · ${esc(res.usage?.prompt_tokens)} in, ${esc(res.usage?.completion_tokens)} out${typeof res.usage?.cost === 'number' ? ` · ${usd(res.usage.cost)}` : ''}${choice.finish_reason ? ` · ${esc(choice.finish_reason)}` : ''}</div></div>
+  <div class="small muted">${esc(t.startedAt)} · ${esc(res.model ?? req.model)} · ${t.via === 'anthropic' ? 'straight to Anthropic' : `t${esc(req.temperature)}`} · ${esc(res.usage?.prompt_tokens)} in, ${esc(res.usage?.completion_tokens)} out${typeof res.usage?.cost === 'number' ? ` · ${usd(res.usage.cost)}` : ''}${choice.finish_reason ? ` · ${esc(choice.finish_reason)}` : ''}</div></div>
   <a class="btn" href="/souls/${esc(t.role)}">Their soul</a></div>
 ${messages(msg)}
 ${(req.messages ?? []).map((m) => `<h2>${esc(m.role)}</h2><pre class="log" style="max-height:48vh">${esc(textOf(m.content))}</pre>`).join('')}

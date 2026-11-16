@@ -68,6 +68,25 @@ test('the status names what is wrong: no key, no credit, failed calls, pause, sc
   assert.match(await texts(), /last backup didn't push: denied/);
 });
 
+test('the status says when Anthropic turned calls down and they went through OpenRouter instead', async () => {
+  const f = await tmpFactory();
+  const status = () => readStatus({ config: config(f), floor: f.floor, env: { OPENROUTER_API_KEY: 'k', ANTHROPIC_API_KEY: 'a' } });
+  const detour = (error) => f.floor.append({ type: 'cost.recorded', actor: 'warhol', payload: { role: 'warhol', group: 'role', usd: 0.01, via: 'openrouter', fallback: { from: 'anthropic', status: 400, error } } });
+  await f.floor.append({ type: 'cost.recorded', actor: 'warhol', payload: { role: 'warhol', group: 'role', usd: 0.01, via: 'anthropic' } });
+  assert.deepEqual((await status()).alerts, [], 'a call that took the direct line is nothing to report');
+
+  await detour('Anthropic request failed: Overloaded');
+  let [alert] = (await status()).alerts;
+  assert.equal(alert.level, 'warn');
+  assert.match(alert.text, /^Anthropic turned down 1 call in the last day, so it went through OpenRouter on its credit\. The last reason: Overloaded$/);
+  assert.equal(alert.label, 'See the calls');
+
+  await detour('Anthropic request failed: Your credit balance is too low to access the Anthropic API.');
+  [alert] = (await status()).alerts;
+  assert.match(alert.text, /turned down 2 calls .* they went through OpenRouter .* credit balance is too low/);
+  assert.deepEqual([alert.label, alert.href], ['Add credits', 'https://platform.claude.com/settings/billing']);
+});
+
 test('the status counts the day: series, thin ones, what is unseen, what comes next', async () => {
   const f = await tmpFactory();
   await seedSeries(f, { produced: ['v01'], failed: ['v02', 'v03', 'v04'] });

@@ -6,6 +6,7 @@ import { createBudget } from './budget.js';
 import { createPricing } from './pricing.js';
 import { loadRoles } from './roles.js';
 import { createLlm, OPENROUTER_BASE_URL } from './llm.js';
+import { createAnthropicTransport } from './anthropic.js';
 
 /**
  * @param {{env?: Record<string, string|undefined>, fetch?: typeof globalThis.fetch, dryRun?: boolean, llm?: object, overlay?: boolean}} [opts]
@@ -24,8 +25,11 @@ export async function createFactory({ env = process.env, fetch = globalThis.fetc
   let llmP;
   const llm = () =>
     (llmP ??= roles().then((r) =>
-      createLlm({ config, floor, roles: r, budget, pricing, apiKey: env.OPENROUTER_API_KEY, baseUrl, fetch, dryRun, ...llmOpts }),
+      createLlm({ config, floor, roles: r, budget, pricing, apiKey: env.OPENROUTER_API_KEY, baseUrl, anthropicKey: env.ANTHROPIC_API_KEY, anthropicBaseUrl: env.ANTHROPIC_BASE_URL || undefined, fetch, dryRun, ...llmOpts }),
     ));
 
-  return { config, floor, budget, pricing, roles, llm };
+  /** Asks Anthropic whether it knows a Claude model, for the audit. null without a key. */
+  const direct = env.ANTHROPIC_API_KEY ? createAnthropicTransport({ apiKey: env.ANTHROPIC_API_KEY, baseUrl: env.ANTHROPIC_BASE_URL || undefined, fetch }).hasModel : null;
+
+  return { config, floor, budget, pricing, roles, llm, direct };
 }

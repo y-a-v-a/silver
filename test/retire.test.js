@@ -51,7 +51,7 @@ test('silver subjects --retire, and the R marker in listings', async () => {
   const { root, floor, post } = await setup();
   const s = await post('A subject to retire');
   await post('A subject to keep');
-  const env = { ...process.env, SILVER_ROOT: root, OPENROUTER_API_KEY: '' };
+  const env = { ...process.env, SILVER_ROOT: root, OPENROUTER_API_KEY: '', ANTHROPIC_API_KEY: '' };
   const run = (...args) => exec(process.execPath, [CLI, ...args], { env });
 
   const r = await run('subjects', '--retire', s.id.slice(-8), '--reason', 'before the rule');

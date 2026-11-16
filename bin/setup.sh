@@ -19,7 +19,7 @@ npx playwright install chromium
 
 if [[ ! -f .env ]]; then
   cp .env.example .env
-  echo "==> created .env from .env.example; fill in OPENROUTER_API_KEY and VERCEL_TOKEN"
+  echo "==> created .env from .env.example; fill in OPENROUTER_API_KEY and VERCEL_TOKEN (ANTHROPIC_API_KEY is optional)"
 else
   echo "==> .env already exists, leaving it alone"
 fi
