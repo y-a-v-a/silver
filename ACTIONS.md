@@ -63,6 +63,7 @@ The build plan for the Silver Factory in Node.js, derived from [ARCHITECTURE.md]
 | The admin | **`silver admin`, on this machine, no login** (2026-11-04, the owner's brief). It replaces the bare review page. It binds to 127.0.0.1 and refuses other hosts and origins; sketches are served in a sandbox. See Phase 10. |
 | What the browser may edit | **Souls, direction, taste, settings; not secrets, the record, paths or code** (2026-11-04). Settings go in `studio.json`, over the commented `silver.config.js`. Every edit is on the floor; everything overwritten is kept in `archive/revisions/`. |
 | Soul files | **`roles/*.md` are the souls** (2026-11-04): the owner asked for "soul.md files", and the role files are what that means here. They stay plain markdown, editable in either place, and neither side can overwrite the other unseen. |
+| Retracting a work | **A `work.retracted` event; the number stays empty** (2026-11-16, the owner: "add a feature to retract published works"; option (c) of the No. 017 question). The work leaves the gallery and the feed, its address says only that it was retracted, and Fred Hughes never reuses the number. Nothing is deleted, and `work.reinstated` puts it back under its own number. See Phase 5c. |
 | Picking up changes | **Fresh processes, plus a supervisor for the server itself** (2026-11-04). All work runs as new `silver` processes, so souls, settings and code count from the next one. The supervisor restarts the admin on a code save, after checking that it parses and that the config loads. |
 
 ## Stack
@@ -209,13 +210,15 @@ Event types, extending the draft list in ARCHITECTURE.md:
 | `shortlist.proposed` | Warhol agent | picks with notes, reject note |
 | `review.decision` | **human** | variant id, approved\|vetoed, note (this also appends to `taste.md`) |
 | `work.published` | printer | canon id, edition, URL, render hash |
+| `work.retracted` | **human** | `canonId`, `edition` (null before it has one), `title`, `subjectTitle`, `variant`, `reason`. Takes the work off the gallery and out of the feed; the number is never reused (Phase 5c). |
+| `work.reinstated` | **human** | `canonId`, `edition`, `title`, `subjectTitle`, `variant`, `replaces` (the retraction). The latest of the two counts. |
 | `edition.released` | Fred Hughes | work id, channel (`site`, `rss`), edition number |
 | `cost.recorded` | llm client | model, tokens, USD, ref |
 | `llm.failed` | llm client | role, model, error, attempts, reason (`empty`, `invalid-json`) |
 | `diary.written` | archivist | `shift`, `path`, words, how many events it covers (`since` the previous entry) |
 | `shift.archived` | archivist | `manifest` path, events, artifacts checked, `missing` artifacts, diary result |
 | `record.pushed` | archivist | the private record's commit, whether it was pushed, and the error if not (retried next shift) |
-| `site.deployed` | fred-hughes | url, number of works, provider (Phase 5) |
+| `site.deployed` | fred-hughes | url, number of works, provider (Phase 5); since Phase 5c also `retracted` and `through`, the newest canon event the build saw, so a change that lands during a deploy is deployed next time |
 | `subject.retired` | **human** | `subjectId`, reason. Hides the subject from `latest`, `subjects --open` and the shift; the subject itself stays on the floor (Phase 3b). |
 | `subject.pinned` | **human** | `subjectId`, `pinned`. The latest per subject counts; a pinned subject from any day goes first in the next shift (Phase 10). |
 | `studio.changed` | **human** | `what` (`role`, `settings`, `direction`, `taste`), `target`, `summary`, `path` to the revision it replaced, `changes` with from and to for settings (Phase 10). |
@@ -387,6 +390,21 @@ Also added in Phase 3:
 - [x] **Backlog:** by 2026-09-25 only two real series were unshortlisted (Dunkin' `…STFC1P` and sushi `…YHKTYA`; the NGV series already had one). Both are now shortlisted, after your decisions on them, so Warhol's notes are for the record. Signatures of works already printed are unchanged.
 - [x] **Go live** (2026-11-05): https://silver-factory.vercel.app. The steps were: fill in `VERCEL_TOKEN` in `.env`, run `silver publish --redeploy` and set `deploy.siteUrl` to the URL it prints (then `--redeploy` once more for absolute feed/OG links). `silver publish` now deploys whenever the canon changed since the last deploy, corrections included.
 - [ ] Later: the print check on the review page, before the veto.
+
+## Phase 5c: retracting a work ✅ (2026-11-16)
+
+The owner's brief: "add a feature to retract published works". It answers the open No. 017 question with option (c): a way to withdraw an edition from the site, keeping its number as a gap in the record.
+
+- [x] **`work.retracted` / `work.reinstated`** (actor `human`; `src/agents/retract.js`). The latest per work counts. Retracting twice, or putting back what isn't retracted, is refused, so the reason on record is the one that counted. A reason is optional, at most 1,000 characters, and never reaches the gallery or the feed. It does go where the floor goes: the admin, the diary (whose notes go to the Archivist's model on OpenRouter) and the private record's GitHub remote. A retraction is not a veto and doesn't touch `taste.md`, because the reason may have nothing to do with the picture.
+- [x] **The canon** (`buildCanon`) keeps a retracted work with `retracted: {at, reason, eventId}`: same signature, same number, same files. `onTheWall(work)` is the one test for "released and not retracted".
+- [x] **The gallery** (`src/site.js`) leaves it off the wall, the filters, the prev/next links, the About page's count and the feed. Its address keeps a page with only the number and the date, with `noindex`: no title, picture, label or reason, since any of them may be why it was retracted. The sketch and poster are no longer in `site/`. The feed carries an RFC 6721 `at:deleted-entry` tombstone, and its `updated` moves, so readers that keep entries can drop it. Put back, the entry returns with `updated` at that moment.
+- [x] **Numbers are never reused.** Fred Hughes counts on from the highest number ever given, skips a print retracted before it was numbered, and checks again after his call (a retraction can land while he writes; one that lands in the instant between that check and his append leaves the work numbered and retracted, which is safe). Retracted titles stay "taken", marked as retracted, so putting a work back never puts two of one title on the wall. A retracted work's label can't be corrected (nobody can see it): put it back first.
+- [x] **Deploying.** A retraction or reinstatement of a numbered work is a canon change, so the next publish deploys; one of a work that never had a number isn't, since it was never on the gallery. Found on the way: a change that lands while a publish is between building and deploying used to count as deployed, because it was older than that deploy's `site.deployed` on the floor. `site.deployed` now records `canonEvents`, how many canon events its build saw (`galleryEventCount`); a larger count later means the gallery is stale. A count rather than the newest id, because two processes' ids can reach the floor out of order, and the count only grows (deploys from before fall back to their place on the floor). The same race could hit a `retitle`.
+- [x] **`silver retract <No.|canon-id> [--reason] [--undo] [--list] [--no-publish] [--json]`**, then the usual publish (not for a work that never had a number). When another publish holds the lock, it waits for it and publishes after it (`publishWhenFree`), since that publish may have built the site before the change; if it gives up, it says the change is recorded and only the gallery is behind. `retitle` shares this (`src/commands/republish.js`), and so does `silver publish`, which is what the admin's background job runs: a retraction from the admin while a publish runs in a terminal is deployed after it, instead of the job failing.
+- [x] **The admin.** Canon has *Retract it* on every card (two-step button, a reason), a *Retracted* section with the reason and *Put it back on the wall*, and the prints waiting for a label as cards of their own (before, their heading sat above the editions). The decision goes on the floor at once and a publish job follows in the print lane, as after an approval; a print with no number needs no publish. The series page marks a retracted work. A veto of a variant that is already printed says it stays up and where to retract it. The rail and Today count the editions on the wall.
+- [x] **The record.** The diary notes say who retracted what and why, the day's manifest lists `retractions`, and the floor reads "No. 017 retracted: … (reason)" and links to the card.
+- [x] **An independent review** of the diff found nothing severe, and eight smaller things, all fixed above: the admin's publish job failing on a lock held from a terminal, the deploy mark by id, a retitle of a retracted work, needless publishes for unnumbered works, a reused title on reinstatement, the instant between Fred Hughes's check and his append, a few misleading messages, and the reason being called "local".
+- [x] **Tests** (`test/retract.test.js`, the admin and CLI tests): all pass, browser tests included. The race test fails on the old deploy check. Also fixed: the CLI tests inherited this checkout's real `VERCEL_TOKEN` from `.env`, which made one fail since the gallery went live (and could have deployed from a test); they now run with it empty. On a copy of the real record, the new build of the gallery is byte for byte the deployed one, and retracting No. 017 there, from the CLI and by clicking in the admin, did what is described above.
 
 ## Phase 6: Superstars ✅
 
@@ -570,6 +588,7 @@ The open questions from Phase 5 and the day shift were answered on 2026-09-25. T
 1. **The Vercel token.** `.env` has `VERCEL_TOKEN=` with no value, so nothing is live yet. Fill it in and run `silver publish --redeploy`. **Done 2026-11-05.**
 2. **No. 017 carries the same invented number in the artwork itself.** "One Million Free Coffees (Dunkin)" prints "1,000,000 FREE COFFEES" in the sketch, from the same pre-rule Scout note. A retitle only fixes the label.
    - *Options:* (a) leave it, since the label can say what the image claims; (b) retitle the label only; (c) a way to withdraw an edition from the site (a `work.withdrawn` event), keeping its number as a gap in the record.
+   - **(c) is built** (2026-11-16, Phase 5c, as `work.retracted`). Whether No. 017 comes down is still yours: `npx silver retract 17 --reason "…"`, or *Retract it* on its card in the admin.
 
 ## Decisions taken on 2026-09-25 (Phases 6 and 7)
 
@@ -603,11 +622,11 @@ v1 is built (Phases 0–8). What is left, in order:
 **Yours:**
 - [x] **Go live on Vercel** (2026-11-05): https://silver-factory.vercel.app.
 - [ ] **Write your taste:** a few lines at the top of `taste.md` on what you like and don't. Warhol reads them before every shortlist; until then he has only your approve/veto log.
-- [ ] **Decide on No. 017** (see the open questions from Phase 5b): (a) leave it, (b) correct the label only, (c) a way to withdraw an edition from the site while its number stays in the record.
+- [ ] **Decide on No. 017** (see the open questions from Phase 5b): (a) leave it, (b) correct the label only, (c) a way to withdraw an edition from the site while its number stays in the record. *(c) is built (Phase 5c); retracting No. 017 is yours.*
 
 **To build next (v1 remainder):**
 - [ ] **The print check on the review page, before the veto** (Phase 5b, "later"). Run it when a series is shortlisted and show the verdict on the contact sheet, so a concern can be vetoed before printing. About an hour.
-- [ ] **No. 017's option**, once decided.
+- [x] **No. 017's option**: retraction, built 2026-11-16 (Phase 5c).
 
 **Then v2**, from "Later (not v1)", roughly by how much it changes the output:
 1. **Image-model techniques** (photo-silkscreen) alongside p5: the biggest visual jump, closest to Warhol's screen prints. *Recommended first.*
@@ -655,3 +674,10 @@ Phase 10 is on `night-shift/wilder` (local, not pushed), which is also what the 
 3. **The backlog.** 82 series were waiting on 2026-11-04, and no decision has been made since 2026-09-26. Review now has "Clear the backlog" by date; 2026-10-23 is the day the pop-art studio ended.
 4. **Superstars and the new note.** The personas' files aren't touched: the human's standing note reaches them in the user message next to the house rules, not in the soul.
 
+## Where things stand (2026-11-16, after retraction)
+
+Phase 5c is on `main`. All tests pass, browser tests included.
+
+**Open questions**
+1. **No. 017.** The way to take it down exists now; nothing real was retracted. `npx silver retract 17 --reason "…"` (or *Retract it* on Canon) takes it off the live gallery on the publish that follows.
+2. **Older Vercel deployments.** A retracted work is gone from the production site, but each older deployment (`silver-factory-<hash>-….vercel.app`) still serves the site as it was. They sit behind Vercel's deployment protection; if a work must be gone from those too, delete the old deployments in Vercel. Automating that (`vercel remove`) is possible, but it deletes things on Vercel, so it wasn't done without asking.

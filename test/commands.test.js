@@ -33,7 +33,8 @@ async function tmpRoot() {
 }
 
 async function silver(root, args, env = {}) {
-  const fullEnv = { ...process.env, SILVER_ROOT: root, OPENROUTER_BASE_URL: baseUrl, OPENROUTER_API_KEY: 'test-key', ...env };
+  // VERCEL_TOKEN empty: never the real one from this checkout's .env.
+  const fullEnv = { ...process.env, SILVER_ROOT: root, OPENROUTER_BASE_URL: baseUrl, OPENROUTER_API_KEY: 'test-key', VERCEL_TOKEN: '', ...env };
   try {
     const { stdout, stderr } = await exec(process.execPath, [CLI, ...args], { env: fullEnv });
     return { code: 0, stdout, stderr };
@@ -181,4 +182,76 @@ test('commission --now annotates, then produces and renders a series right away'
   } finally {
     mock.state.reply = defaultReply;
   }
+});
+
+test('retract: off the gallery with a reason, --list, --undo, and refusals that exit 1', async () => {
+  const root = await tmpRoot();
+  const { createFloor } = await import('../src/floor.js');
+  const floor = createFloor({ dir: join(root, 'floor') });
+  const canonId = 'soup-v01-abcdef';
+  await mkdir(join(root, 'canon', 'works', canonId), { recursive: true });
+  await writeFile(join(root, 'canon', 'works', canonId, 'sketch.html'), '<html>soup</html>');
+  await writeFile(join(root, 'canon', 'works', canonId, 'poster.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+  const w = await floor.append({ type: 'work.published', actor: 'printer', payload: { canonId, seriesId: 'S', variant: 'v01', technique: 'halftone', subjectTitle: 'soup', sketch: `canon/works/${canonId}/sketch.html`, poster: `canon/works/${canonId}/poster.png`, later: null, signature: 'f'.repeat(64) } });
+  await floor.append({ type: 'edition.released', actor: 'fred-hughes', ref: w.id, payload: { canonId, edition: 1, title: 'Soup', wallText: 'A can.', channel: 'site' } });
+
+  let r = await silver(root, ['retract', '1', '--reason', 'Wrong.']);
+  assert.equal(r.code, 0, r.stderr);
+  assert.match(r.stdout, /^No\. 001 retracted: "Soup"\. It comes off the gallery and out of the feed; No\. 001 stays empty\.$/m);
+  assert.match(r.stdout, /site rebuilt in .*site \(not deployed: VERCEL_TOKEN is not set\)/);
+  assert.match(await readFile(join(root, 'site', 'works', canonId, 'index.html'), 'utf8'), /Retracted\./);
+  assert.deepEqual(await readdir(join(root, 'site', 'works', canonId)), ['index.html']);
+
+  r = await silver(root, ['retract', 'No. 001']);
+  assert.equal(r.code, 1);
+  assert.match(r.stderr, /silver: No\. 001 was already retracted on \d{4}-\d{2}-\d{2}/);
+  r = await silver(root, ['retract', '--list']);
+  assert.match(r.stdout, /^No\. 001 +\d{4}-\d{2}-\d{2} {2}Soup {2}\(Wrong\.\)$/m);
+  assert.equal(JSON.parse((await silver(root, ['retract', '--list', '--json'])).stdout)[0].retracted.reason, 'Wrong.');
+
+  assert.match((await silver(root, ['retract', '1', '--undo', '--reason', 'x'])).stderr, /--reason goes with a retraction/);
+  r = await silver(root, ['retract', '001', '--undo', '--no-publish']);
+  assert.equal(r.code, 0, r.stderr);
+  assert.equal(r.stdout, 'No. 001 is back on the wall: "Soup"\n', 'no publish: nothing more said');
+  assert.match((await silver(root, ['retract', '--list'])).stderr, /nothing is retracted/);
+
+  r = await silver(root, ['retract', '1', '--json']);
+  assert.equal(r.code, 0, r.stderr);
+  assert.equal(JSON.parse(r.stdout).type, 'work.retracted', 'only the event on stdout; the publish talks on stderr');
+  assert.match(r.stderr, /not deployed: VERCEL_TOKEN is not set/);
+
+  for (const [args, message] of [[['retract', '9'], /there is no edition No\. 009/], [['retract'], /which work\?/], [['retract', 'nope'], /no work "nope"/]]) {
+    r = await silver(root, args);
+    assert.equal(r.code, 1, args.join(' '));
+    assert.match(r.stderr, message);
+  }
+  const kinds = (await floor.read({ shift: 'all', type: ['work.retracted', 'work.reinstated'] })).map((e) => e.type);
+  assert.deepEqual(kinds, ['work.retracted', 'work.reinstated', 'work.retracted']);
+});
+
+test('publish waits for a publish that holds the lock, then publishes after it (the admin job runs this)', async () => {
+  const root = await tmpRoot();
+  await mkdir(join(root, 'canon'), { recursive: true });
+  const lock = join(root, 'canon', '.publish.lock');
+  await writeFile(lock, String(process.pid)); // a live process holds it
+  const running = silver(root, ['publish', '--no-deploy']);
+  await new Promise((r) => setTimeout(r, 700));
+  const { rm } = await import('node:fs/promises');
+  await rm(lock);
+  const r = await running;
+  assert.equal(r.code, 0, r.stderr);
+  assert.match(r.stderr, new RegExp(`waiting for the publish that is running \\(pid ${process.pid}\\) to finish`));
+  assert.match(r.stdout, /site: 0 works in/);
+});
+
+test('retracting a print that never had a number publishes nothing: it was never on the gallery', async () => {
+  const root = await tmpRoot();
+  const { createFloor } = await import('../src/floor.js');
+  const floor = createFloor({ dir: join(root, 'floor') });
+  await floor.append({ type: 'work.published', actor: 'printer', payload: { canonId: 'soup-v02-abcdef', seriesId: 'S', variant: 'v02', technique: 'halftone', subjectTitle: 'soup', sketch: 'x', poster: 'y', later: null, signature: 'f'.repeat(64) } });
+  const r = await silver(root, ['retract', 'soup-v02-abcdef']);
+  assert.equal(r.code, 0, r.stderr);
+  assert.equal(r.stdout, "soup-v02-abcdef retracted before it had a number (soup, v02): Fred Hughes won't label it.\n");
+  await assert.rejects(readdir(join(root, 'site')), 'no site was built');
+  assert.match((await silver(root, ['floor', '--type', 'work.*'])).stdout, /soup-v02-abcdef retracted/);
 });

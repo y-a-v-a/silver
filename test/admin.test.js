@@ -549,6 +549,71 @@ test('a label correction goes through a job: your words as they are, or Fred Hug
   await settle();
 });
 
+test('a work can be retracted from the canon and put back; the gallery follows in the background', async () => {
+  // No. 001 (can-v01-x) is from the test above. Another work is printed and waits for its label.
+  const loose = { canonId: 'can-v02-x', seriesId: seeded.seriesId, variant: 'v02', technique: 'grid-repeat', sketch: 'canon/works/can2/sketch.html', poster: 'canon/works/can2/poster.png', later: null, signature: 'def', subjectTitle: 'campbell soup' };
+  await floor.append({ type: 'work.published', actor: 'printer', ref: seeded.seriesId, payload: loose });
+  let html = (await page('/canon')).html;
+  assert.match(html, /1 edition on the wall\./);
+  assert.match(html, /Printed, waiting for a label \(1\)/);
+  assert.match(html, /<h2>On the wall<\/h2>/, 'the waiting ones are not mixed in with the editions');
+  assert.match(html, /action="\/canon\/can-v01-x\/retract"/);
+  assert.match(html, /action="\/canon\/can-v02-x\/retract"/);
+  assert.match(html, /data-confirm="Take it off the wall\?">Retract<\/button>/);
+
+  const before = approvals.length;
+  const res = await post('/canon/can-v01-x/retract', { reason: 'An invented number.' });
+  assert.equal(res.status, 303);
+  assert.match(told(res), /No\. 001 retracted\. Taking it off the gallery in the background\./);
+  assert.match(res.headers.get('location'), /^\/canon\?done=[^#]+#no-1$/);
+  assert.equal(approvals.length, before + 1, 'a publish was asked for');
+  const [ev] = (await floor.read({ type: 'work.retracted' })).slice(-1);
+  assert.deepEqual([ev.actor, ev.payload.canonId, ev.payload.edition, ev.payload.reason], ['human', 'can-v01-x', 1, 'An invented number.']);
+
+  html = (await page('/canon')).html;
+  assert.match(html, /0 editions on the wall, 1 retracted\./);
+  assert.match(html, /<h2 id="retracted">Retracted \(1\)<\/h2>/);
+  assert.match(html, /<article class="card retracted" id="no-1">/);
+  assert.match(html, /You: An invented number\./);
+  assert.match(html, /action="\/canon\/can-v01-x\/reinstate"/);
+  assert.match(html, /data-confirm="Back up as No\. 001\?">Put it back on the wall<\/button>/);
+  assert.doesNotMatch(html, /action="\/canon\/1\/retitle"/, 'a retracted work has no label form');
+  assert.match(html, /<article class="card retracted" id="no-1"><span id="w-can-v01-x"><\/span>/, 'and answers to its canon id too');
+  const jobsBefore = (await jobs.list()).length;
+  assert.match(told(await post('/canon/1/retitle', { title: 'Soup (Again)', wall: 'A can.' })), /No\. 001 is retracted: put it back on the wall first/);
+  assert.equal((await jobs.list()).length, jobsBefore, 'no job for it');
+  assert.match((await page(`/series/${seeded.seriesId}`)).html, /<span class="badge ed">No\. 001 · retracted<\/span>/);
+  assert.match((await page('/floor?type=work.*')).html, /<a href="\/canon#w-can-v01-x">No\. 001 retracted: Soup \(An invented number\.\)<\/a>/);
+
+  assert.match(told(await post('/canon/can-v01-x/retract', {})), /error=No\. 001 was already retracted on/);
+  assert.equal((await post('/canon/nothing-v01-x/retract', {})).status, 404);
+  assert.equal((await post('/canon/nothing-v01-x/reinstate', {})).status, 404);
+  assert.equal((await post('/canon/can-v01-x/reinstate', {}, { Origin: 'http://evil.example' })).status, 403, 'not from another site');
+
+  // One with no number yet: retracted without a publish, since it was never on the gallery.
+  const quiet = approvals.length;
+  assert.match(told(await post('/canon/can-v02-x/retract', {})), /Retracted before it had a number: Fred Hughes won't label it\./);
+  assert.equal(approvals.length, quiet);
+  html = (await page('/canon')).html;
+  assert.doesNotMatch(html, /Printed, waiting for a label/);
+  assert.match(html, /<article class="card retracted" id="w-can-v02-x">/);
+
+  // Both back.
+  assert.match(told(await post('/canon/can-v01-x/reinstate', {})), /No\. 001 is back on the wall: publishing in the background\./);
+  assert.match(told(await post('/canon/can-v02-x/reinstate', {})), /Put back\. Fred Hughes numbers and labels it on the next publish, which is queued\./);
+  assert.equal(approvals.length, quiet + 2);
+  assert.match(told(await post('/canon/can-v01-x/reinstate', {})), /error=No\. 001 isn't retracted: it's on the wall/);
+  html = (await page('/canon')).html;
+  assert.match(html, /1 edition on the wall\./);
+  assert.doesNotMatch(html, /Retracted \(/);
+});
+
+test('vetoing a variant that is already printed says it stays up, and where to take it down', async () => {
+  const res = await post(`/series/${seeded.seriesId}/decide`, { variant: 'v01', verdict: 'vetoed', note: 'On second thought.' });
+  assert.match(told(res), /v01 vetoed\. It was already printed as No\. 001, so it stays in the canon: retract it on the Canon page to take it down\./);
+  assert.doesNotMatch(told(await post(`/series/${seeded.seriesId}/decide`, { variant: 'v03', verdict: 'vetoed' })), /already printed/);
+});
+
 test('the diary reads as a page, with whatever a model wrote escaped', async () => {
   await mkdir(join(config.paths.archive, 'diary'), { recursive: true });
   await writeFile(join(config.paths.archive, 'diary', '2026-01-02.md'), '# Friday\n\n**Gee**, it was <script>big</script>.\n\n- one\n- two');

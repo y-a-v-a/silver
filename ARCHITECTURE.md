@@ -78,7 +78,7 @@ sequenceDiagram
 1. **The floor is a shared, noisy bus.** Every agent can read everyone else's output, including drafts, persona chatter, and failures. Cross-contamination did most of the Factory's creative work, so it is preserved deliberately rather than routing tasks point to point.
 2. **Seriality over single works.** The unit of production is a series, not a piece. Misregistration is a feature: run the same brief through different models or settings and keep the drift.
 3. **Record everything.** Nothing is deleted. Transcripts and the reject pile feed back in as subjects, in the spirit of *a: A Novel*.
-4. **One narrow gate.** Only the Warhol role writes to the canon. Everything upstream is cheap and disposable.
+4. **One narrow gate.** Only the Warhol role writes to the canon. Everything upstream is cheap and disposable. The gate has a way back for the human alone: a retraction takes a signed work off the wall, and leaves its number empty and the work on the record (added 2026-11-16).
 5. **Source from mass media, not imagination.** The ready-made subject is the point. Scouts find; they do not invent.
 6. **Blurry roles.** Any agent may occasionally step outside its role (a superstar proposes a subject, an assistant argues with Warhol). Role boundaries are defaults, not walls.
 7. **Warhol's method, not Warhol's look.** The Factory borrows how Warhol worked (delegation, series, cheap machines, one gate) and never how his work looked. Pop-art pastiche is the one thing it doesn't make. Today's cheap image machines (the inkjet, the fax, the codec, the plotter, machine vision) and the hand that scratches and rubs out are its silkscreen, and the superstars' lines, taken literally, are its briefs. (Added 2026-10-23; see ACTIONS.md, Phase 9.)
@@ -96,6 +96,7 @@ sequenceDiagram
 | `variant.produced` | Studio assistants | series id, artifact path, model, params |
 | `review.decision` | Warhol | series/variant id, selected or rejected, note |
 | `work.published` | Printer | canon id, URL, render hash |
+| `work.retracted` / `work.reinstated` | **human** | canon id, edition, reason: the work leaves the gallery (or returns); its number is never reused |
 | `edition.released` | Fred Hughes | work id, channel, edition number |
 | `studio.changed` | **human** | what the human changed in the admin (a soul, a setting, the direction, their taste), with what it was |
 | `subject.pinned` | **human** | a subject moved to the front of the queue, or the pin taken back |

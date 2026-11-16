@@ -256,6 +256,20 @@ export const COMMANDS = [
     load: () => import('./retitle.js'),
   },
   {
+    name: 'retract',
+    args: '[work]',
+    description: 'take a signed work off the gallery and out of the feed (edition number, or canon id before it has one); its number stays empty',
+    phase: 5,
+    options: [
+      ['--reason <text>', 'why: kept on the floor and in the diary, never shown on the gallery'],
+      ['--undo', 'put a retracted work back on the wall, under its own number'],
+      ['--list', 'list the retracted works'],
+      ['--no-publish', 'don\'t rebuild and redeploy the gallery afterwards'],
+      ['--json', 'print the event (or, with --list, the works) as JSON'],
+    ],
+    load: () => import('./retract.js'),
+  },
+  {
     name: 'diary',
     args: '[date]',
     description: 'read the Archivist\'s diary entry for a day (default: today)',

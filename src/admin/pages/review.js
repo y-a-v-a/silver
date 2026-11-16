@@ -112,7 +112,7 @@ export function seriesBody(s, msg = {}, { works = new Map(), running = null } = 
       pick?.offTechnique && '<span class="badge off">off technique</span>',
       v.pullOf && `<span class="badge pull">second pull of ${esc(v.pullOf)}</span>`,
       decision && `<span class="badge ${decision.verdict === 'approved' ? 'ok' : 'bad'}">${esc(decision.verdict)}</span>`,
-      work && `<span class="badge ed">${work.edition ? `No. ${pad3(work.edition)}` : 'printed'}</span>`,
+      work && `<span class="badge ed">${work.edition ? `No. ${pad3(work.edition)}` : 'printed'}${work.retracted ? ' · retracted' : ''}</span>`,
     ].filter(Boolean).join('');
     const live = v.html ? fileUrl(v.html) : null;
     return `<article class="${cls}" id="${esc(v.variant)}"${live ? ` data-sketch="${esc(live)}"` : ''}>
@@ -229,7 +229,10 @@ export function routes(app) {
     const { event, duplicate } = await recordDecision({ config: c.config, floor: c.floor }, view, { variant: form.get('variant'), verdict: form.get('verdict'), note: form.get('note') ?? '' });
     const printing = !duplicate && event.payload.verdict === 'approved' && app.onApproved;
     if (printing) await app.onApproved();
-    const said = `${event.payload.variant} ${event.payload.verdict}${duplicate ? ' (already recorded)' : ''}.${printing ? ' Printing and publishing in the background.' : ''}`;
+    // A veto stops a print that hasn't happened; it never takes down one that has.
+    const work = event.payload.verdict === 'vetoed' ? (await readCanon(c.floor)).find((w) => w.seriesId === view.seriesId && w.variant === event.payload.variant && !w.retracted) : null;
+    const signed = work ? ` It was already printed${work.edition !== null ? ` as No. ${pad3(work.edition)}` : ''}, so it stays in the canon: retract it on the Canon page to take it down.` : '';
+    const said = `${event.payload.variant} ${event.payload.verdict}${duplicate ? ' (already recorded)' : ''}.${printing ? ' Printing and publishing in the background.' : ''}${signed}`;
     return c.redirect(`${back}?done=${encodeURIComponent(said)}#${encodeURIComponent(event.payload.variant)}`);
   });
 

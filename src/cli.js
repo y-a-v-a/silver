@@ -29,6 +29,7 @@ const EXPECTED_ERRORS = new Set([
   'DeployError',
   'PublishBusy',
   'RetitleError',
+  'RetractError',
   'RecordError',
   'DiaryError',
   'SettingsError',

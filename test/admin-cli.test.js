@@ -32,7 +32,9 @@ async function tmpRoot() {
   await cp(ROLES, join(root, 'roles'), { recursive: true });
   return root;
 }
-const envFor = (root) => ({ ...process.env, SILVER_ROOT: root, OPENROUTER_BASE_URL: mock.baseUrl, OPENROUTER_API_KEY: 'test-key' });
+// VERCEL_TOKEN empty: the CLI loads this checkout's real .env, and an empty value wins over it,
+// so no test ever deploys with the real token (or fails because one is there).
+const envFor = (root) => ({ ...process.env, SILVER_ROOT: root, OPENROUTER_BASE_URL: mock.baseUrl, OPENROUTER_API_KEY: 'test-key', VERCEL_TOKEN: '' });
 
 async function silver(root, ...args) {
   try {

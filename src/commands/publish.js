@@ -1,6 +1,6 @@
 // `silver publish`: print approved variants, release editions, rebuild and deploy the gallery.
 import { createFactory } from '../factory.js';
-import { publish } from '../publish.js';
+import { publishWhenFree } from '../publish.js';
 import { deployVercel } from '../deploy.js';
 
 export default async function publishCommand(_args, opts, ctx) {
@@ -8,7 +8,10 @@ export default async function publishCommand(_args, opts, ctx) {
   const { config, floor } = factory;
   const canDeploy = opts.deploy && Boolean(process.env.VERCEL_TOKEN);
   const limit = opts.limit === undefined ? undefined : Number(opts.limit);
-  const result = await publish(
+  // Another publish holding the lock (a retitle or retract in a terminal, say) may have built the
+  // gallery before whatever this one was started for, such as a retraction from the admin: wait
+  // for it, then publish after it, rather than give up.
+  const result = await publishWhenFree(
     {
       config,
       floor,
@@ -17,6 +20,7 @@ export default async function publishCommand(_args, opts, ctx) {
       deploy: canDeploy ? (deps) => deployVercel(deps) : null,
     },
     { limit, redeploy: Boolean(opts.redeploy) },
+    { onWait: (err) => ctx.stderr.write(`waiting for the publish that is running (pid ${err.pid}) to finish, then publishing after it…\n`) },
   );
   // A job's status comes from the exit code: "done" must not cover a stale gallery or a work
   // left without its label.

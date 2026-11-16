@@ -27,6 +27,12 @@ export function summarizeEvent(e, width = 90) {
       return truncate(p.title ?? p.url ?? JSON.stringify(p), width);
     case 'chatter.posted':
       return truncate(p.text ?? JSON.stringify(p), width);
+    case 'work.retracted':
+    case 'work.reinstated': {
+      const name = p.edition !== null && p.edition !== undefined ? `No. ${String(p.edition).padStart(3, '0')}` : p.canonId;
+      const verb = e.type === 'work.retracted' ? 'retracted' : name === p.canonId ? 'put back, waiting for its number' : 'back on the wall';
+      return truncate(`${name} ${verb}${p.title ? `: ${p.title}` : ''}${p.reason ? ` (${p.reason})` : ''}`, width);
+    }
     default:
       return truncate(Object.keys(p).length ? JSON.stringify(p) : '', width);
   }

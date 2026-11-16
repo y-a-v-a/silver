@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { action, ago, esc, fileUrl, greaseMark, messages, outLink, percent, usd } from '../ui.js';
 import { floorLine } from '../server.js';
 import { readStatus } from '../status.js';
+import { onTheWall } from '../../canon.js';
 
 function stat(key, value, sub = '', href = null) {
   const inner = `<div class="k">${esc(key)}</div><div class="v">${value}</div>${sub ? `<div class="s">${sub}</div>` : ''}`;
@@ -92,7 +93,7 @@ ${alertsHtml(st.alerts)}
   ${credits}
   ${stat('Waiting for you', String(st.pending.length), st.pending.length ? 'series' : 'nothing', '/review')}
   ${stat('Next in line', String(st.next.length), 'subjects', '/subjects')}
-  ${stat('Canon', String(st.canon.filter((w) => w.edition !== null).length), 'editions', '/canon')}
+  ${stat('Canon', String(st.canon.filter(onTheWall).length), 'on the wall', '/canon')}
 </div>
 <div class="cols">
   <div>

@@ -4,7 +4,7 @@
 import { join } from 'node:path';
 import { printApproved } from './agents/printer.js';
 import { releaseEditions } from './agents/hughes.js';
-import { approvalsToPrint } from './canon.js';
+import { approvalsToPrint, CANON_EVENTS, galleryEventCount } from './canon.js';
 import { listSeries } from './agents/series-data.js';
 import { buildSite } from './site.js';
 import { withLock } from './lib/lock.js';
@@ -13,6 +13,7 @@ export class PublishBusy extends Error {
   constructor(pid) {
     super(`another publish is running (pid ${pid})`);
     this.name = 'PublishBusy';
+    this.pid = pid;
   }
 }
 
@@ -59,7 +60,11 @@ export async function publish({ config, floor, llm, createRenderer, deploy }, { 
     if (deploy && (redeploy || (await canonChangedSinceDeploy(floor)))) {
       try {
         const { url } = await deploy({ config });
-        result.deployed = await floor.append({ type: 'site.deployed', actor: 'fred-hughes', payload: { url, works: result.site.works, provider: config.deploy.provider } });
+        result.deployed = await floor.append({
+          type: 'site.deployed',
+          actor: 'fred-hughes',
+          payload: { url, works: result.site.works, retracted: result.site.retracted, canonEvents: result.site.canonEvents, provider: config.deploy.provider },
+        });
       } catch (err) {
         result.deployError = err.message;
       }
@@ -68,11 +73,43 @@ export async function publish({ config, floor, llm, createRenderer, deploy }, { 
   });
 }
 
-/** True when a work or edition (including a correction) reached the floor after the last deploy. */
-async function canonChangedSinceDeploy(floor) {
+/**
+ * True when the canon changed after what the last deploy built: a new work, an edition, a
+ * correction, a retraction or a reinstatement. A deploy records how many canon events its build
+ * saw (`canonEvents`, see galleryEventCount), so one that reached the floor while that site was
+ * being built still counts as new. Deploys from before that count existed fall back to their
+ * own position on the floor.
+ */
+export async function canonChangedSinceDeploy(floor) {
   const last = (await floor.read({ shift: 'all', type: 'site.deployed' })).at(-1);
   if (!last) return true;
-  return (await floor.read({ shift: 'all', type: ['work.published', 'edition.released'] })).some((e) => e.id > last.id);
+  const events = await floor.read({ shift: 'all', type: [...CANON_EVENTS] });
+  if (typeof last.payload.canonEvents === 'number') return galleryEventCount(events) > last.payload.canonEvents;
+  return events.some((e) => e.id > last.id);
+}
+
+/**
+ * Publish, and if another publish holds the lock, wait for it to finish and publish after it.
+ * For a change the human has just made that must reach the site (a correction, a retraction):
+ * the publish already running may have built the gallery before the change, so it isn't enough.
+ * Gives up with PublishBusy after `waitMs`.
+ * @param {Parameters<typeof publish>[0]} deps
+ * @param {Parameters<typeof publish>[1]} [opts]
+ * @param {{waitMs?: number, pollMs?: number, onWait?: (err: PublishBusy) => void, sleep?: (ms: number) => Promise<void>}} [wait]
+ */
+export async function publishWhenFree(deps, opts = {}, { waitMs = 15 * 60_000, pollMs = 2000, onWait = () => {}, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) } = {}) {
+  const until = Date.now() + waitMs;
+  let told = false;
+  for (;;) {
+    try {
+      return await publish(deps, opts);
+    } catch (err) {
+      if (err.name !== 'PublishBusy' || Date.now() >= until) throw err;
+      if (!told) onWait(err);
+      told = true;
+      await sleep(pollMs);
+    }
+  }
 }
 
 /**

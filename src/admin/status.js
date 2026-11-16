@@ -102,7 +102,7 @@ export async function readStatus({ config, floor, env = {}, schedule = null, cre
   const todaySeries = series.filter((s) => s.started.shift === today && !s.started.payload.dryRun);
   const next = (await nextInLine(floor, config.shift.seriesPerShift, { now })).subjects;
   const slotsUsed = todaySeries.filter((s) => !s.started.payload.byHand).length;
-  const printable = canon.filter((w) => w.edition === null);
+  const printable = canon.filter((w) => w.edition === null && !w.retracted);
 
   const dayAgo = now.getTime() - 24 * HOUR;
   const failures = recentLines.filter((e) => e.type === 'llm.failed' && Date.parse(e.ts) >= dayAgo);

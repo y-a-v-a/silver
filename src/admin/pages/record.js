@@ -1,10 +1,12 @@
 // The record, to read: the floor as it happens, the canon, the diary, every job and every
 // model call. The floor and the canon are append-only, and nothing here edits them; a
-// correction to a label goes through Fred Hughes and is a new event, like everything else.
+// correction to a label goes through Fred Hughes and is a new event, like everything else, and
+// so is a retraction: the work leaves the gallery and stays in the record.
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { approvalsToPrint, posterOf, readCanon } from '../../canon.js';
+import { approvalsToPrint, onTheWall, posterOf, readCanon, workName } from '../../canon.js';
 import { listSeries } from '../../agents/series-data.js';
+import { MAX_REASON, reinstateWork, retractWork } from '../../agents/retract.js';
 import { JOB_KINDS } from '../jobs.js';
 import { AdminError, floorLine } from '../server.js';
 import { action, ago, esc, greaseMark, messages, outLink, pad3, usd } from '../ui.js';
@@ -20,7 +22,7 @@ const GROUPS = [
   ['shortlist.*', 'Warhol'],
   ['review.*', 'Your decisions'],
   ['studio.*', 'Your changes'],
-  ['work.*', 'The Printer'],
+  ['work.*', 'Works: printed, retracted'],
   ['edition.*', 'Editions'],
   ['llm.failed', 'Failed calls'],
   ['shift.*', 'Shifts'],
@@ -36,7 +38,7 @@ export function floorBody({ events, shifts, shift, type, actor, today, msg }) {
 ${messages(msg)}
 <ul class="events"${live ? ' data-live-floor' : ''}>${events.map((e) => {
     const l = floorLine(e);
-    const link = e.type === 'cost.recorded' ? `/transcripts/${e.id}` : e.type === 'series.started' ? `/series/${e.id}` : e.payload?.seriesId ? `/series/${e.payload.seriesId}` : e.type === 'subject.posted' ? `/subjects/${e.id}` : null;
+    const link = e.type === 'cost.recorded' ? `/transcripts/${e.id}` : e.type === 'series.started' ? `/series/${e.id}` : ['work.retracted', 'work.reinstated'].includes(e.type) ? `/canon#w-${e.payload.canonId}` : e.payload?.seriesId ? `/series/${e.payload.seriesId}` : e.type === 'subject.posted' ? `/subjects/${e.id}` : null;
     return `<li class="${esc(l.cls)}"><span class="t">${esc(l.time)}</span><span class="ty">${esc(l.type)}</span><span class="wrap">${esc(l.actor)} · ${link ? `<a href="${esc(link)}">${esc(l.summary || 'open')}</a>` : esc(l.summary)}</span></li>`;
   }).join('') || '<li class="muted">Nothing here.</li>'}</ul>
 ${events.length >= 400 ? '<p class="small muted" style="margin-top:8px">The newest 400.</p>' : ''}`;
@@ -60,20 +62,44 @@ ${(req.messages ?? []).map((m) => `<h2>${esc(m.role)}</h2><pre class="log" style
 
 // ---------- the canon ----------
 
+/** Where a work's card is on the Canon page. Numbered cards also answer to `w-<canon id>` (see idMark). */
+export const canonAnchor = (w) => (w.edition !== null ? `no-${w.edition}` : `w-${w.canonId}`);
+/** On a numbered card: the canon id as an anchor too, so a link made before the work had its number still finds it. */
+const idMark = (w) => (w.edition !== null ? `<span id="w-${esc(w.canonId)}"></span>` : '');
+
+const retractForm = (w) => `<details class="sendback"><summary>Retract it</summary>
+    <form method="post" action="/canon/${esc(w.canonId)}/retract">
+      <p class="small muted" style="margin:4px 0 6px">${w.edition !== null ? `It leaves the gallery and the feed. No. ${pad3(w.edition)} stays empty, nothing is deleted, and you can put it back.` : 'Fred Hughes won\'t number or label it. Nothing is deleted, and you can put it back.'}</p>
+      <div class="field"><label>Why (on the floor and in the diary, never on the gallery)<textarea name="reason" rows="2" maxlength="${MAX_REASON}"></textarea></label></div>
+      <div class="buttons"><button class="veto" data-confirm="${w.edition !== null ? 'Take it off the wall?' : 'Retract it?'}">Retract</button></div>
+    </form></details>`;
+
 export function canonBody({ works, waiting, msg, canDeploy, deployed }) {
-  const released = works.filter((w) => w.edition !== null).reverse();
-  const unreleased = works.filter((w) => w.edition === null);
+  const released = works.filter(onTheWall).reverse();
+  const unreleased = works.filter((w) => w.edition === null && !w.retracted);
+  const retracted = works.filter((w) => w.retracted).sort((a, b) => b.retracted.at.localeCompare(a.retracted.at));
   const posterUrl = (w) => `/canon-files/${posterOf(w).split('/').slice(1).map(encodeURIComponent).join('/')}`;
-  return `<div class="top"><div><h1>The canon</h1><p class="lede">${released.length} signed editions. The numbers and signatures never change; a label can be corrected, and the old one stays on the floor.</p></div>
+  const frame = (w, alt) => `<div class="frame" style="cursor:default"><img src="${esc(posterUrl(w))}" alt="${esc(alt)}" loading="lazy">${w.printCheck?.verdict === 'concern' && !w.retracted ? greaseMark('pick') : ''}</div>`;
+  const sections = unreleased.length || retracted.length;
+  return `<div class="top"><div><h1>The canon</h1><p class="lede">${released.length} edition${released.length === 1 ? '' : 's'} on the wall${retracted.length ? `, ${retracted.length} retracted` : ''}. The numbers and signatures never change. A label can be corrected, and a work can be retracted: it leaves the gallery, its number stays empty, and the record keeps it all.</p></div>
   <div class="row">${action('/jobs/start', waiting.length ? `Print ${waiting.length} waiting` : 'Publish', { fields: { kind: 'publish' }, cls: waiting.length ? 'primary' : '' })}${canDeploy ? action('/jobs/start', 'Redeploy the gallery', { fields: { kind: 'publish', redeploy: '1' } }) : ''}<a class="btn" href="/gallery/">The gallery</a></div></div>
 ${messages(msg)}
 ${canDeploy ? '' : '<p class="alert info" style="margin-bottom:12px"><span>Not deployed: there is no VERCEL_TOKEN in .env, so the gallery is only built locally.</span></p>'}
 ${deployed ? `<p class="small muted">Last deployed ${esc(ago(deployed.ts))}: ${outLink(deployed.payload.url, deployed.payload.url)} (${esc(deployed.payload.works)} works)</p>` : ''}
-${unreleased.length ? `<h2>Printed, waiting for a label (${unreleased.length})</h2><p class="small muted">Fred Hughes numbers and labels them on the next publish.</p>` : ''}
+${unreleased.length ? `<h2>Printed, waiting for a label (${unreleased.length})</h2><p class="small muted">Fred Hughes numbers and labels them on the next publish.</p>
 <div class="sheet" style="margin-top:12px">
-${released.map((w) => `<article class="card" id="no-${esc(w.edition)}">
+${unreleased.map((w) => `<article class="card" id="${esc(canonAnchor(w))}">
+  <div class="rebate"><span>▸ no number yet</span><span>${esc(w.technique)}</span></div>
+  ${frame(w, `${w.subjectTitle ?? ''}, ${w.variant}`)}
+  <div class="meta"><strong>${esc(w.subjectTitle ?? w.canonId)}</strong> · ${esc(w.variant)}</div>
+  ${retractForm(w)}
+</article>`).join('\n')}
+</div>` : ''}
+${sections && released.length ? '<h2>On the wall</h2>' : ''}
+<div class="sheet" style="margin-top:12px">
+${released.map((w) => `<article class="card" id="${esc(canonAnchor(w))}">${idMark(w)}
   <div class="rebate"><span>▸ No. ${pad3(w.edition)}</span><span>${esc(w.technique)}</span></div>
-  <div class="frame" style="cursor:default"><img src="${esc(posterUrl(w))}" alt="${esc(w.title)}" loading="lazy">${w.printCheck?.verdict === 'concern' ? greaseMark('pick') : ''}</div>
+  ${frame(w, w.title)}
   <div class="meta"><strong>${esc(w.title)}</strong>${w.revisedAt ? ' <span class="tag">label revised</span>' : ''}</div>
   <p class="note small dim">${esc(w.wallText)}</p>
   ${w.printCheck?.verdict === 'concern' ? `<p class="note warhol small">Print check: ${esc(w.printCheck.note)}</p>` : ''}
@@ -85,8 +111,19 @@ ${released.map((w) => `<article class="card" id="no-${esc(w.edition)}">
       <div class="field" style="margin-top:8px"><label>Or tell Fred Hughes what's wrong<input type="text" name="note" style="width:100%"></label></div>
       <div class="buttons"><button name="fred" value="1">Let Fred rewrite it</button></div>
     </form></details>
+  ${retractForm(w)}
 </article>`).join('\n')}
-</div>`;
+</div>
+${retracted.length ? `<h2 id="retracted">Retracted (${retracted.length})</h2><p class="small muted">Off the gallery and out of the feed. Their numbers stay empty; the work, its files and its signature stay in the record. Putting one back puts it on the wall under its own number.</p>
+<div class="sheet" style="margin-top:12px">
+${retracted.map((w) => `<article class="card retracted" id="${esc(canonAnchor(w))}">${idMark(w)}
+  <div class="rebate"><span>▸ ${w.edition !== null ? `No. ${pad3(w.edition)}` : 'no number'}</span><span>retracted</span></div>
+  ${frame(w, w.title ?? `${w.subjectTitle ?? ''}, ${w.variant}`)}
+  <div class="meta"><strong>${esc(w.title ?? w.subjectTitle ?? w.canonId)}</strong>${w.title ? '' : ` · ${esc(w.variant)}`} <span class="tag">retracted ${esc(w.retracted.at.slice(0, 10))}</span></div>
+  ${w.retracted.reason ? `<p class="note you small">You: ${esc(w.retracted.reason)}</p>` : ''}
+  <div class="buttons" style="margin-top:8px">${action(`/canon/${w.canonId}/reinstate`, 'Put it back on the wall', { confirm: w.edition !== null ? `Back up as No. ${pad3(w.edition)}?` : 'Put it back?' })}</div>
+</article>`).join('\n')}
+</div>` : ''}`;
 }
 
 // ---------- the diary ----------
@@ -183,6 +220,7 @@ export function routes(app) {
     const form = await c.form(64 * 1024);
     const work = (await readCanon(c.floor)).find((w) => w.edition === edition);
     if (!work) return c.notFound(`no edition ${c.params.edition}`);
+    if (work.retracted) throw new AdminError(`No. ${pad3(edition)} is retracted: put it back on the wall first, then correct its label`);
     if (form.has('fred')) {
       const job = await c.jobs.enqueue('retitle', { edition, note: form.get('note')?.trim() || null });
       return c.redirect(`/jobs/${job.id}`);
@@ -193,6 +231,41 @@ export function routes(app) {
     if (!options.title && !options.wall) throw new AdminError('that label is the same as the one on the wall');
     const job = await c.jobs.enqueue('retitle', options);
     return c.redirect(`/jobs/${job.id}`);
+  });
+
+  // Retract and put back: the decision goes on the floor at once (like an approval), and the
+  // gallery follows in a publish job, queued behind whatever is printing now.
+  const findWork = async (c) => (await readCanon(c.floor)).find((w) => w.canonId === c.params.canonId) ?? null;
+
+  app.post('/canon/:canonId/retract', async (c) => {
+    c.back = '/canon';
+    const form = await c.form();
+    const found = await findWork(c);
+    if (!found) return c.notFound(`no work ${c.params.canonId} in the canon`);
+    await retractWork({ config: c.config, floor: c.floor }, { ref: found.canonId, reason: form.get('reason') });
+    // A work with no number was never on the gallery: there's nothing to take down. Asked of the
+    // canon as it is now, since Fred Hughes may have numbered it a moment ago.
+    const work = (await findWork(c)) ?? found;
+    const publishing = work.edition !== null && app.requestPublish;
+    if (publishing) await app.requestPublish();
+    const done = work.edition === null
+      ? `Retracted before it had a number: Fred Hughes won't label it.`
+      : `${workName(work)} retracted. ${publishing ? 'Taking it off the gallery in the background.' : 'It comes off the gallery on the next publish.'}`;
+    return c.redirect(`/canon#${canonAnchor(work)}`, { done });
+  });
+
+  app.post('/canon/:canonId/reinstate', async (c) => {
+    c.back = '/canon';
+    await c.form();
+    const found = await findWork(c);
+    if (!found) return c.notFound(`no work ${c.params.canonId} in the canon`);
+    const { work } = await reinstateWork({ config: c.config, floor: c.floor }, { ref: found.canonId });
+    const publishing = app.requestPublish;
+    if (publishing) await app.requestPublish();
+    const done = work.edition === null
+      ? `Put back. Fred Hughes numbers and labels it on the next publish${publishing ? ', which is queued' : ''}.`
+      : `${workName(work)} is back on the wall${publishing ? ': publishing in the background' : ' from the next publish'}.`;
+    return c.redirect(`/canon#${canonAnchor(work)}`, { done });
   });
 
   app.get('/diary', async (c) => {

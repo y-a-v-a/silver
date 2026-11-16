@@ -40,14 +40,20 @@ export function describeWork(work, subject) {
     .join('\n');
 }
 
-/** Titles already released for the same subject (or series), as prompt text. */
+/**
+ * Titles released for the same subject (or series), as prompt text. A retracted work's title
+ * stays taken, marked as retracted: it may be put back, and two works with one title shouldn't
+ * end up on the wall side by side.
+ */
 export function takenTitles(canon, work) {
   const same = canon.filter((w) => w.canonId !== work.canonId && w.edition !== null && w.title && ((work.subjectId && w.subjectId === work.subjectId) || w.seriesId === work.seriesId));
-  return same.length ? same.map((w) => `- ${w.title} (No. ${String(w.edition).padStart(3, '0')})`).join('\n') : '(none yet)';
+  return same.length ? same.map((w) => `- ${w.title} (No. ${String(w.edition).padStart(3, '0')}${w.retracted ? ', retracted' : ''})`).join('\n') : '(none yet)';
 }
 
 /**
- * Release every signed work that has no edition yet, in the order they were signed.
+ * Release every signed work that has no edition yet, in the order they were signed. A work
+ * retracted before it was numbered is skipped. Numbers are never reused: a retracted edition
+ * keeps its number, so the next one counts on from the highest ever given.
  * @param {{config: object, floor: object, llm: {call: Function}}} deps
  * @returns {Promise<{released: object[], failed: {canonId: string, error: string}[]}>}
  */
@@ -55,7 +61,7 @@ export async function releaseEditions({ config, floor, llm }) {
   const canon = await readCanon(floor);
   const subjects = new Map((await floor.read({ shift: 'all', type: 'subject.posted' })).map((e) => [e.id, e]));
   let edition = Math.max(0, ...canon.map((w) => w.edition ?? 0));
-  const todo = canon.filter((w) => w.edition === null).sort((a, b) => a.publishedAt.localeCompare(b.publishedAt));
+  const todo = canon.filter((w) => w.edition === null && !w.retracted).sort((a, b) => a.publishedAt.localeCompare(b.publishedAt));
   const released = [];
   const failed = [];
 
@@ -70,6 +76,10 @@ export async function releaseEditions({ config, floor, llm }) {
       const title = clean(res.json?.title, MAX_TITLE);
       const wallText = clean(res.json?.wallText, MAX_WALL_TEXT);
       if (!title || !wallText) throw new Error('reply is missing a title or wall text');
+      // The human may have retracted it while he was writing: then it gets no number. (A retraction
+      // that lands between this check and the append below leaves the work numbered and
+      // retracted: off the gallery, its number empty, like any retracted edition.)
+      if ((await readCanon(floor)).find((w) => w.canonId === work.canonId)?.retracted) continue;
       released.push(
         await floor.append({
           type: 'edition.released',
@@ -109,6 +119,8 @@ export async function retitleEdition({ config, floor, llm }, { edition, title, w
   const canon = await readCanon(floor);
   const work = canon.find((w) => w.edition === edition);
   if (!work) throw new RetitleError(`there is no edition No. ${String(edition).padStart(3, '0')}`);
+  // Nobody can see its label, so a correction would be spent on nothing: put it back first.
+  if (work.retracted) throw new RetitleError(`No. ${String(edition).padStart(3, '0')} is retracted: put it back first (silver retract ${edition} --undo --no-publish), then correct its label`);
   let next = { title: clean(title, MAX_TITLE) ?? work.title, wallText: clean(wallText, MAX_WALL_TEXT) ?? work.wallText };
   let callId = null;
   if (!title && !wallText) {

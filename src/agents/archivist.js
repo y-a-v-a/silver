@@ -65,6 +65,7 @@ export async function buildManifest(config, floor, shift) {
     series,
     decisions: count(events.filter((e) => e.type === 'review.decision'), (e) => e.payload.verdict),
     editions: events.filter((e) => e.type === 'edition.released').map((e) => ({ edition: e.payload.edition, title: e.payload.title, correction: Boolean(e.payload.correction) })),
+    retractions: events.filter((e) => e.type === 'work.retracted' || e.type === 'work.reinstated').map((e) => ({ canonId: e.payload.canonId, edition: e.payload.edition ?? null, retracted: e.type === 'work.retracted', reason: e.payload.reason ?? null })),
     failures: events.filter((e) => e.type === 'llm.failed').length,
     artifacts,
   };
@@ -159,6 +160,20 @@ export function digest(events, { since = null, maxChars = 24_000 } = {}) {
         break;
       case 'edition.released':
         add(`${time} Fred Hughes ${p.correction ? `corrects the label of No. ${p.edition}: now` : `releases No. ${p.edition},`} "${clip(p.title, 90)}".`);
+        break;
+      case 'work.retracted':
+        add(
+          p.edition !== null && p.edition !== undefined
+            ? `${time} the human retracts No. ${p.edition}, "${clip(p.title, 90)}"${p.reason ? ` (${clip(p.reason, 160)})` : ''}: it comes off the wall, and the number stays empty.`
+            : `${time} the human retracts the print of ${p.variant ?? 'a variant'} of "${clip(p.subjectTitle, 90)}" before it is numbered${p.reason ? ` (${clip(p.reason, 160)})` : ''}.`,
+        );
+        break;
+      case 'work.reinstated':
+        add(
+          p.edition !== null && p.edition !== undefined
+            ? `${time} the human puts No. ${p.edition}, "${clip(p.title, 90)}", back on the wall.`
+            : `${time} the human takes back the retraction of ${p.variant ?? 'a variant'} of "${clip(p.subjectTitle, 90)}"; it waits for its number.`,
+        );
         break;
       case 'site.deployed':
         add(`${time} the gallery goes up (${p.works} works).`);

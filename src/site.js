@@ -1,8 +1,10 @@
-// The gallery: a static site built from the canon. Only released editions are shown.
-// site/ is rebuilt from scratch every time, except site/.vercel (the Vercel project link).
+// The gallery: a static site built from the canon. Only released editions are shown, and none
+// the human has retracted: a retracted edition's page says only that it was retracted, and the
+// feed carries a tombstone for it. site/ is rebuilt from scratch every time, except site/.vercel
+// (the Vercel project link), so a retracted work's sketch and poster are gone from it.
 import { copyFile, mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { posterOf, readCanon } from './canon.js';
+import { posterOf, readCanonState } from './canon.js';
 
 export const LICENCE_URL = 'https://creativecommons.org/licenses/by/4.0/';
 export const REPO_URL = 'https://github.com/y-a-v-a/silver';
@@ -71,8 +73,11 @@ const WORK_SCRIPT = `document.addEventListener('keydown', (e) => {
   if (a) location.href = a.href;
 });`;
 
-/** @param {{root?: string}} o  root: the way back to the top of the site, so it works in any directory */
-function page({ title, description, body, image, path, siteUrl, root = './', script = '' }) {
+/**
+ * @param {{root?: string, noindex?: boolean}} o  root: the way back to the top of the site, so it
+ *   works in any directory. noindex: ask search engines to drop the page.
+ */
+function page({ title, description, body, image, path, siteUrl, root = './', script = '', noindex = false }) {
   const abs = (p) => (siteUrl ? new URL(p, siteUrl.endsWith('/') ? siteUrl : `${siteUrl}/`).href : null);
   const og = [
     `<meta property="og:title" content="${esc(title)}">`,
@@ -86,7 +91,7 @@ function page({ title, description, body, image, path, siteUrl, root = './', scr
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#0b0b0a">
-<title>${esc(title)}</title>
+${noindex ? '<meta name="robots" content="noindex">\n' : ''}<title>${esc(title)}</title>
 ${description ? `<meta name="description" content="${esc(description)}">` : ''}
 ${og}
 <link rel="alternate" type="application/atom+xml" title="Silver Factory editions" href="${root}feed.xml">
@@ -152,7 +157,22 @@ function workPage(w, prev, next, siteUrl) {
   return page({ title: `${w.title} · Silver Factory No. ${pad(w.edition)}`, description: w.wallText, body, image: `works/${w.canonId}/poster.png`, path: `works/${w.canonId}/`, siteUrl, root: '../../', script: WORK_SCRIPT });
 }
 
-function aboutPage(works, siteUrl) {
+/**
+ * What stands at a retracted edition's address: its number and the day, nothing of the work
+ * itself (not its title, picture or label, which may be why it was retracted), and a request to
+ * search engines to forget the page. Links to it from the feed or elsewhere don't just break.
+ */
+function retractedPage(w) {
+  const body = `<main class="prose">
+  <p class="mono" style="color:var(--edge);margin:0 0 10px">No. ${pad(w.edition)}</p>
+  <h1>Retracted.</h1>
+  <p>This edition was taken off the wall on ${esc(w.retracted.at.slice(0, 10))}. Its number stays with it: no other work is given No. ${pad(w.edition)}.</p>
+  <p><a href="../../">Back to the wall</a></p>
+</main>`;
+  return page({ title: `No. ${pad(w.edition)}, retracted · Silver Factory`, body, path: null, siteUrl: null, root: '../../', noindex: true });
+}
+
+function aboutPage(works, siteUrl, retracted = 0) {
   const procedures = new Set(works.map((w) => w.technique)).size;
   const body = `<main class="prose">
   <h1>A factory that doesn't look like its namesake.</h1>
@@ -169,23 +189,35 @@ function aboutPage(works, siteUrl) {
   <h2>What's on the wall</h2>
   <p>${works.length} edition${works.length === 1 ? '' : 's'}${procedures ? ` in ${procedures} procedure${procedures === 1 ? '' : 's'}` : ''}. Each is a small program that draws itself again on every visit, so no two looks are quite the same. The early ones are from before the studio dropped the pop-art menu in October 2026; the record stays as it is.</p>
   <h2>Everything is recorded</h2>
-  <p>Drafts, chatter, rejects and every model call are kept, and the reject pile feeds back in as raw material. The code is <a href="${REPO_URL}">on GitHub</a>.</p>
+  <p>Drafts, chatter, rejects and every model call are kept, and the reject pile feeds back in as raw material. The code is <a href="${REPO_URL}">on GitHub</a>.</p>${retracted ? `\n  <p>${retracted === 1 ? 'One edition has' : `${retracted} editions have`} been retracted: taken back off the wall by the person who signed ${retracted === 1 ? 'it' : 'them'}. ${retracted === 1 ? 'Its number stays' : 'Their numbers stay'} empty, and the record keeps ${retracted === 1 ? 'it' : 'them'}.</p>` : ''}
 </main>`;
   return page({ title: "How it's made · Silver Factory", description: 'A studio of software agents, one person with a veto, and no pop art.', body, path: 'about/', siteUrl, root: '../' });
 }
 
 const notFound = () => page({ title: 'Not here · Silver Factory', body: '<main class="prose"><h1>Not on the wall.</h1><p><a href="/">Back to the wall</a></p></main>', path: '404.html', siteUrl: null, root: '/' });
 
-/** Atom feed of the editions, newest first. Ids are tag: URIs, stable whatever the domain. */
-export function atomFeed(works, siteUrl) {
+const entryId = (w) => `tag:silver-factory,2026:${w.canonId}`;
+const latest = (...times) => times.filter(Boolean).reduce((max, t) => (t > max ? t : max), '1970-01-01T00:00:00Z');
+
+/**
+ * Atom feed of the editions, newest first. Ids are tag: URIs, stable whatever the domain. A
+ * retracted edition leaves the feed with a tombstone (RFC 6721), so a reader that keeps entries
+ * can drop it too.
+ * @param {object[]} works      editions on the wall
+ * @param {string|null} siteUrl
+ * @param {object[]} [retracted]  retracted editions
+ */
+export function atomFeed(works, siteUrl, retracted = []) {
   const base = siteUrl ? (siteUrl.endsWith('/') ? siteUrl : `${siteUrl}/`) : '/';
   const link = (p) => (siteUrl ? new URL(p, base).href : p);
-  const touched = (w) => w.revisedAt ?? w.releasedAt;
-  const updated = works.reduce((max, w) => (touched(w) > max ? touched(w) : max), '1970-01-01T00:00:00Z');
+  // A work put back on the wall counts as changed then, so a reader that dropped it looks again.
+  const touched = (w) => latest(w.releasedAt, w.revisedAt, w.reinstatedAt);
+  const updated = latest(...works.map(touched), ...retracted.map((w) => w.retracted.at));
+  const tombstones = retracted.map((w) => `  <at:deleted-entry ref="${esc(entryId(w))}" when="${esc(w.retracted.at)}"/>`).join('\n');
   const entries = [...works]
     .reverse()
     .map((w) => `  <entry>
-    <id>tag:silver-factory,2026:${esc(w.canonId)}</id>
+    <id>${esc(entryId(w))}</id>
     <title>${esc(`No. ${pad(w.edition)}: ${w.title}`)}</title>
     <link rel="alternate" type="text/html" href="${esc(link(`works/${w.canonId}/`))}"/>
     <published>${esc(w.releasedAt)}</published>
@@ -196,7 +228,7 @@ export function atomFeed(works, siteUrl) {
   </entry>`)
     .join('\n');
   return `<?xml version="1.0" encoding="utf-8"?>
-<feed xmlns="http://www.w3.org/2005/Atom">
+<feed xmlns="http://www.w3.org/2005/Atom"${retracted.length ? ' xmlns:at="http://purl.org/atompub/tombstones/1.0"' : ''}>
   <id>tag:silver-factory,2026:canon</id>
   <title>Silver Factory: editions</title>
   <link rel="alternate" type="text/html" href="${esc(link(''))}"/>
@@ -204,7 +236,7 @@ export function atomFeed(works, siteUrl) {
   <author><name>Silver Factory</name></author>
   <updated>${esc(updated)}</updated>
   <rights>Works: CC BY 4.0 (${LICENCE_URL})</rights>
-${entries}
+${[tombstones, entries].filter(Boolean).join('\n')}
 </feed>
 `;
 }
@@ -218,12 +250,16 @@ async function clean(dir) {
 /**
  * Build site/ from the canon.
  * @param {{config: object, floor: object}} deps
- * @returns {Promise<{dir: string, works: number}>}
+ * @returns {Promise<{dir: string, works: number, retracted: number, canonEvents: number}>}
+ *   works: editions on the wall; canonEvents: what a deploy of this build records (galleryEventCount)
  */
 export async function buildSite({ config, floor }) {
   const dir = config.paths.site;
   const siteUrl = config.deploy.siteUrl ?? null;
-  const works = (await readCanon(floor)).filter((w) => w.edition !== null);
+  const { works: canon, canonEvents } = await readCanonState(floor);
+  const released = canon.filter((w) => w.edition !== null);
+  const works = released.filter((w) => !w.retracted);
+  const retracted = released.filter((w) => w.retracted);
   await clean(dir);
   for (const [i, w] of works.entries()) {
     const out = join(dir, 'works', w.canonId);
@@ -232,11 +268,16 @@ export async function buildSite({ config, floor }) {
     await copyFile(join(config.root, posterOf(w)), join(out, 'poster.png'));
     await writeFile(join(out, 'index.html'), workPage(w, works[i - 1], works[i + 1], siteUrl));
   }
+  for (const w of retracted) {
+    const out = join(dir, 'works', w.canonId);
+    await mkdir(out, { recursive: true });
+    await writeFile(join(out, 'index.html'), retractedPage(w));
+  }
   await writeFile(join(dir, 'index.html'), indexPage(works, siteUrl));
   await mkdir(join(dir, 'about'), { recursive: true });
-  await writeFile(join(dir, 'about', 'index.html'), aboutPage(works, siteUrl));
+  await writeFile(join(dir, 'about', 'index.html'), aboutPage(works, siteUrl, retracted.length));
   await writeFile(join(dir, '404.html'), notFound());
-  await writeFile(join(dir, 'feed.xml'), atomFeed(works, siteUrl));
+  await writeFile(join(dir, 'feed.xml'), atomFeed(works, siteUrl, retracted));
   await writeFile(join(dir, 'vercel.json'), JSON.stringify({ trailingSlash: true, headers: [{ source: '/feed.xml', headers: [{ key: 'Content-Type', value: 'application/atom+xml; charset=utf-8' }] }] }, null, 2) + '\n');
-  return { dir, works: works.length };
+  return { dir, works: works.length, retracted: retracted.length, canonEvents };
 }

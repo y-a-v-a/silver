@@ -15,6 +15,8 @@ export const EVENT_TYPES = Object.freeze([
   'shortlist.proposed',
   'review.decision',
   'work.published',
+  'work.retracted',
+  'work.reinstated',
   'edition.released',
   'site.deployed',
   'cost.recorded',

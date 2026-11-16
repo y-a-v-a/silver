@@ -9,7 +9,7 @@ Each day the Factory runs a **shift**:
 3. **Studio assistants** turn each subject into a *series* of 12 generative p5.js sketches across several models, temperatures and procedures. Each variant also draws a dare card and takes one superstar line literally as its brief. The drift between them is kept on purpose.
 4. **Warhol**, an agent, shortlists from each series, and sends his first pick back to its maker for a **second pull**, pushed further.
 5. **You** approve or veto the shortlist in the local admin. Nothing enters the canon without you.
-6. The **Printer** signs and deploys the approved works to a static gallery on Vercel, and **Fred Hughes** numbers the editions and publishes the feed.
+6. The **Printer** signs and deploys the approved works to a static gallery on Vercel, and **Fred Hughes** numbers the editions and publishes the feed. You can retract a work later: it leaves the gallery, and its number stays empty.
 
 The Factory works the way Warhol's did, but it doesn't look like his: no pop-art pastiche. The procedures come from today's cheap image machines and from the hand (scratched film, a failing inkjet, a fax arriving, compression rot, a Rorschach blot, asemic handwriting), aiming for work that is strange, scratchy and still beautiful.
 
@@ -29,7 +29,7 @@ Everything is recorded, including drafts, chatter and rejects, and the record fe
 - Warhol shortlists each series from its screenshots, and you approve or veto on a local review page. Every decision goes into `taste.md`, which Warhol reads next time. His first pick goes back to the assistant who made it for a second pull (`v13`), which you review next to the first.
 - Four Superstars (Brigid, Ondine, Viva, and Nico, who talks only in images) gossip about the day's subjects on a cheap model. Their chatter goes into the assistants' prompts, Warhol's review and the contact sheet, and now and then one of them pushes a subject onto the floor.
 - `silver shift` runs the whole day (scouts → superstars → series → shortlists → Archivist) and can be scheduled with launchd.
-- Every approval is printed into the canon (signed, print-checked), given an edition number, an English title and wall text by Fred Hughes, and published to a static gallery with an Atom feed, deployed to Vercel.
+- Every approval is printed into the canon (signed, print-checked), given an edition number, an English title and wall text by Fred Hughes, and published to a static gallery with an Atom feed, deployed to Vercel. A work can be retracted (2026-11-16): off the gallery and out of the feed, its number left empty for good, everything kept on the record.
 
 - The Archivist checks every event's artifacts after a shift, writes a manifest and a diary entry (Andy's morning call to Pat Hackett), and commits the record (floor, archive, canon, taste) to its own git repository in `.record/`. The Scout treats the reject pile and the diary as one more source.
 
@@ -54,14 +54,15 @@ The Factory's back room, on this machine only. It needs no login: it binds to `1
 | **Studio** | Steering: a standing direction to the Scout, the superstars, the assistants and Warhol; the shift's pace and budget; the matrix; the hands; the procedures (bench, favour, rewrite, add); the dare deck; the sources. What the record says about each sits next to it. |
 | **Souls** | The role files. Rewrite a soul or its settings, audition a superstar, cast a new one, bench one. It checks as you type, keeps every version it replaces, won't overwrite an edit made in your text editor, and commits the changed souls to git when you ask. |
 | **Taste** | Your words at the top of `taste.md`, your decisions, and what they add up to. |
-| **Floor, Canon, Diary, Gallery** | The record to read: the floor live, the editions and their labels, Andy's diary, the gallery exactly as it would deploy. Any model call can be read in full. |
+| **Floor, Canon, Diary, Gallery** | The record to read: the floor live, the editions and their labels, Andy's diary, the gallery exactly as it would deploy. Any model call can be read in full. On Canon you can correct a label, retract a work, or put a retracted one back. |
 | **Jobs, System** | What's running and its log; keys, schedule, pause, the record, the money, model checks and restart. |
 
-### Approve, veto, close
+### Approve, veto, close, retract
 
-- **Approve is final.** It starts printing at once, then signs the work, adds it to the gallery and deploys the site if deploying is set up. There is no way to withdraw a work yet.
-- **Veto is a "no", not a retract.** It adds the decision and your note to `taste.md`, which Warhol reads before each shortlist, and puts the variant on the reject pile, which the Scout can offer in later shifts. It stops a print only if the work hasn't been printed yet; after that, the work stays in the canon and on the site.
+- **Approve signs it.** It starts printing at once, then signs the work, adds it to the gallery and deploys the site if deploying is set up. The signature and the number are for good; the only way back is to retract it.
+- **Veto is a "no", not a retract.** It adds the decision and your note to `taste.md`, which Warhol reads before each shortlist, and puts the variant on the reject pile, which the Scout can offer in later shifts. It stops a print only if the work hasn't been printed yet; after that, the work stays in the canon and on the site, and the page tells you so.
 - **Close this review** takes a series off the waiting list. Your decisions stay, the variants stay in the archive, and any of them can still be approved from the series page.
+- **Retract** (on Canon, or `silver retract <No.>`) takes a signed work back off the wall. It leaves the gallery, the wall's filters and the prev/next links, and the feed, which carries a tombstone ([RFC 6721](https://www.rfc-editor.org/rfc/rfc6721)) so feed readers can drop it too. Its address keeps a page that says only "No. 017, retracted" and the date: no title, picture or label, and `noindex`, so search engines forget it. **Its number is never given to another work**, so the gap is visible and on the record. Nothing is deleted: the work, its files and its signature stay in the canon and in the private record, and your reason goes on the floor and into the diary (and so to the Archivist's model and the private record), never onto the gallery or the feed. A retraction teaches Warhol nothing (`taste.md` isn't touched); veto the variant too if it's about the picture. **Put it back** returns it to the wall under its own number; to correct a retracted work's label, put it back first. A print that hasn't been numbered yet can be retracted too, and Fred Hughes then never numbers it. The site deploys after a retraction like after any change to the canon. Older Vercel deployments of the site still hold the work at their own `silver-factory-<hash>` addresses (behind Vercel's deployment protection); delete them in Vercel if it must be gone from there too.
 
 To be selective, approve one or two, then close the review. You don't need to veto the rest. Veto where you have something to teach, and any of Warhol's picks you want on the reject pile: an undecided pick doesn't go there.
 
@@ -106,6 +107,7 @@ npx silver publish [--no-deploy] # print approvals, release editions, rebuild si
 npx silver publish --redeploy    # deploy even when the canon hasn't changed
 npm run preview                  # build site/ exactly as it would deploy, and serve it on localhost:3000
 npx silver retitle 16 --note "…" # correct an edition's label (or --title/--wall by hand); same number
+npx silver retract 17 --reason "…"  # take a work off the gallery and out of the feed; its number stays empty (--undo puts it back, --list shows them)
 npx silver cost --reconcile      # the ledger against what OpenRouter actually billed
 npx silver subjects --retire <id> --reason "..."   # take a subject off the table
 ```
@@ -194,11 +196,11 @@ src/budget.js      daily ledger and caps
 src/pricing.js     model prices and capabilities from OpenRouter
 src/factory.js     wires the parts together for commands
 src/sources/       scout sources: Google Trends, Hacker News, Reddit, RSS, and the archive (rejects, diary)
-src/agents/        scouts, commissions, superstars, studio assistants, technician, Warhol, the second pull, review, retire, printer, Fred Hughes, archivist
+src/agents/        scouts, commissions, superstars, studio assistants, technician, Warhol, the second pull, review, retire, printer, Fred Hughes, retract, archivist
 src/shift.js       the daily shift
 src/schedule.js    the launchd job
 src/reconcile.js   ledger vs OpenRouter billing
-src/canon.js       the canon (signed works), derived from the floor
+src/canon.js       the canon (signed works, and which are retracted), derived from the floor
 src/publish.js     print → editions → site → deploy
 src/site.js        the static gallery and feed
 src/deploy.js      Vercel

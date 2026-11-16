@@ -9,7 +9,7 @@ import { dirname, extname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
 import { listSeries, isPendingReview } from '../agents/series-data.js';
-import { readCanon } from '../canon.js';
+import { onTheWall, readCanon } from '../canon.js';
 import { createBudget } from '../budget.js';
 import { summarizeEvent } from '../lib/format.js';
 import { esc, layout, messages, timeOf } from './ui.js';
@@ -29,7 +29,7 @@ const MAX_FORM = 16 * 1024;
 export const LOCAL_NAME = 'silver.localhost';
 
 /** Errors a person can act on: they go back to the form as a message, not to a stack trace. */
-const EXPECTED = new Set(['ReviewError', 'SoulError', 'SoulConflict', 'JobError', 'RetireError', 'ChatterError', 'SeriesError', 'SeriesNotFound', 'SettingsError', 'CommissionError', 'PullError', 'ConfigError', 'ScheduleError', 'RetitleError', 'AdminError']);
+const EXPECTED = new Set(['ReviewError', 'SoulError', 'SoulConflict', 'JobError', 'RetireError', 'ChatterError', 'SeriesError', 'SeriesNotFound', 'SettingsError', 'CommissionError', 'PullError', 'ConfigError', 'ScheduleError', 'RetitleError', 'RetractError', 'AdminError']);
 
 /** Refused here, whatever a page does: everything but this machine's own pages. */
 const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-src 'self'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'self'";
@@ -51,13 +51,14 @@ export class AdminError extends Error {
  * @property {ReturnType<import('./jobs.js').createJobs>} [jobs]
  * @property {() => Promise<object>} [getConfig]  the config as it is now: re-read per request, so settings count at once
  * @property {() => void|Promise<void>} [onApproved]  called after each new approval (prints and publishes)
+ * @property {() => void|Promise<void>} [requestPublish]  called after a change by hand to the canon (a retraction); default: onApproved
  * @property {{list: () => object[]}} [notices]   things the supervisor wants shown
  * @property {string} [boot]                     this process's id; the browser reloads when it changes
  * @property {object} [extra]                    what the page modules need beyond these: env, pricing, credits, schedule, restart, rawConfig
  */
 
 /** @param {AdminDeps} deps */
-export function createAdminServer({ config: startConfig, floor, jobs = null, getConfig = async () => startConfig, onApproved, notices = { list: () => [] }, boot = randomBytes(6).toString('hex'), extra = {} }) {
+export function createAdminServer({ config: startConfig, floor, jobs = null, getConfig = async () => startConfig, onApproved, requestPublish = onApproved, notices = { list: () => [] }, boot = randomBytes(6).toString('hex'), extra = {} }) {
   const variantsDir = resolve(startConfig.paths.archive, 'variants');
   const siteDir = resolve(startConfig.paths.site);
   const canonDir = resolve(startConfig.paths.canon);
@@ -65,7 +66,7 @@ export function createAdminServer({ config: startConfig, floor, jobs = null, get
   /** @type {{method: string, parts: string[], handler: Function}[]} */
   const table = [];
   const add = (method, pattern, handler) => table.push({ method, parts: pattern.split('/').filter(Boolean), handler });
-  const app = { get: (p, h) => add('GET', p, h), post: (p, h) => add('POST', p, h), onApproved, extra, boot };
+  const app = { get: (p, h) => add('GET', p, h), post: (p, h) => add('POST', p, h), onApproved, requestPublish, extra, boot };
 
   for (const register of [todayRoutes, reviewRoutes, subjectRoutes, studioRoutes, soulRoutes, tasteRoutes, recordRoutes, systemRoutes]) register(app);
 
@@ -102,7 +103,7 @@ export function createAdminServer({ config: startConfig, floor, jobs = null, get
     ]);
     out.counts.review = series.filter(isPendingReview).length;
     out.counts.subjects = waiting;
-    out.counts.canon = canon.filter((w) => w.edition !== null).length;
+    out.counts.canon = canon.filter(onTheWall).length;
     out.counts.jobs = open.length;
     out.spent = ledger.total;
     const running = open.find((j) => j.status === 'running');

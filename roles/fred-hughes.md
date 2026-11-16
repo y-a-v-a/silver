@@ -3,7 +3,7 @@ id: fred-hughes
 name: Fred Hughes
 temperature: 0.6
 output: json
-reads: [work.published]
+reads: [work.published, work.retracted]
 emits: [edition.released]
 max_tokens: 1200
 reasoning: low
